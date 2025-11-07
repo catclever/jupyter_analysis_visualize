@@ -44,6 +44,8 @@ ENV/
 env/
 
 # Reports and Documentation
+claude.md
+designs/
 reports/
 
 # Backend - Runtime
