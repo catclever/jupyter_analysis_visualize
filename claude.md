@@ -13,7 +13,10 @@ All backend test scripts should be placed in the `backend/test/` directory.
 - Generated test artifacts (`.ipynb`, `.parquet`, etc.) should be cleaned up after tests
 
 **Current test files:**
-- `backend/test/test_notebook_manager.py` - Tests for NotebookManager
+- `backend/test/test_notebook_manager.py` - Tests for NotebookManager (✅ Implemented)
+- `backend/test/test_project_manager.py` - Tests for ProjectManager (📋 Planned)
+- `backend/test/test_kernel_manager.py` - Tests for KernelManager (📋 Planned)
+- `backend/test/test_execution_manager.py` - Tests for ExecutionManager (📋 Planned)
 
 **Example:**
 ```bash
@@ -34,9 +37,18 @@ jupyter_analysis_visualize/
 │   └── ...
 ├── backend/                     # Python backend
 │   ├── notebook_manager.py      # Core modules
+│   ├── project_manager.py       # (To be implemented)
 │   ├── kernel_manager.py        # (To be implemented)
 │   ├── execution_manager.py     # (To be implemented)
-│   ├── project_manager.py       # (To be implemented)
+│   ├── node_functions/          # Actual analysis functions (for different projects)
+│   │   ├── __init__.py
+│   │   ├── data_analysis/       # Functions for 'data-analysis' project
+│   │   │   ├── data_nodes.py    # data_source nodes implementation
+│   │   │   ├── compute_nodes.py # compute nodes implementation
+│   │   │   ├── chart_nodes.py   # chart nodes implementation
+│   │   │   └── tool_nodes.py    # tool nodes implementation
+│   │   └── risk_model/          # Functions for 'risk-model' project (example)
+│   │       └── ...
 │   ├── test/                    # Test directory
 │   │   ├── test_notebook_manager.py
 │   │   ├── test_kernel_manager.py        # (To be created)
@@ -95,6 +107,40 @@ The `.gitignore` file includes rules to ignore:
 - Build DAG from dependencies
 - Validate notebook structure
 - (To be integrated with frontend for debugging)
+
+### node_functions/ Directory
+Contains the actual analysis function implementations organized by project:
+- **Purpose**: Store Python functions that are executed by nodes
+- **Organization**: One subdirectory per project (e.g., `data_analysis/`, `risk_model/`)
+- **Contents**: Each project subdirectory has modules for different node types:
+  - `data_nodes.py` - Functions for data_source nodes (loading, importing data)
+  - `compute_nodes.py` - Functions for compute nodes (analysis, transformations)
+  - `chart_nodes.py` - Functions for chart nodes (visualization with Plotly/PyEcharts)
+  - `tool_nodes.py` - Functions for tool nodes (reusable toolkits)
+
+**Example usage in notebook:**
+```python
+# In project.ipynb
+# @node_type: data_source
+# @node_id: data_1
+from node_functions.data_analysis.data_nodes import load_user_data
+data_1 = load_user_data()
+
+# @node_type: compute
+# @node_id: compute_1
+from node_functions.data_analysis.compute_nodes import analyze_features
+compute_1 = analyze_features(data_1, data_2)
+
+# @node_type: chart
+# @node_id: chart_1
+from node_functions.data_analysis.chart_nodes import create_age_chart
+chart_1 = create_age_chart(compute_1)
+
+# @node_type: tool
+# @node_id: tool_preprocessing
+from node_functions.data_analysis.tool_nodes import tool_preprocessing
+# tool_preprocessing is now available in kernel
+```
 
 ## Development Workflow
 
