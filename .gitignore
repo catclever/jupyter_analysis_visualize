@@ -52,7 +52,14 @@ backend/.env.local
 
 # Jupyter
 .ipynb_checkpoints/
+# All ipynb files except those in version control
 *.ipynb
+# But specifically ignore test-generated notebooks
+backend/test/*.ipynb
+backend/test/*.parquet
+backend/test/*.json
+backend/test/temp/
+backend/test/*.pkl
 
 # Editor directories and files
 .vscode/*
