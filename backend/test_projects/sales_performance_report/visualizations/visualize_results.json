@@ -1,0 +1,22 @@
+{
+  "chart_type": "bar",
+  "title": "Sales Performance by Region",
+  "regions": [
+    "North",
+    "South",
+    "East",
+    "West"
+  ],
+  "sales": [
+    800000,
+    850000,
+    920000,
+    980000
+  ],
+  "targets": [
+    750000,
+    900000,
+    840000,
+    960000
+  ]
+}

@@ -6,6 +6,9 @@ Handles incremental operations on .ipynb files:
 - Append cells with proper formatting
 - Parse existing cells
 - Maintain notebook structure
+- Track cell execution status
+- Link markdown descriptions to code nodes
+- Generate result cells from parquet files
 """
 
 import json
@@ -13,6 +16,14 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Literal
 from pathlib import Path
+from enum import Enum
+
+
+class ExecutionStatus(Enum):
+    """Cell execution status enumeration"""
+    NOT_EXECUTED = "not_executed"
+    PENDING_VALIDATION = "pending_validation"
+    VALIDATED = "validated"
 
 
 class NotebookCell:
@@ -27,6 +38,8 @@ class NotebookCell:
         depends_on: Optional[List[str]] = None,
         name: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        execution_status: Optional[str] = None,
+        linked_node_id: Optional[str] = None,
     ):
         """
         Create a notebook cell
@@ -39,6 +52,8 @@ class NotebookCell:
             depends_on: For code cells - list of upstream node_ids
             name: For code cells - human-readable name
             metadata: Additional cell metadata
+            execution_status: For code cells - 'not_executed', 'pending_validation', 'validated'
+            linked_node_id: For markdown cells - ID of associated node
         """
         self.cell_type = cell_type
         self.content = content
@@ -47,6 +62,8 @@ class NotebookCell:
         self.depends_on = depends_on or []
         self.name = name
         self.metadata = metadata or {}
+        self.execution_status = execution_status or ExecutionStatus.NOT_EXECUTED.value
+        self.linked_node_id = linked_node_id
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to Jupyter notebook cell format"""
@@ -58,12 +75,17 @@ class NotebookCell:
             "outputs": []
         }
 
-        # Add node metadata to markdown in cell for parsing
+        # Add node metadata to cell for parsing
         if self.cell_type == "code" and self.node_type:
             cell_dict["metadata"]["node_type"] = self.node_type
             cell_dict["metadata"]["node_id"] = self.node_id
+            cell_dict["metadata"]["execution_status"] = self.execution_status
             if self.depends_on:
                 cell_dict["metadata"]["depends_on"] = self.depends_on
+
+        # Add linked node metadata to markdown cells
+        if self.cell_type == "markdown" and self.linked_node_id:
+            cell_dict["metadata"]["linked_node_id"] = self.linked_node_id
 
         return cell_dict
 
@@ -141,17 +163,22 @@ class NotebookManager:
         with open(self.notebook_path, 'w', encoding='utf-8') as f:
             json.dump(self.notebook, f, indent=1, ensure_ascii=False)
 
-    def append_markdown_cell(self, content: str) -> int:
+    def append_markdown_cell(self, content: str, linked_node_id: Optional[str] = None) -> int:
         """
         Append a markdown cell
 
         Args:
             content: Markdown content
+            linked_node_id: Optional node ID to associate with this markdown cell
 
         Returns:
             Index of the new cell
         """
-        cell = NotebookCell(cell_type='markdown', content=content)
+        cell = NotebookCell(
+            cell_type='markdown',
+            content=content,
+            linked_node_id=linked_node_id
+        )
         return self._append_cell(cell)
 
     def append_code_cell(
@@ -161,7 +188,8 @@ class NotebookManager:
         node_id: Optional[str] = None,
         depends_on: Optional[List[str]] = None,
         name: Optional[str] = None,
-        add_header_comment: bool = True
+        add_header_comment: bool = True,
+        execution_status: Optional[str] = None
     ) -> int:
         """
         Append a code cell with optional node metadata
@@ -173,13 +201,14 @@ class NotebookManager:
             depends_on: List of upstream node IDs this depends on
             name: Human-readable name for this node
             add_header_comment: If True, add metadata comments to code
+            execution_status: 'not_executed', 'pending_validation', 'validated'
 
         Returns:
             Index of the new cell
         """
         # Format code with header comments if it's a node
         if node_type and add_header_comment:
-            code = self._add_node_header_comment(code, node_type, node_id, depends_on, name)
+            code = self._add_node_header_comment(code, node_type, node_id, depends_on, name, execution_status)
 
         cell = NotebookCell(
             cell_type='code',
@@ -187,7 +216,8 @@ class NotebookManager:
             node_type=node_type,
             node_id=node_id,
             depends_on=depends_on,
-            name=name
+            name=name,
+            execution_status=execution_status
         )
         return self._append_cell(cell)
 
@@ -214,7 +244,8 @@ class NotebookManager:
         node_type: str,
         node_id: str,
         depends_on: Optional[List[str]],
-        name: Optional[str]
+        name: Optional[str],
+        execution_status: Optional[str] = None
     ) -> str:
         """
         Add header comments to code for node metadata
@@ -227,6 +258,7 @@ class NotebookManager:
             node_id: Node ID
             depends_on: Upstream dependencies
             name: Node name
+            execution_status: Node execution status
 
         Returns:
             Code with header comments
@@ -234,6 +266,9 @@ class NotebookManager:
         lines = []
         lines.append(f"# @node_type: {node_type}")
         lines.append(f"# @node_id: {node_id}")
+
+        if execution_status:
+            lines.append(f"# @execution_status: {execution_status}")
 
         if depends_on:
             depends_str = ', '.join(depends_on)
@@ -255,7 +290,8 @@ class NotebookManager:
         node_id: Optional[str] = None,
         depends_on: Optional[List[str]] = None,
         name: Optional[str] = None,
-        add_header_comment: bool = True
+        add_header_comment: bool = True,
+        execution_status: Optional[str] = None
     ) -> None:
         """
         Insert a code cell at specific index
@@ -268,12 +304,13 @@ class NotebookManager:
             depends_on: Dependencies (optional)
             name: Node name (optional)
             add_header_comment: Whether to add metadata comments
+            execution_status: Execution status (optional)
         """
         if not self.loaded or self.notebook is None:
             raise RuntimeError("Notebook not loaded")
 
         if node_type and add_header_comment:
-            code = self._add_node_header_comment(code, node_type, node_id, depends_on, name)
+            code = self._add_node_header_comment(code, node_type, node_id, depends_on, name, execution_status)
 
         cell = NotebookCell(
             cell_type='code',
@@ -346,6 +383,195 @@ class NotebookManager:
             cell for cell in self.notebook["cells"]
             if cell["cell_type"] == "code" and cell["metadata"].get("node_id") == node_id
         ]
+
+    def find_markdown_cells_by_linked_node(self, node_id: str) -> List[Dict[str, Any]]:
+        """Find all markdown cells linked to specific node_id"""
+        if not self.loaded or self.notebook is None:
+            return []
+
+        return [
+            cell for cell in self.notebook["cells"]
+            if cell["cell_type"] == "markdown" and cell["metadata"].get("linked_node_id") == node_id
+        ]
+
+    def append_result_cell(
+        self,
+        node_id: str,
+        parquet_path: str,
+        result_format: str = "parquet",
+        description: Optional[str] = None
+    ) -> int:
+        """
+        Append a result cell that displays execution results from file
+
+        The result is stored in a variable with the same name as node_id for clear reference
+
+        Args:
+            node_id: ID of the node this result belongs to
+            parquet_path: Path to the result file (parquet, json, or image)
+            result_format: 'parquet', 'json', 'image', or 'visualization'
+            description: Optional description of the result
+
+        Returns:
+            Index of the new cell
+        """
+        # Generate code to load and display results
+        # Variable name matches node_id for clarity and downstream usage
+        if result_format == "parquet":
+            code = f"""# @node_id: {node_id}
+# @result_format: parquet
+import pandas as pd
+import os
+
+# Load result from parquet
+result_path = r'{parquet_path}'
+if os.path.exists(result_path):
+    {node_id} = pd.read_parquet(result_path)
+    display({node_id})
+else:
+    print(f"Result file not found: {{result_path}}")"""
+        elif result_format == "json":
+            code = f"""# @node_id: {node_id}
+# @result_format: json
+import json
+import os
+
+# Load result from json
+result_path = r'{parquet_path}'
+if os.path.exists(result_path):
+    with open(result_path, 'r') as f:
+        {node_id} = json.load(f)
+    print(json.dumps({node_id}, indent=2))
+else:
+    print(f"Result file not found: {{result_path}}")"""
+        elif result_format == "image":
+            code = f"""# @node_id: {node_id}
+# @result_format: image
+from IPython.display import Image, display
+import os
+
+# Load and display image
+image_path = r'{parquet_path}'
+if os.path.exists(image_path):
+    display(Image(filename=image_path))
+else:
+    print(f"Image file not found: {{image_path}}")"""
+        elif result_format == "visualization":
+            code = f"""# @node_id: {node_id}
+# @result_format: visualization
+import json
+import os
+from IPython.display import Image, display
+
+# Load visualization (both JSON config and image)
+json_path = r'{parquet_path}'
+image_path = r'{parquet_path}'.replace('.json', '.png')
+
+# Display image if available
+if os.path.exists(image_path):
+    display(Image(filename=image_path))
+    print(f"Visualization saved at: {{image_path}}")
+
+# Load JSON config if available
+if os.path.exists(json_path):
+    with open(json_path, 'r') as f:
+        {node_id} = json.load(f)
+    print(f"Visualization config saved at: {{json_path}}")
+else:
+    print(f"Visualization files not found")"""
+        else:
+            code = f"""# @node_id: {node_id}
+# @result_format: {result_format}
+import os
+
+# Load result file
+result_path = r'{parquet_path}'
+if os.path.exists(result_path):
+    print(f"Result file loaded: {{result_path}}")
+else:
+    print(f"Result file not found: {{result_path}}")"""
+
+        # Create result cell with metadata indicating it's a result display cell
+        cell = NotebookCell(
+            cell_type='code',
+            content=code,
+            metadata={
+                "result_cell": True,
+                "node_id": node_id,
+                "parquet_path": parquet_path,
+                "result_format": result_format,
+                "description": description or f"Result display for {node_id}"
+            }
+        )
+        return self._append_cell(cell)
+
+    def update_execution_status(self, node_id: str, status: str) -> bool:
+        """
+        Update execution status for a node cell
+
+        Args:
+            node_id: Node identifier
+            status: 'not_executed', 'pending_validation', 'validated'
+
+        Returns:
+            True if updated, False if node not found
+        """
+        if status not in [ExecutionStatus.NOT_EXECUTED.value,
+                         ExecutionStatus.PENDING_VALIDATION.value,
+                         ExecutionStatus.VALIDATED.value]:
+            raise ValueError(f"Invalid status: {status}")
+
+        for cell in self.notebook["cells"]:
+            if (cell["cell_type"] == "code" and
+                cell["metadata"].get("node_id") == node_id):
+                cell["metadata"]["execution_status"] = status
+                return True
+        return False
+
+    def list_cells_by_status(self, status: str) -> List[Dict[str, Any]]:
+        """
+        Get all cells with specific execution status
+
+        Args:
+            status: 'not_executed', 'pending_validation', 'validated'
+
+        Returns:
+            List of cell dicts
+        """
+        return [
+            cell for cell in self.notebook["cells"]
+            if (cell["cell_type"] == "code" and
+                cell["metadata"].get("execution_status") == status and
+                cell["metadata"].get("node_type"))
+        ]
+
+    def get_node_with_results(self, node_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get node cell and its associated result cells
+
+        Args:
+            node_id: Node identifier
+
+        Returns:
+            Dict with node and result cells, or None if not found
+        """
+        node_cells = self.find_cells_by_node_id(node_id)
+        if not node_cells:
+            return None
+
+        node_cell = node_cells[0]
+        result_cells = [
+            cell for cell in self.notebook["cells"]
+            if (cell["cell_type"] == "code" and
+                cell["metadata"].get("result_cell") and
+                cell["metadata"].get("node_id") == node_id)
+        ]
+
+        return {
+            "node": node_cell,
+            "results": result_cells,
+            "has_results": len(result_cells) > 0
+        }
 
 
 # Example usage (for testing)

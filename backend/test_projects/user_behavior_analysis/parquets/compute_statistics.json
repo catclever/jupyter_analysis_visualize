@@ -1,0 +1,13 @@
+{
+  "total_users": 100,
+  "total_activities": 500,
+  "avg_age": 46.4,
+  "premium_ratio": 0.51,
+  "countries": {
+    "DE": 24,
+    "USA": 22,
+    "UK": 20,
+    "JP": 20,
+    "CN": 14
+  }
+}

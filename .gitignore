@@ -43,6 +43,9 @@ venv/
 ENV/
 env/
 
+# Reports and Documentation
+reports/
+
 # Backend - Runtime
 backend/executions/
 backend/*.pkl

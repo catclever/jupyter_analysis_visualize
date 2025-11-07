@@ -1,0 +1,27 @@
+{
+  "total_sales": 4941841.0,
+  "total_units": 53029.0,
+  "average_deal_size": 54909.34444444445,
+  "regions": {
+    "North": {
+      "sales": 800000,
+      "target": 750000,
+      "achievement": 106.7
+    },
+    "South": {
+      "sales": 850000,
+      "target": 900000,
+      "achievement": 94.4
+    },
+    "East": {
+      "sales": 920000,
+      "target": 840000,
+      "achievement": 109.5
+    },
+    "West": {
+      "sales": 980000,
+      "target": 960000,
+      "achievement": 102.1
+    }
+  }
+}
