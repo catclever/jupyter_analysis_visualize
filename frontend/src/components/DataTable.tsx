@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -26,6 +26,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { getNodeData, getNodeCode, getNodeMarkdown, type PaginatedData } from "@/services/api";
 
 interface DataRow {
   [key: string]: string | number;
@@ -3251,10 +3252,79 @@ function renderChart(chartType: string | undefined, data: DataRow[]) {
 export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'data-analysis' }: DataTableProps) {
   const [viewMode, setViewMode] = useState<'table' | 'code'>('table');
   const [showConclusion, setShowConclusion] = useState(false);
+  const [apiData, setApiData] = useState<PaginatedData<any> | null>(null);
+  const [apiCode, setApiCode] = useState<string>('');
+  const [apiMarkdown, setApiMarkdown] = useState<string>('');
+  const [isLoadingApi, setIsLoadingApi] = useState(false);
 
-  const currentData = selectedNodeId && nodeDataMap[selectedNodeId]
-    ? nodeDataMap[selectedNodeId]
-    : defaultData;
+  // 映射前端 dataset ID 到后端项目 ID
+  const projectIdMap: Record<string, string> = {
+    'data-analysis': 'test_user_behavior_analysis',
+    'risk-model': 'test_sales_performance_report',
+  };
+
+  const projectId = projectIdMap[currentDatasetId] || currentDatasetId;
+
+  // 从API加载节点数据
+  useEffect(() => {
+    if (!selectedNodeId) {
+      setApiData(null);
+      setApiCode('');
+      setApiMarkdown('');
+      return;
+    }
+
+    const loadNodeData = async () => {
+      try {
+        setIsLoadingApi(true);
+
+        // 只加载parquet格式的数据
+        const data = await getNodeData(projectId, selectedNodeId, 1, 10);
+        if (data.format === 'parquet') {
+          setApiData(data);
+        }
+
+        // 加载代码
+        try {
+          const codeData = await getNodeCode(projectId, selectedNodeId);
+          setApiCode(codeData.code);
+        } catch (err) {
+          console.log('No code available for node', selectedNodeId);
+          setApiCode('');
+        }
+
+        // 加载markdown总结
+        try {
+          const markdownData = await getNodeMarkdown(projectId, selectedNodeId);
+          setApiMarkdown(markdownData.markdown);
+        } catch (err) {
+          console.log('No markdown available for node', selectedNodeId);
+          setApiMarkdown('');
+        }
+      } catch (err) {
+        console.error('Failed to load node data:', err);
+      } finally {
+        setIsLoadingApi(false);
+      }
+    };
+
+    loadNodeData();
+  }, [selectedNodeId, projectId]);
+
+  // 优先使用API数据，如果没有则回退到硬编码数据
+  const currentData = apiData
+    ? {
+        title: selectedNodeId || 'Data',
+        headers: apiData.columns || [],
+        data: (Array.isArray(apiData.data) ? apiData.data : [apiData.data]) as DataRow[],
+        totalRecords: apiData.total_records,
+        type: 'table' as const,
+        code: apiCode,
+        conclusion: apiMarkdown,
+      }
+    : (selectedNodeId && nodeDataMap[selectedNodeId]
+        ? nodeDataMap[selectedNodeId]
+        : defaultData);
 
   const hasConclusion = !!currentData.conclusion;
 

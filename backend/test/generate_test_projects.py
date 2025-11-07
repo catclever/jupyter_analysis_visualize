@@ -24,8 +24,8 @@ def create_user_behavior_analysis():
     print("Creating Project 1: User Behavior Analysis")
     print("=" * 70)
 
-    projects_root = Path("test_projects")
-    pm = ProjectManager(str(projects_root), "user_behavior_analysis")
+    projects_root = Path("../projects")  # 项目根目录
+    pm = ProjectManager(str(projects_root), "test_user_behavior_analysis")  # test_ 前缀
 
     # Create project
     pm.create(
@@ -198,8 +198,8 @@ def create_sales_performance_project():
     print("Creating Project 2: Sales Performance Report")
     print("=" * 70)
 
-    projects_root = Path("test_projects")
-    pm = ProjectManager(str(projects_root), "sales_performance_report")
+    projects_root = Path("../projects")  # 项目根目录
+    pm = ProjectManager(str(projects_root), "test_sales_performance_report")  # test_ 前缀
 
     # Create project
     pm.create(
@@ -334,15 +334,36 @@ print(json.dumps(metrics, indent=2))""",
     print(f"  ✓ Node 4: calculate_metrics (validated)")
 
     # Node 5: Visualize Results
-    viz_data = {
-        "chart_type": "bar",
-        "title": "Sales Performance by Region",
-        "regions": ["North", "South", "East", "West"],
-        "sales": [800000, 850000, 920000, 980000],
-        "targets": [750000, 900000, 840000, 960000]
-    }
+    # 生成实际的图表图片文件
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')  # 使用非交互式后端
 
-    viz_path = pm.save_node_result("visualize_results", viz_data, result_type="json", is_visualization=True)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    regions = ['North', 'South', 'East', 'West']
+    sales = [800000, 850000, 920000, 980000]
+    targets = [750000, 900000, 840000, 960000]
+
+    x = range(len(regions))
+    width = 0.35
+    ax.bar([i - width/2 for i in x], sales, width, label='Actual Sales', color='#3498db')
+    ax.bar([i + width/2 for i in x], targets, width, label='Target', color='#e74c3c')
+
+    ax.set_ylabel('Amount ($)', fontsize=12)
+    ax.set_title('Sales Performance vs Target by Region', fontsize=14, fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels(regions)
+    ax.legend()
+
+    # 格式化 y 轴为货币
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1e6:.1f}M'))
+
+    plt.tight_layout()
+
+    # 保存图表到 visualizations/ 目录
+    viz_path = pm.visualizations_path / "visualize_results.png"
+    plt.savefig(str(viz_path), dpi=150, bbox_inches='tight')
+    plt.close(fig)
 
     pm.add_node(
         node_id="visualize_results",
@@ -350,7 +371,8 @@ print(json.dumps(metrics, indent=2))""",
         name="Visualize Results",
         depends_on=["calculate_metrics"],
         code="""import matplotlib.pyplot as plt
-import json
+import matplotlib
+matplotlib.use('Agg')
 
 # Create visualization
 fig, ax = plt.subplots(figsize=(10, 6))
@@ -360,31 +382,29 @@ targets = [750000, 900000, 840000, 960000]
 
 x = range(len(regions))
 width = 0.35
-ax.bar([i - width/2 for i in x], sales, width, label='Actual Sales')
-ax.bar([i + width/2 for i in x], targets, width, label='Target')
+ax.bar([i - width/2 for i in x], sales, width, label='Actual Sales', color='#3498db')
+ax.bar([i + width/2 for i in x], targets, width, label='Target', color='#e74c3c')
 
-ax.set_ylabel('Amount ($)')
-ax.set_title('Sales Performance vs Target by Region')
+ax.set_ylabel('Amount ($)', fontsize=12)
+ax.set_title('Sales Performance vs Target by Region', fontsize=14, fontweight='bold')
 ax.set_xticks(x)
 ax.set_xticklabels(regions)
 ax.legend()
 
-plt.tight_layout()
-plt.savefig('sales_chart.png')
+# 格式化 y 轴为货币
+ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x/1e6:.1f}M'))
 
-# Save visualization config
-visualization = {
-    'chart_type': 'bar',
-    'title': 'Sales Performance by Region',
-    'regions': regions,
-    'sales': sales,
-    'targets': targets
-}
-print(json.dumps(visualization, indent=2))""",
-        node_description="Chart node: Visualizes sales performance",
+plt.tight_layout()
+
+# 保存图表为 PNG 文件
+import os
+os.makedirs('visualizations', exist_ok=True)
+plt.savefig('visualizations/visualize_results.png', dpi=150, bbox_inches='tight')
+print("✓ Chart saved to visualizations/visualize_results.png")""",
+        node_description="Chart node: Visualizes sales performance as bar chart",
         execution_status="validated",
-        result_format="visualization",
-        result_path=viz_path
+        result_format="image",
+        result_path=str(viz_path)
     )
 
     print(f"  ✓ Node 5: visualize_results (validated)")
@@ -406,13 +426,13 @@ def main():
     create_sales_performance_project()
 
     # List created projects
-    projects_root = Path("test_projects")
+    projects_root = Path("../projects")
     print("\n" + "=" * 70)
     print("Created Projects Summary")
     print("=" * 70)
 
-    for project_dir in projects_root.iterdir():
-        if project_dir.is_dir():
+    for project_dir in sorted(projects_root.iterdir()):
+        if project_dir.is_dir() and project_dir.name.startswith("test_"):
             project_id = project_dir.name
             pm = ProjectManager(str(projects_root), project_id)
             pm.load()

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   ReactFlow,
   Node,
@@ -14,6 +14,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { nodes as initialNodes, edges as initialEdges } from '@/data';
 import { getDatasetById } from '@/data/datasets';
+import { getProject, type ProjectNode, type ProjectEdge } from '@/services/api';
 
 interface FlowNodeData extends Record<string, unknown> {
   label: string;
@@ -29,14 +30,101 @@ interface FlowDiagramProps {
 }
 
 export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, currentDatasetId = "data-analysis" }: FlowDiagramProps) {
-  // 获取当前数据集的nodes和edges
+  const [apiNodes, setApiNodes] = useState<Node<FlowNodeData>[] | null>(null);
+  const [apiEdges, setApiEdges] = useState<Edge[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 从 API 获取项目数据
+  useEffect(() => {
+    const fetchProjectData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // 映射前端 dataset ID 到后端项目 ID
+        const projectIdMap: Record<string, string> = {
+          'data-analysis': 'test_user_behavior_analysis',
+          'risk-model': 'test_sales_performance_report',
+        };
+
+        const projectId = projectIdMap[currentDatasetId] || currentDatasetId;
+        const project = await getProject(projectId);
+
+        // 转换 API 数据为 ReactFlow 格式，计算节点位置
+        const flowNodes: Node<FlowNodeData>[] = project.nodes.map((node: ProjectNode, index: number) => {
+          // 根据节点类型和索引计算位置
+          let x = 0;
+          let y = 0;
+
+          if (node.type === 'data') {
+            // 数据源节点放在左边
+            x = 0;
+            y = index * 120;
+          } else if (node.type === 'compute') {
+            // 计算节点放在中间
+            const computeIndex = project.nodes.filter((n, i) => i < index && n.type === 'compute').length;
+            x = 300 + ((computeIndex % 3) * 300);
+            y = (computeIndex % 3) * 120;
+          } else if (node.type === 'chart') {
+            // 图表节点放在右边
+            const chartIndex = project.nodes.filter((n, i) => i < index && n.type === 'chart').length;
+            x = 900 + ((chartIndex % 2) * 300);
+            y = (chartIndex % 2) * 200;
+          }
+
+          return {
+            id: node.id,
+            type: 'default',
+            position: { x, y },
+            data: {
+              label: node.label,
+              type: node.type,
+            },
+            className: `flow-node-${node.type}`,
+          };
+        });
+
+        const flowEdges: Edge[] = project.edges.map((edge: ProjectEdge) => ({
+          id: edge.id,
+          source: edge.source,
+          target: edge.target,
+          animated: edge.animated,
+        }));
+
+        setApiNodes(flowNodes);
+        setApiEdges(flowEdges);
+      } catch (err) {
+        console.error('Failed to fetch project data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch project data');
+        // Fallback to hardcoded data on error
+        try {
+          const fallbackData = getDatasetById(currentDatasetId);
+          setApiNodes(fallbackData.nodes);
+          setApiEdges(fallbackData.edges);
+        } catch {
+          setApiNodes(initialNodes);
+          setApiEdges(initialEdges);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProjectData();
+  }, [currentDatasetId]);
+
+  // 获取当前数据集的nodes和edges - 优先使用API数据
   const datasetData = React.useMemo(() => {
+    if (apiNodes !== null && apiEdges !== null) {
+      return { nodes: apiNodes, edges: apiEdges };
+    }
     try {
       return getDatasetById(currentDatasetId);
     } catch {
       return { nodes: initialNodes, edges: initialEdges };
     }
-  }, [currentDatasetId]);
+  }, [currentDatasetId, apiNodes, apiEdges]);
 
   const currentNodes = datasetData.nodes || initialNodes;
   const currentEdges = datasetData.edges || initialEdges;

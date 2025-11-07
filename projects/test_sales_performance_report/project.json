@@ -1,10 +1,10 @@
 {
-  "project_id": "sales_performance_report",
+  "project_id": "test_sales_performance_report",
   "name": "Sales Performance Report",
   "description": "Track and analyze sales performance metrics",
   "version": "1.0.0",
-  "created_at": "2025-11-07T12:55:28.275857",
-  "updated_at": "2025-11-07T12:55:28.281251",
+  "created_at": "2025-11-07T13:17:39.215153",
+  "updated_at": "2025-11-07T13:17:42.004298",
   "nodes": [
     {
       "node_id": "load_sales_data",
@@ -13,7 +13,7 @@
       "depends_on": [],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "test_projects/sales_performance_report/parquets/load_sales_data.parquet"
+      "result_path": "../projects/test_sales_performance_report/parquets/load_sales_data.parquet"
     },
     {
       "node_id": "load_targets",
@@ -22,7 +22,7 @@
       "depends_on": [],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "test_projects/sales_performance_report/parquets/load_targets.parquet"
+      "result_path": "../projects/test_sales_performance_report/parquets/load_targets.parquet"
     },
     {
       "node_id": "process_sales",
@@ -33,7 +33,7 @@
       ],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "test_projects/sales_performance_report/parquets/process_sales.parquet"
+      "result_path": "../projects/test_sales_performance_report/parquets/process_sales.parquet"
     },
     {
       "node_id": "calculate_metrics",
@@ -45,7 +45,7 @@
       ],
       "execution_status": "validated",
       "result_format": "json",
-      "result_path": "test_projects/sales_performance_report/parquets/calculate_metrics.json"
+      "result_path": "../projects/test_sales_performance_report/parquets/calculate_metrics.json"
     },
     {
       "node_id": "visualize_results",
@@ -55,8 +55,8 @@
         "calculate_metrics"
       ],
       "execution_status": "validated",
-      "result_format": "visualization",
-      "result_path": "test_projects/sales_performance_report/visualizations/visualize_results.json"
+      "result_format": "image",
+      "result_path": "../projects/test_sales_performance_report/visualizations/visualize_results.png"
     }
   ],
   "dag": {

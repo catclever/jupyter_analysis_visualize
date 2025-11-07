@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { Search, X, MoreVertical } from "lucide-react";
+import { Search, X, MoreVertical, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { conclusions, type ConclusionItem } from "@/data";
 import { getDatasetById } from "@/data/datasets";
+import { listProjects, type Project } from "@/services/api";
 
 // Use imported conclusions data instead of local constant
 const conclusionsData = conclusions;
@@ -36,8 +37,29 @@ export function DataSourceSidebar({
 }: DataSourceSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedConclusionId, setSelectedConclusionId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const conclusionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+  // 从API加载项目列表
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        setIsLoadingProjects(true);
+        const projectList = await listProjects();
+        setProjects(projectList);
+      } catch (error) {
+        console.error("Failed to load projects:", error);
+        // Fallback to hardcoded projects
+        setProjects([]);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+
+    loadProjects();
+  }, []);
 
   // 动态获取当前数据集的conclusions
   const currentDatasetConclusions = useMemo(() => {
@@ -119,10 +141,20 @@ export function DataSourceSidebar({
               <select
                 value={currentDatasetId}
                 onChange={(e) => onDatasetChange(e.target.value)}
-                className="w-full px-2 py-1.5 text-xs bg-background border border-input rounded-md text-foreground"
+                disabled={isLoadingProjects || projects.length === 0}
+                className="w-full px-2 py-1.5 text-xs bg-background border border-input rounded-md text-foreground disabled:opacity-50"
               >
-                <option value="data-analysis">📊 Data Analysis Dashboard</option>
-                <option value="risk-model">⚠️ Risk Model Feature Stability</option>
+                {projects.length === 0 ? (
+                  <option value="">
+                    {isLoadingProjects ? "加载中..." : "暂无项目"}
+                  </option>
+                ) : (
+                  projects.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
             <DropdownMenu>
