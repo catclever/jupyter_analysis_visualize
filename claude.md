@@ -40,14 +40,13 @@ jupyter_analysis_visualize/
 │   ├── project_manager.py       # (To be implemented)
 │   ├── kernel_manager.py        # (To be implemented)
 │   ├── execution_manager.py     # (To be implemented)
-│   ├── node_functions/          # Actual analysis functions (for different projects)
+│   ├── toolkits/                # Optional: Complex/reusable tool libraries
 │   │   ├── __init__.py
-│   │   ├── data_analysis/       # Functions for 'data-analysis' project
-│   │   │   ├── data_nodes.py    # data_source nodes implementation
-│   │   │   ├── compute_nodes.py # compute nodes implementation
-│   │   │   ├── chart_nodes.py   # chart nodes implementation
-│   │   │   └── tool_nodes.py    # tool nodes implementation
-│   │   └── risk_model/          # Functions for 'risk-model' project (example)
+│   │   ├── data_analysis/       # Toolkit modules for 'data-analysis' project
+│   │   │   ├── feature_engineering.py   # Entry: feature_engineering(df, operation=...)
+│   │   │   ├── preprocessing.py         # Entry: preprocessing(df, operation=...)
+│   │   │   └── __init__.py
+│   │   └── risk_model/          # Toolkit modules for 'risk-model' project (example)
 │   │       └── ...
 │   ├── test/                    # Test directory
 │   │   ├── test_notebook_manager.py
@@ -108,39 +107,101 @@ The `.gitignore` file includes rules to ignore:
 - Validate notebook structure
 - (To be integrated with frontend for debugging)
 
-### node_functions/ Directory
-Contains the actual analysis function implementations organized by project:
-- **Purpose**: Store Python functions that are executed by nodes
+### toolkits/ Directory (Optional Reusable Tool Libraries)
+Contains complex, reusable analysis function libraries organized by project:
+- **Purpose**: Store TOOL NODE implementations as external modules
 - **Organization**: One subdirectory per project (e.g., `data_analysis/`, `risk_model/`)
-- **Contents**: Each project subdirectory has modules for different node types:
-  - `data_nodes.py` - Functions for data_source nodes (loading, importing data)
-  - `compute_nodes.py` - Functions for compute nodes (analysis, transformations)
-  - `chart_nodes.py` - Functions for chart nodes (visualization with Plotly/PyEcharts)
-  - `tool_nodes.py` - Functions for tool nodes (reusable toolkits)
+- **Format**: Each Python file follows the TOOL NODE pattern:
+  - Must include helper functions
+  - Must have ONE entry function with the same name as the module
+  - Entry function acts as the tool's main interface
 
-**Example usage in notebook:**
+**Directory Structure:**
+```
+backend/toolkits/
+├── data_analysis/
+│   ├── feature_engineering.py      # Entry: feature_engineering(df, operation=...)
+│   ├── preprocessing.py             # Entry: preprocessing(df, operation=...)
+│   └── visualization_tools.py       # Entry: visualization_tools(data, operation=...)
+└── risk_model/
+    ├── risk_metrics.py              # Entry: risk_metrics(df, operation=...)
+    └── model_utils.py               # Entry: model_utils(data, operation=...)
+```
+
+**Example toolkit file format:**
+```python
+# backend/toolkits/data_analysis/feature_engineering.py
+
+# Helper functions (private/internal)
+def _polynomial_features(df):
+    """Internal helper"""
+    df_copy = df.copy()
+    df_copy['age_squared'] = df_copy['age'] ** 2
+    return df_copy
+
+def _create_bins(df):
+    """Internal helper"""
+    df_copy = df.copy()
+    df_copy['age_group'] = pd.cut(df_copy['age'], bins=[0, 30, 50, 100])
+    return df_copy
+
+# Entry function (REQUIRED - name must match module name)
+def feature_engineering(df, operation='polynomial_features', **kwargs):
+    """
+    Feature engineering toolkit entry point
+
+    Args:
+        df: Input DataFrame
+        operation: Which operation to perform
+        **kwargs: Additional arguments for the operation
+
+    Returns:
+        Processed DataFrame
+    """
+    if operation == 'polynomial_features':
+        return _polynomial_features(df)
+    elif operation == 'create_bins':
+        return _create_bins(df)
+    else:
+        raise ValueError(f"Unknown operation: {operation}")
+```
+
+**Recommended approach: HYBRID**
+
+**Simple functions** → Write directly in notebook (most common):
 ```python
 # In project.ipynb
 # @node_type: data_source
 # @node_id: data_1
-from node_functions.data_analysis.data_nodes import load_user_data
+def load_user_data():
+    return pd.read_csv('data.csv')
+
 data_1 = load_user_data()
 
 # @node_type: compute
 # @node_id: compute_1
-from node_functions.data_analysis.compute_nodes import analyze_features
-compute_1 = analyze_features(data_1, data_2)
+def analyze_features(df):
+    return df.groupby('age').mean()
 
-# @node_type: chart
-# @node_id: chart_1
-from node_functions.data_analysis.chart_nodes import create_age_chart
-chart_1 = create_age_chart(compute_1)
-
-# @node_type: tool
-# @node_id: tool_preprocessing
-from node_functions.data_analysis.tool_nodes import tool_preprocessing
-# tool_preprocessing is now available in kernel
+compute_1 = analyze_features(data_1)
 ```
+
+**Complex/reusable tools** → External toolkit modules:
+```python
+# In project.ipynb - Tool node that uses external toolkit
+# @node_type: tool
+# @node_id: tool_feature_eng
+from toolkits.data_analysis.feature_engineering import feature_engineering
+
+# feature_engineering is now available in kernel
+# Can call: feature_engineering(df, operation='polynomial_features')
+```
+
+**Philosophy:**
+- Notebook contains all DATA + COMPUTE + CHART node logic (direct implementation)
+- TOOL nodes can import from toolkits/ for complex, reusable operations
+- Keep notebook focused and readable
+- Most projects won't need toolkits/ at all (functions defined directly in notebook)
 
 ## Development Workflow
 
