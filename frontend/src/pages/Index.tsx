@@ -6,6 +6,7 @@ import { AnalysisSidebar } from "@/components/AnalysisSidebar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useProjectCache } from "@/hooks/useProjectCache";
 
 const Index = () => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -13,6 +14,9 @@ const Index = () => {
   const [minimapOpen, setMinimapOpen] = useState(false); // 默认关闭 minimap
   const [shouldCloseMinimap, setShouldCloseMinimap] = useState(false); // 用于追踪数据面板打开状态变化
   const [currentDatasetId, setCurrentDatasetId] = useState<string>("data-analysis");
+
+  // Use project cache hook for efficient data loading
+  const { loadProject } = useProjectCache();
 
   // 当打开数据面板时，关闭 minimap；当关闭时，打开 minimap
   useEffect(() => {
@@ -25,10 +29,14 @@ const Index = () => {
     }
   }, [isAnalysisSidebarOpen]);
 
-  // 当数据集改变时，重置选中的节点
+  // 当数据集改变时，加载新项目并重置选中的节点
   useEffect(() => {
     setSelectedNodeId(null);
-  }, [currentDatasetId]);
+    // Load the new project (with caching)
+    loadProject(currentDatasetId).catch((err) => {
+      console.error('Failed to load project:', err);
+    });
+  }, [currentDatasetId, loadProject]);
 
   return (
     <div className="h-screen w-full relative">

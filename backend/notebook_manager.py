@@ -13,6 +13,7 @@ Handles incremental operations on .ipynb files:
 
 import json
 import os
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Literal
 from pathlib import Path
@@ -82,6 +83,8 @@ class NotebookCell:
             cell_dict["metadata"]["execution_status"] = self.execution_status
             if self.depends_on:
                 cell_dict["metadata"]["depends_on"] = self.depends_on
+            if self.name:
+                cell_dict["metadata"]["name"] = self.name
 
         # Add linked node metadata to markdown cells
         if self.cell_type == "markdown" and self.linked_node_id:
@@ -250,7 +253,9 @@ class NotebookManager:
         """
         Add header comments to code for node metadata
 
-        This allows the code to be parsed later to extract node information
+        System-managed metadata comments are automatically generated and synced with Cell metadata.
+        These comments show important node information. Understand them before editing the code.
+        The system will automatically sync these with Cell metadata to keep them in sync.
 
         Args:
             code: Original code
@@ -264,6 +269,7 @@ class NotebookManager:
             Code with header comments
         """
         lines = []
+        lines.append("# ===== System-managed metadata (auto-generated, understand to edit) =====")
         lines.append(f"# @node_type: {node_type}")
         lines.append(f"# @node_id: {node_id}")
 
@@ -277,6 +283,7 @@ class NotebookManager:
         if name:
             lines.append(f"# @name: {name}")
 
+        lines.append("# ===== End of system-managed metadata =====")
         lines.append("")  # Empty line after metadata
         lines.append(code)
 
@@ -572,6 +579,277 @@ else:
             "results": result_cells,
             "has_results": len(result_cells) > 0
         }
+
+    def validate_metadata_consistency(self) -> Dict[str, Any]:
+        """
+        Validate that Cell metadata and code comments are in sync
+
+        Checks:
+        - Code cells with node_type have proper system-managed comments
+        - Metadata in Cell matches metadata in code comments
+        - All required metadata fields are present
+
+        Returns:
+            Dict with validation results:
+            {
+                "valid": bool,
+                "errors": List[str],
+                "warnings": List[str],
+                "checked_cells": int,
+                "inconsistent_cells": List[Dict]
+            }
+        """
+        if not self.loaded or self.notebook is None:
+            return {"valid": False, "errors": ["Notebook not loaded"]}
+
+        errors = []
+        warnings = []
+        inconsistent_cells = []
+        checked_cells = 0
+
+        for idx, cell in enumerate(self.notebook["cells"]):
+            if cell["cell_type"] != "code":
+                continue
+
+            metadata = cell.get("metadata", {})
+            node_type = metadata.get("node_type")
+
+            # Skip non-node cells
+            if not node_type:
+                continue
+
+            checked_cells += 1
+            source_text = "".join(cell.get("source", []))
+
+            # Check for system-managed metadata markers
+            has_start_marker = "System-managed metadata (auto-generated, understand to edit)" in source_text
+            has_end_marker = "End of system-managed metadata" in source_text
+
+            if not (has_start_marker and has_end_marker):
+                warnings.append(
+                    f"Cell {idx}: Missing system-managed metadata markers"
+                )
+                inconsistent_cells.append({
+                    "cell_index": idx,
+                    "node_id": metadata.get("node_id"),
+                    "issue": "missing_markers"
+                })
+
+            # Extract metadata from comments
+            node_id_from_comment = self._extract_field_from_comments(source_text, "node_id")
+            node_type_from_comment = self._extract_field_from_comments(source_text, "node_type")
+            status_from_comment = self._extract_field_from_comments(source_text, "execution_status")
+            depends_from_comment = self._extract_field_from_comments(source_text, "depends_on")
+            name_from_comment = self._extract_field_from_comments(source_text, "name")
+
+            # Validate consistency
+            if node_id_from_comment != metadata.get("node_id"):
+                errors.append(
+                    f"Cell {idx}: node_id mismatch - "
+                    f"Comment: {node_id_from_comment}, Metadata: {metadata.get('node_id')}"
+                )
+                inconsistent_cells.append({
+                    "cell_index": idx,
+                    "node_id": metadata.get("node_id"),
+                    "issue": "node_id_mismatch"
+                })
+
+            if node_type_from_comment != node_type:
+                errors.append(
+                    f"Cell {idx}: node_type mismatch - "
+                    f"Comment: {node_type_from_comment}, Metadata: {node_type}"
+                )
+                inconsistent_cells.append({
+                    "cell_index": idx,
+                    "node_id": metadata.get("node_id"),
+                    "issue": "node_type_mismatch"
+                })
+
+            # Check execution_status if present
+            if metadata.get("execution_status"):
+                if status_from_comment != metadata.get("execution_status"):
+                    errors.append(
+                        f"Cell {idx}: execution_status mismatch - "
+                        f"Comment: {status_from_comment}, Metadata: {metadata.get('execution_status')}"
+                    )
+                    inconsistent_cells.append({
+                        "cell_index": idx,
+                        "node_id": metadata.get("node_id"),
+                        "issue": "status_mismatch"
+                    })
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings,
+            "checked_cells": checked_cells,
+            "inconsistent_cells": inconsistent_cells
+        }
+
+    @staticmethod
+    def _extract_field_from_comments(source_text: str, field_name: str) -> Optional[str]:
+        """
+        Extract metadata field value from code comments
+
+        Args:
+            source_text: Full source code text
+            field_name: Field name to extract (e.g., 'node_id', 'node_type')
+
+        Returns:
+            Field value or None if not found
+        """
+        # Match pattern: # @field_name: value
+        pattern = rf"#\s*@{field_name}:\s*(.+?)(?:\n|$)"
+        match = re.search(pattern, source_text)
+        if match:
+            value = match.group(1).strip()
+            return value
+        return None
+
+    def sync_metadata_comments(self) -> Dict[str, Any]:
+        """
+        Automatically sync Cell metadata with code comments
+
+        For each node cell:
+        1. Check if code comments exist and match Cell metadata
+        2. If mismatch or missing, regenerate comments to match Cell metadata
+        3. Keep Cell metadata as the source of truth
+
+        Returns:
+            Dict with sync results:
+            {
+                "synced": bool,
+                "cells_checked": int,
+                "cells_updated": int,
+                "updated_cells": List[Dict],
+                "errors": List[str]
+            }
+        """
+        if not self.loaded or self.notebook is None:
+            return {"synced": False, "cells_checked": 0, "cells_updated": 0, "errors": ["Notebook not loaded"]}
+
+        cells_checked = 0
+        cells_updated = 0
+        updated_cells = []
+        errors = []
+
+        for idx, cell in enumerate(self.notebook["cells"]):
+            if cell["cell_type"] != "code":
+                continue
+
+            metadata = cell.get("metadata", {})
+            node_type = metadata.get("node_type")
+
+            # Skip non-node cells and result cells
+            if not node_type or metadata.get("result_cell"):
+                continue
+
+            cells_checked += 1
+            source_text = "".join(cell.get("source", []))
+
+            # Extract the actual code (after metadata comments)
+            actual_code = self._extract_code_after_metadata(source_text)
+
+            # Regenerate header comments from Cell metadata
+            new_header = self._generate_header_from_metadata(
+                node_type=node_type,
+                node_id=metadata.get("node_id"),
+                execution_status=metadata.get("execution_status"),
+                depends_on=metadata.get("depends_on"),
+                name=metadata.get("name")
+            )
+
+            # Combine new header with actual code
+            # actual_code already includes leading newline from extraction
+            new_source = new_header + actual_code
+
+            # Check if header needs to be updated (only compare header, ignore code changes)
+            current_header_match = re.match(
+                r"(#.*?===== End of system-managed metadata =====)",
+                source_text,
+                re.DOTALL
+            )
+            current_header = current_header_match.group(1) if current_header_match else ""
+
+            needs_update = current_header != new_header
+
+            if needs_update:
+                cells_updated += 1
+                # Update cell source using NotebookCell's formatter
+                cell["source"] = NotebookCell._format_source(new_source)
+
+                updated_cells.append({
+                    "cell_index": idx,
+                    "node_id": metadata.get("node_id"),
+                    "reason": "metadata_sync"
+                })
+
+        return {
+            "synced": True,
+            "cells_checked": cells_checked,
+            "cells_updated": cells_updated,
+            "updated_cells": updated_cells,
+            "errors": errors
+        }
+
+    @staticmethod
+    def _extract_code_after_metadata(source_text: str) -> str:
+        """
+        Extract actual code after system-managed metadata section
+
+        Args:
+            source_text: Full source code text
+
+        Returns:
+            Code without metadata comments
+        """
+        # Find the end marker
+        pattern = r"#\s*===== End of system-managed metadata =====\n(.*)"
+        match = re.search(pattern, source_text, re.DOTALL)
+        if match:
+            return match.group(1)
+        # If no metadata section, return original text
+        return source_text
+
+    @staticmethod
+    def _generate_header_from_metadata(
+        node_type: str,
+        node_id: Optional[str],
+        execution_status: Optional[str],
+        depends_on: Optional[List[str]],
+        name: Optional[str]
+    ) -> str:
+        """
+        Generate header comments from Cell metadata
+
+        Args:
+            node_type: Node type
+            node_id: Node ID
+            execution_status: Execution status
+            depends_on: Dependencies
+            name: Node name
+
+        Returns:
+            Header comment string
+        """
+        lines = []
+        lines.append("# ===== System-managed metadata (auto-generated, understand to edit) =====")
+        lines.append(f"# @node_type: {node_type}")
+        lines.append(f"# @node_id: {node_id}")
+
+        if execution_status:
+            lines.append(f"# @execution_status: {execution_status}")
+
+        if depends_on:
+            depends_str = ', '.join(depends_on)
+            lines.append(f"# @depends_on: [{depends_str}]")
+
+        if name:
+            lines.append(f"# @name: {name}")
+
+        lines.append("# ===== End of system-managed metadata =====")
+
+        return '\n'.join(lines)
 
 
 # Example usage (for testing)

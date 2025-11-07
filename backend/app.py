@@ -407,15 +407,16 @@ def get_node_code(project_id: str, node_id: str) -> Dict[str, Any]:
     try:
         pm = get_project_manager(project_id)
 
-        if pm.notebook_manager is None:
+        if pm.notebook_manager is None or pm.notebook_manager.notebook is None:
             raise HTTPException(status_code=500, detail="Failed to load notebook")
 
-        # Load notebook
+        # Get notebook dict
         notebook = pm.notebook_manager.notebook
+        cells = notebook.get('cells', [])
 
         # Find code cell with matching node_id
-        for cell in notebook.cells:
-            if cell.cell_type == 'code':
+        for cell in cells:
+            if cell.get('cell_type') == 'code':
                 metadata = cell.get('metadata', {})
                 if metadata.get('node_id') == node_id:
                     # Skip result cells
@@ -447,15 +448,16 @@ def get_node_markdown(project_id: str, node_id: str) -> Dict[str, Any]:
     try:
         pm = get_project_manager(project_id)
 
-        if pm.notebook_manager is None:
+        if pm.notebook_manager is None or pm.notebook_manager.notebook is None:
             raise HTTPException(status_code=500, detail="Failed to load notebook")
 
-        # Load notebook
+        # Get notebook dict
         notebook = pm.notebook_manager.notebook
+        cells = notebook.get('cells', [])
 
         # Find markdown cell with matching linked_node_id
-        for cell in notebook.cells:
-            if cell.cell_type == 'markdown':
+        for cell in cells:
+            if cell.get('cell_type') == 'markdown':
                 metadata = cell.get('metadata', {})
                 if metadata.get('linked_node_id') == node_id:
                     source = cell.get('source', '')

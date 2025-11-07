@@ -3,8 +3,8 @@
   "name": "Sales Performance Report",
   "description": "Track and analyze sales performance metrics",
   "version": "1.0.0",
-  "created_at": "2025-11-07T13:17:39.215153",
-  "updated_at": "2025-11-07T13:17:42.004298",
+  "created_at": "2025-11-07T15:57:55.748776",
+  "updated_at": "2025-11-07T15:57:56.122900",
   "nodes": [
     {
       "node_id": "load_sales_data",
@@ -44,8 +44,8 @@
         "load_targets"
       ],
       "execution_status": "validated",
-      "result_format": "json",
-      "result_path": "../projects/test_sales_performance_report/parquets/calculate_metrics.json"
+      "result_format": "parquet",
+      "result_path": "../projects/test_sales_performance_report/parquets/calculate_metrics.parquet"
     },
     {
       "node_id": "visualize_results",

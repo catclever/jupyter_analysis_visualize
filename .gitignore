@@ -55,8 +55,11 @@ backend/.env.local
 
 # Jupyter
 .ipynb_checkpoints/
-# All ipynb files except those in version control
-*.ipynb
+# Tool scripts
+view_notebook_metadata.py
+README_METADATA.md
+# # All ipynb files except those in version control
+# *.ipynb
 # But specifically ignore test-generated notebooks
 backend/test/*.ipynb
 backend/test/*.parquet

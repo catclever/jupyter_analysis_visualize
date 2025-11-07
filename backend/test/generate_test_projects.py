@@ -126,22 +126,24 @@ print(f"Merged dataset shape: {merged_data.shape}")""",
     print(f"  ✓ Node 3: merge_datasets (validated)")
 
     # Node 4: Compute Statistics
-    stats = {
-        "total_users": len(user_data),
-        "total_activities": len(activity_data),
-        "avg_age": float(user_data['age'].mean()),
-        "premium_ratio": float((user_data['premium'].sum() / len(user_data))),
-        "countries": user_data['country'].value_counts().to_dict()
-    }
+    stats_df = pd.DataFrame({
+        "metric": ["total_users", "total_activities", "avg_age", "premium_ratio"],
+        "value": [
+            len(user_data),
+            len(activity_data),
+            float(user_data['age'].mean()),
+            float((user_data['premium'].sum() / len(user_data)))
+        ]
+    })
 
-    stats_path = pm.save_node_result("compute_statistics", stats, result_type="json")
+    stats_path = pm.save_node_result("compute_statistics", stats_df, result_type="parquet")
 
     pm.add_node(
         node_id="compute_statistics",
         node_type="compute",
         name="Compute Statistics",
         depends_on=["merge_datasets"],
-        code="""import json
+        code="""import pandas as pd
 
 # Calculate statistics
 statistics = {
@@ -150,20 +152,26 @@ statistics = {
     'avg_age': merged_data['age'].mean(),
     'premium_ratio': (user_data['premium'].sum() / len(user_data))
 }
-print(json.dumps(statistics, indent=2))""",
+print(statistics)""",
         node_description="Compute node: Calculates summary statistics",
         execution_status="validated",
-        result_format="json",
+        result_format="parquet",
         result_path=stats_path
     )
 
     print(f"  ✓ Node 4: compute_statistics (validated)")
 
     # Node 5: Generate Report
+    report_df = pd.DataFrame({
+        "title": ["User Behavior Analysis Report"],
+        "generated_at": ["2024-11-07"],
+        "status": ["completed"]
+    })
+
     report_path = pm.save_node_result(
         "generate_report",
-        {"status": "completed", "records": 500},
-        result_type="json"
+        report_df,
+        result_type="parquet"
     )
 
     pm.add_node(
@@ -171,7 +179,9 @@ print(json.dumps(statistics, indent=2))""",
         node_type="compute",
         name="Generate Report",
         depends_on=["compute_statistics"],
-        code="""# Generate final report
+        code="""import pandas as pd
+
+# Generate final report
 report = {
     'title': 'User Behavior Analysis Report',
     'generated_at': '2024-11-07',
@@ -180,7 +190,7 @@ report = {
 print(report)""",
         node_description="Compute node: Generates final analysis report",
         execution_status="validated",
-        result_format="json",
+        result_format="parquet",
         result_path=report_path
     )
 
@@ -297,26 +307,23 @@ print(processed_sales)""",
     print(f"  ✓ Node 3: process_sales (validated)")
 
     # Node 4: Calculate Performance Metrics
-    metrics = {
-        "total_sales": float(sales_data['sales_amount'].sum()),
-        "total_units": float(sales_data['units_sold'].sum()),
-        "average_deal_size": float(sales_data['sales_amount'].mean()),
-        "regions": {
-            "North": {"sales": 800000, "target": 750000, "achievement": 106.7},
-            "South": {"sales": 850000, "target": 900000, "achievement": 94.4},
-            "East": {"sales": 920000, "target": 840000, "achievement": 109.5},
-            "West": {"sales": 980000, "target": 960000, "achievement": 102.1}
-        }
-    }
+    metrics_df = pd.DataFrame({
+        "metric": ["total_sales", "total_units", "average_deal_size"],
+        "value": [
+            float(sales_data['sales_amount'].sum()),
+            float(sales_data['units_sold'].sum()),
+            float(sales_data['sales_amount'].mean())
+        ]
+    })
 
-    metrics_path = pm.save_node_result("calculate_metrics", metrics, result_type="json")
+    metrics_path = pm.save_node_result("calculate_metrics", metrics_df, result_type="parquet")
 
     pm.add_node(
         node_id="calculate_metrics",
         node_type="compute",
         name="Calculate Performance Metrics",
         depends_on=["process_sales", "load_targets"],
-        code="""import json
+        code="""import pandas as pd
 
 # Calculate KPIs and performance metrics
 metrics = {
@@ -324,10 +331,10 @@ metrics = {
     'avg_deal_size': processed_sales['sales_amount'].mean(),
     'by_region': processed_sales.to_dict('records')
 }
-print(json.dumps(metrics, indent=2))""",
+print(metrics)""",
         node_description="Compute node: Calculates performance KPIs",
         execution_status="validated",
-        result_format="json",
+        result_format="parquet",
         result_path=metrics_path
     )
 
