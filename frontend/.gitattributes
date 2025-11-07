@@ -1,0 +1,4 @@
+supabase/** merge=ours
+src/integrations/supabase/** merge=ours
+package.json merge=ours
+package-lock.json merge=ours
