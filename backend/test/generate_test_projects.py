@@ -48,10 +48,10 @@ def create_user_behavior_analysis():
         "premium": np.random.choice([True, False], 100)
     })
 
-    user_data_path = pm.save_node_result("load_user_data", user_data, result_type="parquet")
+    user_data_path = pm.save_node_result("user_data", user_data, result_type="parquet")
 
     pm.add_node(
-        node_id="load_user_data",
+        node_id="user_data",
         node_type="data_source",
         name="Load User Data",
         code="""import pandas as pd
@@ -59,13 +59,32 @@ def create_user_behavior_analysis():
 # Load user data from CSV
 user_data = pd.read_csv('users.csv')
 print(f"Loaded {len(user_data)} users")""",
-        node_description="Data source node: Loads user information from the database",
+        node_description="""## User Data Source
+
+**Description**: Contains basic user profile information
+
+### Schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| user_id | Integer | Unique user identifier (1-100) |
+| age | Integer | User age (18-80 years) |
+| signup_date | DateTime | Account creation date (2023-01-01 onwards) |
+| country | String | User's country (USA, UK, CN, JP, DE) |
+| premium | Boolean | Premium subscription status |
+
+### Statistics
+
+- **Total Records**: 100 users
+- **Date Range**: 2023-01-01 to 2023-04-10
+- **Countries**: 5 different countries
+- **Premium Users**: ~50% of dataset""",
         execution_status="validated",
         result_format="parquet",
         result_path=user_data_path
     )
 
-    print(f"  ✓ Node 1: load_user_data (validated)")
+    print(f"  ✓ Node 1: user_data (validated)")
 
     # Node 2: Load Activity Data
     activity_data = pd.DataFrame({
@@ -75,10 +94,10 @@ print(f"Loaded {len(user_data)} users")""",
         "duration_seconds": np.random.randint(1, 300, 500)
     })
 
-    activity_path = pm.save_node_result("load_activity_data", activity_data, result_type="parquet")
+    activity_path = pm.save_node_result("activity_data", activity_data, result_type="parquet")
 
     pm.add_node(
-        node_id="load_activity_data",
+        node_id="activity_data",
         node_type="data_source",
         name="Load Activity Data",
         code="""import pandas as pd
@@ -86,13 +105,32 @@ print(f"Loaded {len(user_data)} users")""",
 # Load user activity logs
 activity_data = pd.read_csv('activity.csv')
 print(f"Loaded {len(activity_data)} activity records")""",
-        node_description="Data source node: Loads user activity events",
+        node_description="""## Activity Data Source
+
+**Description**: User activity event log from the platform
+
+### Schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| user_id | Integer | User identifier |
+| activity_type | String | Type of activity (login, click, purchase, view) |
+| timestamp | DateTime | When activity occurred |
+| duration_seconds | Integer | Duration of activity (1-300 seconds) |
+
+### Statistics
+
+- **Total Records**: 500 events
+- **Date Range**: 2024-01-01 onwards
+- **Activity Types**: 4 categories
+- **Avg Duration**: ~150 seconds per activity
+- **Users Covered**: 100 users""",
         execution_status="validated",
         result_format="parquet",
         result_path=activity_path
     )
 
-    print(f"  ✓ Node 2: load_activity_data (validated)")
+    print(f"  ✓ Node 2: activity_data (validated)")
 
     # Node 3: Merge Data
     merged_data = user_data.merge(
@@ -101,13 +139,13 @@ print(f"Loaded {len(activity_data)} activity records")""",
         how="left"
     )
 
-    merged_path = pm.save_node_result("merge_datasets", merged_data, result_type="parquet")
+    merged_path = pm.save_node_result("merged_data", merged_data, result_type="parquet")
 
     pm.add_node(
-        node_id="merge_datasets",
+        node_id="merged_data",
         node_type="compute",
         name="Merge Datasets",
-        depends_on=["load_user_data", "load_activity_data"],
+        depends_on=["user_data", "activity_data"],
         code="""import pandas as pd
 
 # Merge user and activity data
@@ -117,13 +155,34 @@ merged_data = user_data.merge(
     how='left'
 )
 print(f"Merged dataset shape: {merged_data.shape}")""",
-        node_description="Compute node: Joins user and activity datasets",
+        node_description="""## Merged Dataset
+
+**Description**: Combines user profiles with their activity logs using left join
+
+### Operation
+
+- **Join Type**: Left join on `user_id`
+- **Left Table**: user_data (100 rows)
+- **Right Table**: activity_data (500 rows)
+- **Result**: All users with their associated activities
+
+### Output Schema
+
+Combines all columns from both sources:
+- From user_data: user_id, age, signup_date, country, premium
+- From activity_data: activity_type, timestamp, duration_seconds
+
+### Statistics
+
+- **Total Records**: 500 activity records
+- **Users Represented**: 100 users
+- **Columns**: 9 total columns""",
         execution_status="validated",
         result_format="parquet",
         result_path=merged_path
     )
 
-    print(f"  ✓ Node 3: merge_datasets (validated)")
+    print(f"  ✓ Node 3: merged_data (validated)")
 
     # Node 4: Compute Statistics
     stats_df = pd.DataFrame({
@@ -136,30 +195,47 @@ print(f"Merged dataset shape: {merged_data.shape}")""",
         ]
     })
 
-    stats_path = pm.save_node_result("compute_statistics", stats_df, result_type="parquet")
+    stats_path = pm.save_node_result("statistics", stats_df, result_type="parquet")
 
     pm.add_node(
-        node_id="compute_statistics",
+        node_id="statistics",
         node_type="compute",
         name="Compute Statistics",
-        depends_on=["merge_datasets"],
+        depends_on=["merged_data", "user_data"],
         code="""import pandas as pd
 
-# Calculate statistics
+# Calculate statistics from merged data and user data
 statistics = {
-    'total_users': len(merged_data['user_id'].unique()),
+    'total_users': len(user_data),
     'total_activities': len(merged_data),
     'avg_age': merged_data['age'].mean(),
     'premium_ratio': (user_data['premium'].sum() / len(user_data))
 }
 print(statistics)""",
-        node_description="Compute node: Calculates summary statistics",
+        node_description="""## Summary Statistics
+
+**Description**: Key statistics computed from merged user and activity data
+
+### Computed Metrics
+
+| Metric | Value | Description |
+|--------|-------|-------------|
+| total_users | 100 | Number of unique users |
+| total_activities | 500 | Total activity events recorded |
+| avg_age | ~45 | Average user age |
+| premium_ratio | 0.5 | Proportion of premium users |
+
+### Insights
+
+- Average user age is approximately 45 years
+- Activity data shows 500 total interactions across 100 users
+- About half of the user base has premium subscriptions""",
         execution_status="validated",
         result_format="parquet",
         result_path=stats_path
     )
 
-    print(f"  ✓ Node 4: compute_statistics (validated)")
+    print(f"  ✓ Node 4: statistics (validated)")
 
     # Node 5: Generate Report
     report_df = pd.DataFrame({
@@ -169,16 +245,16 @@ print(statistics)""",
     })
 
     report_path = pm.save_node_result(
-        "generate_report",
+        "report",
         report_df,
         result_type="parquet"
     )
 
     pm.add_node(
-        node_id="generate_report",
+        node_id="report",
         node_type="compute",
         name="Generate Report",
-        depends_on=["compute_statistics"],
+        depends_on=[],
         code="""import pandas as pd
 
 # Generate final report
@@ -188,13 +264,35 @@ report = {
     'status': 'completed'
 }
 print(report)""",
-        node_description="Compute node: Generates final analysis report",
+        node_description="""## Analysis Report
+
+**Description**: Final report summarizing the user behavior analysis
+
+### Report Contents
+
+- **Title**: User Behavior Analysis Report
+- **Generated**: 2024-11-07
+- **Status**: Completed
+
+### Key Findings
+
+This report presents the consolidated analysis of user behavior patterns derived from:
+1. Basic user demographic information (100 users)
+2. Activity event logs (500 recorded events)
+3. Aggregated statistics from the merged dataset
+
+### Report Structure
+
+- Executive summary of key metrics
+- User segmentation analysis
+- Activity type distribution
+- Premium vs standard user comparison""",
         execution_status="validated",
         result_format="parquet",
         result_path=report_path
     )
 
-    print(f"  ✓ Node 5: generate_report (validated)")
+    print(f"  ✓ Node 5: report (validated)")
 
     print(f"\n✓ Project '{pm.metadata.name}' created successfully")
     print(f"  Path: {pm.project_path}")
@@ -232,10 +330,10 @@ def create_sales_performance_project():
         "salesman": np.random.choice(["Alice", "Bob", "Charlie", "Diana"], 90)
     })
 
-    sales_path = pm.save_node_result("load_sales_data", sales_data, result_type="parquet")
+    sales_path = pm.save_node_result("sales_data", sales_data, result_type="parquet")
 
     pm.add_node(
-        node_id="load_sales_data",
+        node_id="sales_data",
         node_type="data_source",
         name="Load Sales Data",
         code="""import pandas as pd
@@ -243,13 +341,33 @@ def create_sales_performance_project():
 # Load sales records from database
 sales_data = pd.read_csv('sales.csv')
 print(f"Loaded {len(sales_data)} sales records")""",
-        node_description="Data source node: Loads sales transactions",
+        node_description="""## Sales Transaction Data
+
+**Description**: Daily sales records across regions and salespeople
+
+### Schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| date | DateTime | Transaction date |
+| region | String | Sales region (North, South, East, West) |
+| sales_amount | Integer | Revenue in dollars (10k-100k) |
+| units_sold | Integer | Number of units sold (100-1000) |
+| salesman | String | Name of salesperson |
+
+### Statistics
+
+- **Total Records**: 90 daily sales entries
+- **Date Range**: 2024-01-01 to 2024-03-31 (Q1 2024)
+- **Regions**: 4 regions
+- **Salespeople**: 4 salespeople (Alice, Bob, Charlie, Diana)
+- **Revenue Range**: $10k - $100k per transaction""",
         execution_status="validated",
         result_format="parquet",
         result_path=sales_path
     )
 
-    print(f"  ✓ Node 1: load_sales_data (validated)")
+    print(f"  ✓ Node 1: sales_data (validated)")
 
     # Node 2: Load Target Data
     targets = pd.DataFrame({
@@ -258,10 +376,10 @@ print(f"Loaded {len(sales_data)} sales records")""",
         "quarterly_target": [750000, 900000, 840000, 960000]
     })
 
-    targets_path = pm.save_node_result("load_targets", targets, result_type="parquet")
+    targets_path = pm.save_node_result("targets", targets, result_type="parquet")
 
     pm.add_node(
-        node_id="load_targets",
+        node_id="targets",
         node_type="data_source",
         name="Load Sales Targets",
         code="""import pandas as pd
@@ -269,13 +387,38 @@ print(f"Loaded {len(sales_data)} sales records")""",
 # Load regional sales targets
 targets = pd.read_csv('targets.csv')
 print(f"Loaded targets for {len(targets)} regions")""",
-        node_description="Data source node: Loads regional sales targets",
+        node_description="""## Sales Targets by Region
+
+**Description**: Monthly and quarterly sales targets for each region
+
+### Schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| region | String | Region name |
+| monthly_target | Integer | Monthly revenue target in dollars |
+| quarterly_target | Integer | Quarterly revenue target in dollars |
+
+### Regional Targets
+
+| Region | Monthly | Quarterly |
+|--------|---------|-----------|
+| North | $250,000 | $750,000 |
+| South | $300,000 | $900,000 |
+| East | $280,000 | $840,000 |
+| West | $320,000 | $960,000 |
+
+### Summary
+
+- **Total Quarterly Target**: $3,450,000
+- **Total Monthly Target**: $1,150,000
+- **Highest Target**: West region""",
         execution_status="validated",
         result_format="parquet",
         result_path=targets_path
     )
 
-    print(f"  ✓ Node 2: load_targets (validated)")
+    print(f"  ✓ Node 2: targets (validated)")
 
     # Node 3: Process Sales Data
     processed_sales = sales_data.groupby('region').agg({
@@ -283,13 +426,13 @@ print(f"Loaded targets for {len(targets)} regions")""",
         'units_sold': 'sum'
     }).reset_index()
 
-    processed_path = pm.save_node_result("process_sales", processed_sales, result_type="parquet")
+    processed_path = pm.save_node_result("processed_sales", processed_sales, result_type="parquet")
 
     pm.add_node(
-        node_id="process_sales",
+        node_id="processed_sales",
         node_type="compute",
         name="Process Sales Data",
-        depends_on=["load_sales_data"],
+        depends_on=["sales_data"],
         code="""import pandas as pd
 
 # Process and aggregate sales data
@@ -298,13 +441,33 @@ processed_sales = sales_data.groupby('region').agg({
     'units_sold': 'sum'
 }).reset_index()
 print(processed_sales)""",
-        node_description="Compute node: Aggregates sales by region",
+        node_description="""## Sales Aggregated by Region
+
+**Description**: Sales data aggregated at the regional level for quarterly analysis
+
+### Operation
+
+- **Grouping**: By region
+- **Aggregation**: Sum of sales_amount and units_sold
+- **Result**: One row per region
+
+### Output Schema
+
+| Column | Type | Description |
+|--------|------|-------------|
+| region | String | Region name |
+| sales_amount | Integer | Total sales revenue |
+| units_sold | Integer | Total units sold |
+
+### Quarterly Summary
+
+All data is aggregated from Q1 2024 (90 days of transactions)""",
         execution_status="validated",
         result_format="parquet",
         result_path=processed_path
     )
 
-    print(f"  ✓ Node 3: process_sales (validated)")
+    print(f"  ✓ Node 3: processed_sales (validated)")
 
     # Node 4: Calculate Performance Metrics
     metrics_df = pd.DataFrame({
@@ -316,13 +479,13 @@ print(processed_sales)""",
         ]
     })
 
-    metrics_path = pm.save_node_result("calculate_metrics", metrics_df, result_type="parquet")
+    metrics_path = pm.save_node_result("metrics", metrics_df, result_type="parquet")
 
     pm.add_node(
-        node_id="calculate_metrics",
+        node_id="metrics",
         node_type="compute",
         name="Calculate Performance Metrics",
-        depends_on=["process_sales", "load_targets"],
+        depends_on=["processed_sales", "targets"],
         code="""import pandas as pd
 
 # Calculate KPIs and performance metrics
@@ -332,13 +495,35 @@ metrics = {
     'by_region': processed_sales.to_dict('records')
 }
 print(metrics)""",
-        node_description="Compute node: Calculates performance KPIs",
+        node_description="""## Performance Metrics
+
+**Description**: Key performance indicators comparing actual sales to targets
+
+### Computed Metrics
+
+| Metric | Value | Description |
+|--------|-------|-------------|
+| total_sales | ~4.5M | Total sales revenue across all regions |
+| total_units | ~50K | Total units sold |
+| average_deal_size | ~50K | Average transaction value |
+
+### Analysis
+
+- Quarterly sales total computed from daily transaction data
+- Regional breakdown available for target comparison
+- Average deal size indicates transaction patterns
+
+### Key Insights
+
+- Total Q1 2024 sales revenue
+- Performance baseline for comparing against quarterly targets
+- Regional variation in sales patterns""",
         execution_status="validated",
         result_format="parquet",
         result_path=metrics_path
     )
 
-    print(f"  ✓ Node 4: calculate_metrics (validated)")
+    print(f"  ✓ Node 4: metrics (validated)")
 
     # Node 5: Visualize Results
     # 生成实际的图表图片文件
@@ -368,15 +553,15 @@ print(metrics)""",
     plt.tight_layout()
 
     # 保存图表到 visualizations/ 目录
-    viz_path = pm.visualizations_path / "visualize_results.png"
+    viz_path = pm.visualizations_path / "visualization.png"
     plt.savefig(str(viz_path), dpi=150, bbox_inches='tight')
     plt.close(fig)
 
     pm.add_node(
-        node_id="visualize_results",
+        node_id="visualization",
         node_type="chart",
         name="Visualize Results",
-        depends_on=["calculate_metrics"],
+        depends_on=[],
         code="""import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
@@ -385,12 +570,12 @@ matplotlib.use('Agg')
 fig, ax = plt.subplots(figsize=(10, 6))
 regions = ['North', 'South', 'East', 'West']
 sales = [800000, 850000, 920000, 980000]
-targets = [750000, 900000, 840000, 960000]
+target_values = [750000, 900000, 840000, 960000]
 
 x = range(len(regions))
 width = 0.35
 ax.bar([i - width/2 for i in x], sales, width, label='Actual Sales', color='#3498db')
-ax.bar([i + width/2 for i in x], targets, width, label='Target', color='#e74c3c')
+ax.bar([i + width/2 for i in x], target_values, width, label='Target', color='#e74c3c')
 
 ax.set_ylabel('Amount ($)', fontsize=12)
 ax.set_title('Sales Performance vs Target by Region', fontsize=14, fontweight='bold')
@@ -408,13 +593,35 @@ import os
 os.makedirs('visualizations', exist_ok=True)
 plt.savefig('visualizations/visualize_results.png', dpi=150, bbox_inches='tight')
 print("✓ Chart saved to visualizations/visualize_results.png")""",
-        node_description="Chart node: Visualizes sales performance as bar chart",
+        node_description="""## Sales vs Target Comparison Chart
+
+**Description**: Grouped bar chart comparing actual sales to quarterly targets by region
+
+### Visualization Details
+
+- **Chart Type**: Grouped Bar Chart
+- **X-Axis**: Regions (North, South, East, West)
+- **Y-Axis**: Revenue in millions of dollars
+- **Blue Bars**: Actual sales achieved
+- **Red Bars**: Target sales goals
+
+### Data Representation
+
+Each region shows two bars side-by-side:
+- **Actual Sales**: Performance achieved in Q1 2024
+- **Target**: The target that was set for that region
+
+### Key Observations
+
+- West region shows strongest performance
+- All regions demonstrated solid sales relative to targets
+- Chart makes it easy to spot regional over/under performance""",
         execution_status="validated",
         result_format="image",
-        result_path=str(viz_path)
+        result_path="visualizations/visualization.png"
     )
 
-    print(f"  ✓ Node 5: visualize_results (validated)")
+    print(f"  ✓ Node 5: visualization (validated)")
 
     print(f"\n✓ Project '{pm.metadata.name}' created successfully")
     print(f"  Path: {pm.project_path}")

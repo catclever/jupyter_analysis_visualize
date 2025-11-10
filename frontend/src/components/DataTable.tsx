@@ -26,7 +26,12 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { getNodeData, getNodeCode, getNodeMarkdown, type PaginatedData } from "@/services/api";
+import SyntaxHighlighter from "react-syntax-highlighter";
+import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { getNodeData, getNodeCode, getNodeMarkdown, getImageUrl, type PaginatedData } from "@/services/api";
+import { useProjectCache } from "@/hooks/useProjectCache";
 
 interface DataRow {
   [key: string]: string | number;
@@ -48,6 +53,7 @@ const nodeDataMap: Record<string, {
   code?: string;
   conclusion?: string;
   chartType?: string; // 'scatter' | 'line' | 'bar'
+  result_format?: string;
 }> = {
   // ===== 数据源节点（蓝色） =====
   'data-1': {
@@ -2976,6 +2982,7 @@ const defaultData: {
   code?: string;
   conclusion?: string;
   chartType?: string;
+  result_format?: string;
 } = {
   title: '请选择流程图中的节点查看分析内容',
   headers: ['提示'],
@@ -2983,6 +2990,7 @@ const defaultData: {
   totalRecords: 0,
   code: undefined,
   conclusion: undefined,
+  result_format: undefined,
 };
 
 // 渲染图表的辅助函数
@@ -3256,6 +3264,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const [apiCode, setApiCode] = useState<string>('');
   const [apiMarkdown, setApiMarkdown] = useState<string>('');
   const [isLoadingApi, setIsLoadingApi] = useState(false);
+  const [nodeResultFormat, setNodeResultFormat] = useState<string>('parquet');
+
+  const { projectCache, loadProject } = useProjectCache();
 
   // 映射前端 dataset ID 到后端项目 ID
   const projectIdMap: Record<string, string> = {
@@ -3278,9 +3289,23 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
       try {
         setIsLoadingApi(true);
 
-        // 只加载parquet格式的数据
+        // Load project cache to get node metadata
+        await loadProject(currentDatasetId);
+
+        // Find node in cached project data to get result_format
+        const cachedProject = projectCache[projectId];
+        if (cachedProject) {
+          const node = cachedProject.nodes.find(n => n.id === selectedNodeId);
+          if (node && node.result_format) {
+            setNodeResultFormat(node.result_format);
+          } else {
+            setNodeResultFormat('parquet'); // default
+          }
+        }
+
+        // 加载parquet、image或visualization格式的数据
         const data = await getNodeData(projectId, selectedNodeId, 1, 10);
-        if (data.format === 'parquet') {
+        if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization') {
           setApiData(data);
         }
 
@@ -3309,7 +3334,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     };
 
     loadNodeData();
-  }, [selectedNodeId, projectId]);
+  }, [selectedNodeId, projectId, currentDatasetId, loadProject, projectCache]);
 
   // 优先使用API数据，如果没有则回退到硬编码数据
   const currentData = apiData
@@ -3318,7 +3343,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         headers: apiData.columns || [],
         data: (Array.isArray(apiData.data) ? apiData.data : [apiData.data]) as DataRow[],
         totalRecords: apiData.total_records,
-        type: 'table' as const,
+        result_format: nodeResultFormat,
+        type: (nodeResultFormat === 'image' || nodeResultFormat === 'visualization') ? 'chart' : 'table' as const,
         code: apiCode,
         conclusion: apiMarkdown,
       }
@@ -3372,7 +3398,15 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           <ResizablePanel defaultSize={60} minSize={30}>
             {currentData.type === 'chart' && viewMode === 'table' ? (
               <div className="w-full h-full flex items-center justify-center p-4 bg-muted/10">
-                {renderChart(currentData.chartType, currentData.data)}
+                {currentData.result_format === 'image' || currentData.result_format === 'visualization' ? (
+                  <img
+                    src={getImageUrl(projectId, selectedNodeId || '')}
+                    alt={`${selectedNodeId} visualization`}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  />
+                ) : (
+                  renderChart(currentData.chartType, currentData.data)
+                )}
               </div>
             ) : viewMode === 'table' ? (
               <div className="overflow-x-auto h-full">
@@ -3407,9 +3441,19 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               </div>
             ) : (
               <ScrollArea className="h-full">
-                <pre className="p-4 text-sm font-mono text-foreground bg-muted/30 whitespace-pre-wrap break-words">
-                  <code>{currentData.code}</code>
-                </pre>
+                {/* @ts-ignore */}
+                <SyntaxHighlighter
+                  language="python"
+                  style={atomOneDark}
+                  className="p-4 text-sm"
+                  customStyle={{
+                    margin: 0,
+                    padding: '1rem',
+                    backgroundColor: 'transparent',
+                  }}
+                >
+                  {currentData.code}
+                </SyntaxHighlighter>
               </ScrollArea>
             )}
           </ResizablePanel>
@@ -3418,37 +3462,66 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
 
           <ResizablePanel defaultSize={40} minSize={25}>
             <ScrollArea className="h-full">
-              <div className="p-6 prose prose-sm max-w-none dark:prose-invert text-foreground">
-                {currentData.conclusion?.split('\n').map((line, index) => {
-                  if (line.startsWith('# ')) {
-                    return <h1 key={index} className="text-lg font-bold mb-3 mt-4">{line.substring(2)}</h1>;
-                  } else if (line.startsWith('## ')) {
-                    return <h2 key={index} className="text-base font-semibold mb-2 mt-3">{line.substring(3)}</h2>;
-                  } else if (line.startsWith('### ')) {
-                    return <h3 key={index} className="text-sm font-semibold mb-2 mt-2">{line.substring(4)}</h3>;
-                  } else if (line.startsWith('- ')) {
-                    return <li key={index} className="ml-4 mb-1 text-sm">{line.substring(2)}</li>;
-                  } else if (line.startsWith('```')) {
-                    return null;
-                  } else if (line.trim() === '') {
-                    return <br key={index} />;
-                  } else {
-                    return <p key={index} className="mb-2 text-sm">{line}</p>;
-                  }
-                })}
+              <div className="p-6 prose prose-sm max-w-none dark:prose-invert text-foreground prose-headings:mt-4 prose-headings:mb-2 prose-p:mb-2 prose-li:ml-4">
+                {/* @ts-ignore */}
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-3 mt-4" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-base font-semibold mb-2 mt-3" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-sm font-semibold mb-2 mt-2" {...props} />,
+                    p: ({node, ...props}) => <p className="mb-2 text-sm" {...props} />,
+                    li: ({node, ...props}) => <li className="ml-4 mb-1 text-sm" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc ml-4" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal ml-4" {...props} />,
+                    table: ({node, ...props}) => <table className="border-collapse border border-border text-xs" {...props} />,
+                    thead: ({node, ...props}) => <thead className="bg-muted/50" {...props} />,
+                    th: ({node, ...props}) => <th className="border border-border px-2 py-1 text-xs font-semibold text-left" {...props} />,
+                    td: ({node, ...props}) => <td className="border border-border px-2 py-1 text-xs" {...props} />,
+                    tr: ({node, ...props}) => <tr className="hover:bg-muted/20" {...props} />,
+                    code: ({node, ...props}: any) => {
+                      const isInline = !props.children?.toString().includes('\n');
+                      return isInline ? (
+                        <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono" {...props} />
+                      ) : (
+                        <code className="block bg-muted p-2 rounded text-xs font-mono overflow-x-auto" {...props} />
+                      );
+                    },
+                  }}
+                >
+                  {currentData.conclusion || ''}
+                </ReactMarkdown>
               </div>
             </ScrollArea>
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : currentData.type === 'chart' && viewMode === 'table' ? (
         <div className="w-full flex-1 flex items-center justify-center p-4 bg-muted/10">
-          {renderChart(currentData.chartType, currentData.data)}
+          {currentData.result_format === 'image' || currentData.result_format === 'visualization' ? (
+            <img
+              src={getImageUrl(projectId, selectedNodeId || '')}
+              alt={`${selectedNodeId} visualization`}
+              style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+            />
+          ) : (
+            renderChart(currentData.chartType, currentData.data)
+          )}
         </div>
       ) : currentData.type === 'chart' && viewMode === 'code' ? (
         <ScrollArea className="flex-1">
-          <pre className="p-4 text-sm font-mono text-foreground bg-muted/30 whitespace-pre-wrap break-words">
-            <code>{currentData.code}</code>
-          </pre>
+          {/* @ts-ignore */}
+          <SyntaxHighlighter
+            language="python"
+            style={atomOneDark}
+            className="p-4 text-sm"
+            customStyle={{
+              margin: 0,
+              padding: '1rem',
+              backgroundColor: 'transparent',
+            }}
+          >
+            {currentData.code}
+          </SyntaxHighlighter>
         </ScrollArea>
       ) : (
         viewMode === 'table' ? (
@@ -3484,9 +3557,19 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           </div>
         ) : (
           <ScrollArea className="flex-1">
-            <pre className="p-4 text-sm font-mono text-foreground bg-muted/30 whitespace-pre-wrap break-words">
-              <code>{currentData.code}</code>
-            </pre>
+            {/* @ts-ignore */}
+            <SyntaxHighlighter
+              language="python"
+              style={atomOneDark}
+              className="p-4 text-sm"
+              customStyle={{
+                margin: 0,
+                padding: '1rem',
+                backgroundColor: 'transparent',
+              }}
+            >
+              {currentData.code}
+            </SyntaxHighlighter>
           </ScrollArea>
         )
       )}

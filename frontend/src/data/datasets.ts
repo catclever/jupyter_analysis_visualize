@@ -49,16 +49,16 @@ export function getDatasetById(datasetId: string): Dataset {
         nodeLabels: dataAnalysis.nodeLabels,
         nodes: dataAnalysis.nodes,
         edges: dataAnalysis.edges,
-        analysisRequests: dataAnalysis.analysisRequests,
-        conclusions: dataAnalysis.conclusions,
+        analysisRequests: [],
+        conclusions: [],
       };
     case 'risk-model':
       return {
         nodeLabels: riskModel.nodeLabels,
         nodes: riskModel.nodes,
         edges: riskModel.edges,
-        analysisRequests: riskModel.analysisRequests,
-        conclusions: riskModel.conclusions,
+        analysisRequests: [],
+        conclusions: [],
       };
     default:
       throw new Error(`Unknown dataset: ${datasetId}`);

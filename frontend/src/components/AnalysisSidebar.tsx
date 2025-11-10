@@ -29,12 +29,12 @@ export function AnalysisSidebar({
     try {
       return getDatasetById(currentDatasetId);
     } catch {
-      return { analysisRequests, nodeLabels };
+      return { analysisRequests: [], nodeLabels: {} };
     }
   }, [currentDatasetId]);
 
-  const currentAnalysisRequests = datasetData.analysisRequests || analysisRequests;
-  const currentNodeLabels = datasetData.nodeLabels || nodeLabels;
+  const currentAnalysisRequests = datasetData.analysisRequests || [];
+  const currentNodeLabels = datasetData.nodeLabels || {};
 
   // 根据 isOpen 和 selectedNodeId 计算实际的 activeTab
   const activeTab = useMemo(() => {

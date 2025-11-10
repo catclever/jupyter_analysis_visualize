@@ -20,7 +20,7 @@ import { getDatasetById } from "@/data/datasets";
 import { listProjects, type Project } from "@/services/api";
 
 // Use imported conclusions data instead of local constant
-const conclusionsData = conclusions;
+const conclusionsData: ConclusionItem[] = [];
 
 interface DataSourceSidebarProps {
   selectedNodeId: string | null;

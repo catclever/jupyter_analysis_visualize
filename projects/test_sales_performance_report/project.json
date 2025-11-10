@@ -3,86 +3,80 @@
   "name": "Sales Performance Report",
   "description": "Track and analyze sales performance metrics",
   "version": "1.0.0",
-  "created_at": "2025-11-07T15:57:55.748776",
-  "updated_at": "2025-11-07T15:57:56.122900",
+  "created_at": "2025-11-10T15:28:38.890328",
+  "updated_at": "2025-11-10T15:28:39.256352",
   "nodes": [
     {
-      "node_id": "load_sales_data",
+      "node_id": "sales_data",
       "type": "data_source",
       "name": "Load Sales Data",
       "depends_on": [],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "../projects/test_sales_performance_report/parquets/load_sales_data.parquet"
+      "result_path": "../projects/test_sales_performance_report/parquets/sales_data.parquet"
     },
     {
-      "node_id": "load_targets",
+      "node_id": "targets",
       "type": "data_source",
       "name": "Load Sales Targets",
       "depends_on": [],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "../projects/test_sales_performance_report/parquets/load_targets.parquet"
+      "result_path": "../projects/test_sales_performance_report/parquets/targets.parquet"
     },
     {
-      "node_id": "process_sales",
+      "node_id": "processed_sales",
       "type": "compute",
       "name": "Process Sales Data",
       "depends_on": [
-        "load_sales_data"
+        "sales_data"
       ],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "../projects/test_sales_performance_report/parquets/process_sales.parquet"
+      "result_path": "../projects/test_sales_performance_report/parquets/processed_sales.parquet"
     },
     {
-      "node_id": "calculate_metrics",
+      "node_id": "metrics",
       "type": "compute",
       "name": "Calculate Performance Metrics",
       "depends_on": [
-        "process_sales",
-        "load_targets"
+        "processed_sales",
+        "targets"
       ],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "../projects/test_sales_performance_report/parquets/calculate_metrics.parquet"
+      "result_path": "../projects/test_sales_performance_report/parquets/metrics.parquet"
     },
     {
-      "node_id": "visualize_results",
+      "node_id": "visualization",
       "type": "chart",
       "name": "Visualize Results",
-      "depends_on": [
-        "calculate_metrics"
-      ],
+      "depends_on": [],
       "execution_status": "validated",
       "result_format": "image",
-      "result_path": "../projects/test_sales_performance_report/visualizations/visualize_results.png"
+      "result_path": "visualizations/visualization.png"
     }
   ],
   "dag": {
     "nodes": [
-      "load_sales_data",
-      "load_targets",
-      "process_sales",
-      "calculate_metrics",
-      "visualize_results"
+      "sales_data",
+      "targets",
+      "processed_sales",
+      "metrics",
+      "visualization"
     ],
     "edges": [
       [
-        "load_sales_data",
-        "process_sales"
+        "sales_data",
+        "processed_sales"
       ],
       [
-        "process_sales",
-        "calculate_metrics"
+        "processed_sales",
+        "metrics"
       ],
       [
-        "load_targets",
-        "calculate_metrics"
-      ],
-      [
-        "calculate_metrics",
-        "visualize_results"
+        "targets",
+        "metrics"
       ]
     ]
   }
