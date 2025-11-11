@@ -185,3 +185,27 @@ export async function getNodeMarkdown(
   }
   return response.json();
 }
+
+/**
+ * Update node markdown content in notebook
+ */
+export async function updateNodeMarkdown(
+  projectId: string,
+  nodeId: string,
+  markdown: string
+): Promise<{ node_id: string; markdown: string; format: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/markdown`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ markdown }),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to update node markdown: ${response.statusText}`);
+  }
+  return response.json();
+}

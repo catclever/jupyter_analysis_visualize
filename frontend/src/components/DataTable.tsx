@@ -8,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { ChevronLeft, ChevronRight, Code, FileText, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -30,7 +31,7 @@ import SyntaxHighlighter from "react-syntax-highlighter";
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { getNodeData, getNodeCode, getNodeMarkdown, getImageUrl, type PaginatedData } from "@/services/api";
+import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, getImageUrl, type PaginatedData } from "@/services/api";
 import { useProjectCache } from "@/hooks/useProjectCache";
 
 interface DataRow {
@@ -3265,6 +3266,10 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const [apiMarkdown, setApiMarkdown] = useState<string>('');
   const [isLoadingApi, setIsLoadingApi] = useState(false);
   const [nodeResultFormat, setNodeResultFormat] = useState<string>('parquet');
+  const [isEditingMarkdown, setIsEditingMarkdown] = useState(false);
+  const [editingMarkdown, setEditingMarkdown] = useState<string>('');
+  const [hasMarkdownChanges, setHasMarkdownChanges] = useState(false);
+  const [isSavingMarkdown, setIsSavingMarkdown] = useState(false);
 
   const { projectCache, loadProject } = useProjectCache();
 
@@ -3353,6 +3358,46 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         : defaultData);
 
   const hasConclusion = !!currentData.conclusion;
+
+  // Handle markdown edit mode
+  const handleMarkdownEdit = () => {
+    setEditingMarkdown(apiMarkdown);
+    setIsEditingMarkdown(true);
+    setHasMarkdownChanges(false);
+  };
+
+  const handleMarkdownChange = (newContent: string) => {
+    setEditingMarkdown(newContent);
+    setHasMarkdownChanges(newContent !== apiMarkdown);
+  };
+
+  const handleMarkdownSave = async () => {
+    if (!selectedNodeId || !hasMarkdownChanges) return;
+
+    try {
+      setIsSavingMarkdown(true);
+      await updateNodeMarkdown(projectId, selectedNodeId, editingMarkdown);
+      setApiMarkdown(editingMarkdown);
+      setIsEditingMarkdown(false);
+      setHasMarkdownChanges(false);
+    } catch (err) {
+      console.error('Failed to save markdown:', err);
+      // TODO: Show error toast
+    } finally {
+      setIsSavingMarkdown(false);
+    }
+  };
+
+  const handleMarkdownCancel = () => {
+    if (hasMarkdownChanges) {
+      if (window.confirm('You have unsaved changes. Do you want to discard them?')) {
+        setIsEditingMarkdown(false);
+        setHasMarkdownChanges(false);
+      }
+    } else {
+      setIsEditingMarkdown(false);
+    }
+  };
 
   return (
     <div className="bg-card rounded-lg border border-border overflow-visible flex flex-col h-full relative">
@@ -3461,38 +3506,79 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           <ResizableHandle withHandle />
 
           <ResizablePanel defaultSize={40} minSize={25}>
-            <ScrollArea className="h-full">
-              <div className="p-6 prose prose-sm max-w-none dark:prose-invert text-foreground prose-headings:mt-4 prose-headings:mb-2 prose-p:mb-2 prose-li:ml-4">
-                {/* @ts-ignore */}
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-3 mt-4" {...props} />,
-                    h2: ({node, ...props}) => <h2 className="text-base font-semibold mb-2 mt-3" {...props} />,
-                    h3: ({node, ...props}) => <h3 className="text-sm font-semibold mb-2 mt-2" {...props} />,
-                    p: ({node, ...props}) => <p className="mb-2 text-sm" {...props} />,
-                    li: ({node, ...props}) => <li className="ml-4 mb-1 text-sm" {...props} />,
-                    ul: ({node, ...props}) => <ul className="list-disc ml-4" {...props} />,
-                    ol: ({node, ...props}) => <ol className="list-decimal ml-4" {...props} />,
-                    table: ({node, ...props}) => <table className="border-collapse border border-border text-xs" {...props} />,
-                    thead: ({node, ...props}) => <thead className="bg-muted/50" {...props} />,
-                    th: ({node, ...props}) => <th className="border border-border px-2 py-1 text-xs font-semibold text-left" {...props} />,
-                    td: ({node, ...props}) => <td className="border border-border px-2 py-1 text-xs" {...props} />,
-                    tr: ({node, ...props}) => <tr className="hover:bg-muted/20" {...props} />,
-                    code: ({node, ...props}: any) => {
-                      const isInline = !props.children?.toString().includes('\n');
-                      return isInline ? (
-                        <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono" {...props} />
-                      ) : (
-                        <code className="block bg-muted p-2 rounded text-xs font-mono overflow-x-auto" {...props} />
-                      );
-                    },
-                  }}
-                >
-                  {currentData.conclusion || ''}
-                </ReactMarkdown>
+            {isEditingMarkdown ? (
+              <div className="h-full flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-border gap-2">
+                  <div className="text-sm font-medium text-muted-foreground">
+                    {hasMarkdownChanges && <span className="text-amber-600">● </span>}
+                    Editing Markdown
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={handleMarkdownSave}
+                      disabled={!hasMarkdownChanges || isSavingMarkdown}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={handleMarkdownCancel}
+                      variant="outline"
+                      disabled={isSavingMarkdown}
+                      className="h-7 px-2 text-xs"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+                <Textarea
+                  value={editingMarkdown}
+                  onChange={(e) => handleMarkdownChange(e.target.value)}
+                  className="flex-1 font-mono text-xs rounded-none border-0 resize-none"
+                  placeholder="Enter markdown content..."
+                  spellCheck="false"
+                />
               </div>
-            </ScrollArea>
+            ) : (
+              <ScrollArea className="h-full">
+                <div
+                  className="p-6 prose prose-sm max-w-none dark:prose-invert text-foreground prose-headings:mt-4 prose-headings:mb-2 prose-p:mb-2 prose-li:ml-4 cursor-text hover:bg-muted/30 transition-colors"
+                  onDoubleClick={handleMarkdownEdit}
+                  title="Double-click to edit"
+                >
+                  {/* @ts-ignore */}
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({node, ...props}) => <h1 className="text-lg font-bold mb-3 mt-4" {...props} />,
+                      h2: ({node, ...props}) => <h2 className="text-base font-semibold mb-2 mt-3" {...props} />,
+                      h3: ({node, ...props}) => <h3 className="text-sm font-semibold mb-2 mt-2" {...props} />,
+                      p: ({node, ...props}) => <p className="mb-2 text-sm" {...props} />,
+                      li: ({node, ...props}) => <li className="ml-4 mb-1 text-sm" {...props} />,
+                      ul: ({node, ...props}) => <ul className="list-disc ml-4" {...props} />,
+                      ol: ({node, ...props}) => <ol className="list-decimal ml-4" {...props} />,
+                      table: ({node, ...props}) => <table className="border-collapse border border-border text-xs" {...props} />,
+                      thead: ({node, ...props}) => <thead className="bg-muted/50" {...props} />,
+                      th: ({node, ...props}) => <th className="border border-border px-2 py-1 text-xs font-semibold text-left" {...props} />,
+                      td: ({node, ...props}) => <td className="border border-border px-2 py-1 text-xs" {...props} />,
+                      tr: ({node, ...props}) => <tr className="hover:bg-muted/20" {...props} />,
+                      code: ({node, ...props}: any) => {
+                        const isInline = !props.children?.toString().includes('\n');
+                        return isInline ? (
+                          <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono" {...props} />
+                        ) : (
+                          <code className="block bg-muted p-2 rounded text-xs font-mono overflow-x-auto" {...props} />
+                        );
+                      },
+                    }}
+                  >
+                    {currentData.conclusion || ''}
+                  </ReactMarkdown>
+                </div>
+              </ScrollArea>
+            )}
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : currentData.type === 'chart' && viewMode === 'table' ? (
