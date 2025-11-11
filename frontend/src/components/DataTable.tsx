@@ -3270,6 +3270,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const [editingMarkdown, setEditingMarkdown] = useState<string>('');
   const [hasMarkdownChanges, setHasMarkdownChanges] = useState(false);
   const [isSavingMarkdown, setIsSavingMarkdown] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { projectCache, loadProject } = useProjectCache();
 
@@ -3287,6 +3288,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
       setApiData(null);
       setApiCode('');
       setApiMarkdown('');
+      setCurrentPage(1);
       return;
     }
 
@@ -3396,6 +3398,43 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
       }
     } else {
       setIsEditingMarkdown(false);
+    }
+  };
+
+  // Handle pagination
+  const totalPages = apiData?.total_pages || 1;
+  const pageSize = 5; // Show 5 page buttons at a time
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+
+    // Always show first page
+    if (currentPage > pageSize) {
+      pages.push(1);
+      if (currentPage > pageSize + 1) {
+        pages.push('...');
+      }
+    }
+
+    // Show pages around current page
+    for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+      pages.push(i);
+    }
+
+    // Always show last page if not already shown
+    if (currentPage < totalPages - pageSize + 1) {
+      if (currentPage < totalPages - pageSize) {
+        pages.push('...');
+      }
+      pages.push(totalPages);
+    }
+
+    return pages;
+  };
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
     }
   };
 
@@ -3665,24 +3704,44 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           <div className="text-sm text-muted-foreground">
             共 <span className="font-medium text-foreground">{currentData.totalRecords.toLocaleString()}</span> 条
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center gap-1">
             <Button
               variant="ghost"
-              size="sm"
-              className="h-8 min-w-8 bg-primary text-primary-foreground hover:bg-primary-hover"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
             >
-              1
+              <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 min-w-8">
-              2
-            </Button>
-            <Button variant="ghost" size="sm" className="h-8 min-w-8">
-              3
-            </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            {getPageNumbers().map((page, index) =>
+              page === '...' ? (
+                <div key={`ellipsis-${index}`} className="h-8 w-8 flex items-center justify-center text-xs text-muted-foreground">
+                  ...
+                </div>
+              ) : (
+                <Button
+                  key={page}
+                  variant="ghost"
+                  size="sm"
+                  className={`h-8 min-w-8 ${
+                    currentPage === page
+                      ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      : 'hover:bg-muted'
+                  }`}
+                  onClick={() => handlePageChange(page as number)}
+                >
+                  {page}
+                </Button>
+              )
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+            >
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
