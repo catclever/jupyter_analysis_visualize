@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Keep frontend/src/lib (contains utilities)
+!frontend/src/lib/
+
 # Backend - Python
 __pycache__/
 *.py[cod]
@@ -24,6 +27,8 @@ dist/
 downloads/
 eggs/
 .eggs/
+# Note: lib/ and lib64/ are Python build artifacts, but we keep them ignored
+# (backend/toolkits/ contains our actual code modules)
 lib/
 lib64/
 parts/
@@ -44,8 +49,10 @@ ENV/
 env/
 
 # Reports and Documentation
+# - reports/: 分析现有设计 (不追踪，可本地生成)
+# - designs/: 新的设计提案 (追踪，重要的架构决策)
+# - claude.md: 本地开发规范 (不追踪)
 claude.md
-designs/
 reports/
 
 # Backend - Runtime
