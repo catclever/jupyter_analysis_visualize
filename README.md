@@ -84,6 +84,7 @@ A data analysis visualization platform for exploring Jupyter notebook-based anal
 - **Framework**: FastAPI + Uvicorn
 - **Notebook Management**: NotebookManager for incremental .ipynb operations
 - **Project Management**: ProjectManager for project lifecycle
+- **Node Type System**: Standardized, extensible node type architecture (see Node Types System below)
 - **Data Format**: Parquet (primary), JSON (legacy, being phased to parquet)
 - **Data Processing**: Pandas for DataFrame operations
 
@@ -116,9 +117,19 @@ jupyter_analysis_visualize/
 │   ├── notebook_manager.py            # .ipynb file operations
 │   ├── project_manager.py             # Project management
 │   ├── metadata_parser.py             # Metadata extraction
+│   ├── execution_manager.py           # Node execution and result management
+│   ├── kernel_manager.py              # Jupyter kernel management
+│   ├── node_types/                    # Node type system (extensible)
+│   │   ├── __init__.py                # Module exports
+│   │   ├── base.py                    # BaseNode abstract class
+│   │   ├── registry.py                # Node type registry and factory
+│   │   ├── data_source.py             # DataSourceNode implementation
+│   │   ├── compute.py                 # ComputeNode implementation
+│   │   └── chart.py                   # ChartNode implementation
 │   ├── test/
 │   │   ├── generate_test_projects.py  # Test data generator
-│   │   └── test_*.py                  # Unit tests
+│   │   ├── test_node_system.py        # Node system unit tests
+│   │   └── test_*.py                  # Other unit tests
 │   ├── requirements.txt
 │   └── .env.example
 │
@@ -228,6 +239,134 @@ npm run dev
 - **Format**: PNG images (.png)
 - **Usage**: Chart and graph visualizations
 - **Location**: `projects/{project_id}/visualizations/`
+
+## Node Type System
+
+The backend uses a standardized, extensible node type system for managing different types of analysis nodes. This ensures clear input/output specifications and automatic type inference.
+
+### Core Node Types
+
+Currently implemented:
+
+#### 1. **DataSourceNode** (`type: "data_source"`)
+- **Purpose**: Loads data from external sources (CSV, database, API, etc.)
+- **Constraints**:
+  - No dependencies (cannot depend on other nodes)
+  - Must output a DataFrame
+  - Can be depended on by any other node type
+- **Output Type**: `dataframe`
+- **Display Type**: `table`
+- **Example**:
+  ```python
+  # @node_type: data_source
+  # @node_id: sales_data
+  sales_data = pd.read_csv('sales.csv')
+  ```
+
+#### 2. **ComputeNode** (`type: "compute"`)
+- **Purpose**: Transforms and processes data
+- **Constraints**:
+  - Must have at least one dependency
+  - Input must be DataFrames from other nodes
+  - Must output a DataFrame (for chaining with other compute or visualization nodes)
+  - Cannot output dict/list (use analysis nodes for statistical results)
+- **Output Type**: `dataframe`
+- **Display Type**: `table`
+- **Example**:
+  ```python
+  # @node_type: compute
+  # @node_id: processed_sales
+  # @depends_on: [sales_data]
+  processed_sales = sales_data.groupby('region').sum()
+  ```
+
+#### 3. **ChartNode** (`type: "chart"`)
+- **Purpose**: Creates visualizations and interactive charts
+- **Constraints**:
+  - Can depend on any node type
+  - Must output either Plotly Figure or ECharts configuration
+  - Typically a leaf node (not depended on by other nodes)
+- **Output Types**: `plotly` or `echarts`
+- **Display Types**: `plotly_chart` or `echarts_chart`
+- **Example**:
+  ```python
+  # @node_type: chart
+  # @node_id: visualization
+  # @depends_on: [processed_sales]
+  import plotly.graph_objects as go
+  fig = go.Figure(data=[go.Bar(x=processed_sales.index, y=processed_sales.values)])
+  visualization = fig
+  ```
+
+### Architecture
+
+The node type system is organized in `backend/node_types/`:
+
+- **base.py**: `BaseNode` abstract class defining the interface
+  - `validate_inputs()`: Validate input data matches node requirements
+  - `infer_output()`: Infer output type from execution result
+  - `NodeOutput`: Dataclass describing output (type and display)
+  - `NodeMetadata`: Dataclass storing node information
+
+- **registry.py**: `NodeTypeRegistry` and factory functions
+  - `register_node_type`: Decorator to register custom node types
+  - `get_node_type()`: Retrieve node class by type name
+  - `NodeTypeRegistry.list_types()`: List all registered types
+  - Auto-registration of built-in types on module import
+
+- **{node_type}.py**: Concrete node implementations
+  - Each file contains one node type class
+  - Easy to add new node types by creating new files
+
+### Extensibility
+
+Adding new node types is straightforward:
+
+```python
+# backend/node_types/analysis.py
+from .base import BaseNode, NodeMetadata, NodeOutput, OutputType, DisplayType
+
+@register_node_type
+class AnalysisNode(BaseNode):
+    """Analysis node for statistical computations"""
+    node_type = "analysis"
+
+    def __init__(self, metadata: NodeMetadata):
+        if metadata.node_type != "analysis":
+            raise ValueError(f"Expected analysis node")
+        super().__init__(metadata)
+
+    def validate_inputs(self, input_data):
+        # Custom input validation
+        return True
+
+    def infer_output(self, result):
+        # Infer output type from result
+        if isinstance(result, dict):
+            return NodeOutput(
+                output_type=OutputType.DICT_LIST,
+                display_type=DisplayType.JSON_VIEWER,
+                description="Statistical results"
+            )
+        raise TypeError("Analysis must output dict or scalar")
+```
+
+The new node type is automatically registered and available throughout the system.
+
+### Testing
+
+Node system tests are in `backend/test/test_node_system.py`:
+
+```bash
+cd backend
+uv run python test/test_node_system.py
+```
+
+Tests cover:
+- Node type registration and discovery
+- Node instantiation and validation
+- Output type inference
+- ExecutionManager integration
 
 ## Metadata Management
 

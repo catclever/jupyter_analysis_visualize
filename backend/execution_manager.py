@@ -18,6 +18,7 @@ from enum import Enum
 
 from kernel_manager import KernelManager
 from project_manager import ProjectManager
+from node_types import get_node_type, NodeMetadata, NodeOutput
 
 
 class ExecutionStatus(Enum):
@@ -236,6 +237,52 @@ class ExecutionManager:
                     execution.complete(result=result['output'])
 
         return execution
+
+    def infer_output_type(self, node_id: str, result: Any) -> NodeOutput:
+        """
+        Infer the output type of a node's result using the node type system.
+
+        Args:
+            node_id: Node identifier
+            result: The execution result
+
+        Returns:
+            NodeOutput instance with output_type and display_type
+
+        Raises:
+            ValueError: If node type is unknown
+            TypeError: If result doesn't match node's output constraints
+        """
+        node = self.project_manager.get_node(node_id)
+        if not node:
+            raise ValueError(f"Node {node_id} not found")
+
+        node_type_str = node.get('type')
+        if not node_type_str:
+            raise ValueError(f"Node {node_id} has no type")
+
+        # Get node class and instantiate it
+        try:
+            NodeClass = get_node_type(node_type_str)
+        except ValueError as e:
+            raise ValueError(f"Unknown node type '{node_type_str}' for node {node_id}: {e}")
+
+        # Create minimal metadata for the node
+        metadata = NodeMetadata(
+            node_id=node_id,
+            node_type=node_type_str,
+            name=node.get('name', node_id),
+            depends_on=node.get('depends_on', [])
+        )
+
+        # Instantiate the node
+        try:
+            node_instance = NodeClass(metadata)
+        except ValueError as e:
+            raise ValueError(f"Failed to create node instance: {e}")
+
+        # Use the node to infer output type
+        return node_instance.infer_output(result)
 
     def execute_project(
         self,

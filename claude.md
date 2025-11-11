@@ -270,7 +270,8 @@ from toolkits.data_analysis.feature_engineering import feature_engineering
    - Topological sorting for safe execution order
    - Result auto-saving (parquet/JSON)
    - Breakpoint recovery with tool node restoration
-   - Functions: `execute_node()`, `execute_project()`, `execute_with_breakpoint()`, `get_execution_summary()`
+   - Output type inference using node type system
+   - Functions: `execute_node()`, `execute_project()`, `execute_with_breakpoint()`, `infer_output_type()`, `get_execution_summary()`
 
 5. **ProjectMetadataParser** (`metadata_parser.py`)
    - Parses notebook structure and extracts node metadata
@@ -287,12 +288,68 @@ All modules have comprehensive test suites in `backend/test/`:
 - Error handling and edge cases
 - Resource cleanup and lifecycle management
 
+### ✅ Phase 2 Complete - Node Type System
+
+**Node Type System** (`backend/node_types/`)
+- Standardized, extensible architecture for node types
+- Three core node types implemented: DataSourceNode, ComputeNode, ChartNode
+- Automatic output type inference from execution results
+- Type safety and constraint validation per node type
+- Extensible registry pattern for adding new node types
+
+**System Components:**
+1. **base.py**: Abstract BaseNode class
+   - `validate_inputs()`: Validate input data matches node requirements
+   - `infer_output()`: Determine output type and display type
+   - `NodeOutput`: Dataclass with output_type and display_type
+   - `NodeMetadata`: Dataclass for node information
+
+2. **registry.py**: Node type registration and factory
+   - `NodeTypeRegistry`: Central registry for all node types
+   - `@register_node_type`: Decorator for automatic registration
+   - `get_node_type()`: Retrieve node class by type name
+   - Auto-registration of built-in types on import
+
+3. **Concrete Node Types:**
+   - **data_source.py**: DataSourceNode
+     - No dependencies, must output DataFrame
+     - Can be depended on by any node type
+     - Output: dataframe → table
+
+   - **compute.py**: ComputeNode
+     - Must have dependencies, requires DataFrame inputs
+     - Must output DataFrame (no dict/list)
+     - Can depend on other compute or data source nodes
+     - Output: dataframe → table
+
+   - **chart.py**: ChartNode
+     - Can depend on any node type
+     - Outputs Plotly Figure or ECharts config
+     - Typically leaf node (not depended on)
+     - Output: plotly/echarts → plotly_chart/echarts_chart
+
+**Test Coverage:**
+- Unit tests in `backend/test/test_node_system.py`
+- 5/5 tests passing:
+  ✓ Node type registration and discovery
+  ✓ DataSourceNode instantiation and validation
+  ✓ ComputeNode instantiation and validation
+  ✓ ChartNode instantiation and validation
+  ✓ ExecutionManager integration
+
+**Updated Test Data:**
+- Both test projects (test_sales_performance_report, test_user_behavior_analysis) updated to v2.0.0
+- All nodes include standardized output metadata
+- Proper dependencies defined (visualization nodes depend on compute/data nodes)
+- Clean relative paths for result files
+
 ### Ready for Next Phase
 
 Frontend integration can now proceed with:
-- API endpoints (built with FastAPI)
+- API endpoints returning output type information
 - WebSocket support for real-time execution updates
 - Integration with React + XYFlow frontend for DAG visualization
+- Frontend components for displaying different output types
 
 ---
 

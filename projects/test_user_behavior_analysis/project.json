@@ -2,60 +2,92 @@
   "project_id": "test_user_behavior_analysis",
   "name": "User Behavior Analysis",
   "description": "Analyze user behavior patterns from activity logs",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "created_at": "2025-11-10T15:28:38.861001",
-  "updated_at": "2025-11-10T15:28:38.889287",
+  "updated_at": "2025-11-11T13:00:00.000000",
   "nodes": [
     {
       "node_id": "user_data",
       "type": "data_source",
       "name": "Load User Data",
+      "description": "Load user profile information and demographics",
       "depends_on": [],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "../projects/test_user_behavior_analysis/parquets/user_data.parquet"
+      "result_path": "parquets/user_data.parquet",
+      "output": {
+        "output_type": "dataframe",
+        "display_type": "table",
+        "description": "User profiles with columns: user_id, name, signup_date, region"
+      }
     },
     {
       "node_id": "activity_data",
       "type": "data_source",
       "name": "Load Activity Data",
+      "description": "Load user activity logs with timestamps and actions",
       "depends_on": [],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "../projects/test_user_behavior_analysis/parquets/activity_data.parquet"
+      "result_path": "parquets/activity_data.parquet",
+      "output": {
+        "output_type": "dataframe",
+        "display_type": "table",
+        "description": "Activity logs with columns: user_id, timestamp, action, duration"
+      }
     },
     {
       "node_id": "merged_data",
       "type": "compute",
       "name": "Merge Datasets",
+      "description": "Join user data with activity logs for enriched analysis",
       "depends_on": [
         "user_data",
         "activity_data"
       ],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "../projects/test_user_behavior_analysis/parquets/merged_data.parquet"
+      "result_path": "parquets/merged_data.parquet",
+      "output": {
+        "output_type": "dataframe",
+        "display_type": "table",
+        "description": "Merged dataset with user profiles and activity data"
+      }
     },
     {
       "node_id": "statistics",
       "type": "compute",
       "name": "Compute Statistics",
+      "description": "Calculate aggregate statistics on user behavior",
       "depends_on": [
         "merged_data",
         "user_data"
       ],
       "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": "../projects/test_user_behavior_analysis/parquets/statistics.parquet"
+      "result_path": "parquets/statistics.parquet",
+      "output": {
+        "output_type": "dataframe",
+        "display_type": "table",
+        "description": "Statistics: user_id, total_actions, avg_duration, engagement_score"
+      }
     },
     {
-      "node_id": "report",
-      "type": "compute",
-      "name": "Generate Report",
-      "depends_on": [],
+      "node_id": "behavior_chart",
+      "type": "chart",
+      "name": "Visualize User Engagement",
+      "description": "Create visualization of user engagement patterns",
+      "depends_on": [
+        "statistics"
+      ],
       "execution_status": "validated",
-      "result_format": "parquet",
-      "result_path": "../projects/test_user_behavior_analysis/parquets/report.parquet"
+      "result_format": "json",
+      "result_path": "parquets/behavior_chart.json",
+      "output": {
+        "output_type": "plotly",
+        "display_type": "plotly_chart",
+        "description": "Interactive scatter plot showing user engagement scores over time"
+      }
     }
   ],
   "dag": {
@@ -64,7 +96,7 @@
       "activity_data",
       "merged_data",
       "statistics",
-      "report"
+      "behavior_chart"
     ],
     "edges": [
       [
@@ -82,6 +114,10 @@
       [
         "user_data",
         "statistics"
+      ],
+      [
+        "statistics",
+        "behavior_chart"
       ]
     ]
   }
