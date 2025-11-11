@@ -14,8 +14,9 @@ class OutputType(Enum):
     """Enumeration of possible output types"""
     DATAFRAME = "dataframe"
     DICT_LIST = "dict_list"
-    PLOTLY = "plotly"
-    ECHARTS = "echarts"
+    PLOTLY = "plotly"              # Interactive chart (Plotly)
+    ECHARTS = "echarts"            # Interactive chart (ECharts)
+    IMAGE = "image"                # Static image (PNG, JPG, etc.)
     FUNCTION = "function"
     UNKNOWN = "unknown"
 
@@ -26,13 +27,15 @@ class DisplayType(Enum):
     JSON_VIEWER = "json_viewer"
     PLOTLY_CHART = "plotly_chart"
     ECHARTS_CHART = "echarts_chart"
+    IMAGE_VIEWER = "image_viewer"  # For static images
     NONE = "none"
 
 
 class ResultFormat(Enum):
     """Enumeration of result file storage formats"""
     PARQUET = "parquet"  # For DataFrames
-    JSON = "json"        # For dict/list and chart configs
+    JSON = "json"        # For dict/list and interactive chart configs
+    IMAGE = "image"      # For PNG, JPG, etc.
     NONE = "none"        # For functions (no file storage)
 
 
@@ -42,6 +45,7 @@ OUTPUT_TO_RESULT_FORMAT = {
     OutputType.DICT_LIST: ResultFormat.JSON,
     OutputType.PLOTLY: ResultFormat.JSON,
     OutputType.ECHARTS: ResultFormat.JSON,
+    OutputType.IMAGE: ResultFormat.IMAGE,
     OutputType.FUNCTION: ResultFormat.NONE,
     OutputType.UNKNOWN: ResultFormat.JSON,
 }

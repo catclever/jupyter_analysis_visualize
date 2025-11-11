@@ -1,8 +1,10 @@
 """
 Chart Node Type
 
-Represents a visualization node that creates charts and visualizations.
-Output: Plotly Figure or ECharts configuration
+Represents a visualization node that creates interactive charts.
+Output: Plotly Figure or ECharts configuration (JSON)
+
+Note: For static image outputs (PNG, JPG, etc.), use ImageNode instead.
 """
 
 from typing import Any, Dict
@@ -12,12 +14,18 @@ from .base import BaseNode, NodeMetadata, NodeOutput, OutputType, DisplayType, R
 
 class ChartNode(BaseNode):
     """
-    Chart/visualization node that creates interactive visualizations.
+    Interactive chart/visualization node that creates interactive visualizations.
 
     Constraints:
     - Can have dependencies on any node type
-    - Outputs either Plotly Figure or ECharts configuration
+    - Outputs either Plotly Figure or ECharts configuration (stored as JSON)
     - Typically a leaf node (not depended on by other nodes)
+
+    Supported formats:
+    - Plotly Figure objects (rendered as interactive HTML charts)
+    - ECharts configuration dicts (with xAxis, yAxis, series, etc.)
+
+    For static image outputs (PNG, JPG, etc.), use ImageNode instead.
     """
 
     node_type = "chart"

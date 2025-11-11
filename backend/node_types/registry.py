@@ -138,8 +138,9 @@ def _register_builtin_types():
     from .data_source import DataSourceNode
     from .compute import ComputeNode
     from .chart import ChartNode
+    from .image import ImageNode
 
-    for node_class in [DataSourceNode, ComputeNode, ChartNode]:
+    for node_class in [DataSourceNode, ComputeNode, ChartNode, ImageNode]:
         NodeTypeRegistry.register(node_class.node_type, node_class)
 
 

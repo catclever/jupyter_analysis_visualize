@@ -36,7 +36,7 @@ def test_node_type_registration():
     registered_types = NodeTypeRegistry.list_types()
     print(f"Registered node types: {registered_types}")
 
-    expected_types = ['data_source', 'compute', 'chart']
+    expected_types = ['data_source', 'compute', 'chart', 'image']
     for node_type in expected_types:
         if NodeTypeRegistry.is_registered(node_type):
             print(f"✓ {node_type} is registered")
@@ -176,6 +176,53 @@ def test_chart_node():
     return True
 
 
+def test_image_node():
+    """Test ImageNode creation and validation"""
+    print("\n=== Test 4b: ImageNode ===")
+
+    # Create metadata for an image node
+    metadata = NodeMetadata(
+        node_id="test_image",
+        node_type="image",
+        name="Test Image Node",
+        depends_on=["test_compute"]
+    )
+
+    # Instantiate the node
+    NodeClass = get_node_type('image')
+    node = NodeClass(metadata)
+    print(f"✓ Created ImageNode: {node}")
+
+    # Test output inference with file path
+    image_path = "output/chart.png"
+    output = node.infer_output(image_path)
+
+    print(f"✓ Image file path inference:")
+    print(f"  - output_type: {output.output_type.value}")
+    print(f"  - display_type: {output.display_type.value}")
+    print(f"  - result_format: {output.result_format.value}")
+
+    assert output.output_type == OutputType.IMAGE
+    assert output.display_type == DisplayType.IMAGE_VIEWER
+    assert output.result_format == ResultFormat.IMAGE
+    print("✓ Output type is correct")
+
+    # Test with JPG file
+    print("\nTesting JPG file path...")
+    jpg_path = "results/chart.jpg"
+    output = node.infer_output(jpg_path)
+
+    print(f"✓ JPG file inference:")
+    print(f"  - output_type: {output.output_type.value}")
+    print(f"  - result_format: {output.result_format.value}")
+
+    assert output.output_type == OutputType.IMAGE
+    assert output.result_format == ResultFormat.IMAGE
+    print("✓ JPG output type is correct")
+
+    return True
+
+
 def test_execution_manager_integration():
     """Test integration with ExecutionManager"""
     print("\n=== Test 5: ExecutionManager Integration ===")
@@ -242,6 +289,7 @@ def main():
         ("DataSourceNode", test_data_source_node),
         ("ComputeNode", test_compute_node),
         ("ChartNode", test_chart_node),
+        ("ImageNode", test_image_node),
         ("ExecutionManager Integration", test_execution_manager_integration),
     ]
 
