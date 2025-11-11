@@ -293,3 +293,85 @@ Frontend integration can now proceed with:
 - API endpoints (built with FastAPI)
 - WebSocket support for real-time execution updates
 - Integration with React + XYFlow frontend for DAG visualization
+
+---
+
+## Documentation Organization Rules
+
+### File Placement Guidelines
+
+#### 1. Reports Directory (`reports/`)
+Local analysis documents (not tracked in git):
+- **Analysis documents**: Design analysis, architecture analysis, comparative studies
+- **Documentation**: Technical guides, implementation details, API references
+- **Reports**: Summary reports, optimization reports, feature overviews
+- **Reference materials**: Quick reference guides, cheat sheets
+
+**Note**: These are local reference materials generated during development. Use for:
+- Understanding the current system
+- Sharing knowledge within the team
+- Documenting findings and analysis
+
+**Examples:**
+- `reports/NODE_DESIGN_ANALYSIS.md` - Analysis of node types and design
+- `reports/ARCHITECTURE_OVERVIEW.md` - High-level architecture analysis
+- `reports/OPTIMIZATION_SUMMARY.md` - Optimization findings and summaries
+
+#### 2. Designs Directory (`designs/`)
+New design proposals (tracked in git):
+- **Design proposals**: New features, architectural changes
+- **Implementation plans**: How to build new functionality
+- **RFCs**: Request for Comments on design decisions
+- **Specifications**: Detailed specs for upcoming features
+
+**Note**: These are important architectural decisions and should be committed to git for team review and historical reference.
+
+**Examples:**
+- `designs/EXECUTION_ENGINE_REDESIGN.md` - Proposal for redesigning execution
+- `designs/NEW_NODE_TYPE_PROPOSAL.md` - Proposal for adding new node types
+- `designs/FRONTEND_CACHING_PLAN.md` - Implementation plan for caching
+
+#### 3. Key Distinction
+- **`reports/`**:
+  - Analysis of EXISTING design (retrospective, explanatory)
+  - Local only (not tracked in git)
+  - For reference and knowledge sharing
+
+- **`designs/`**:
+  - Plans for NEW design (prospective, prescriptive)
+  - Tracked in git
+  - For team discussion and decision records
+
+**Rule of thumb:**
+- If you're explaining what currently exists → `reports/` (local)
+- If you're proposing what should be built → `designs/` (git-tracked)
+
+---
+
+## Design Evolution and Cleanup Rules
+
+### Rule 1: Design Optimization and File Management
+When optimizing designs through new files:
+1. **Create new design files** as needed to refine and improve proposals
+2. **Delete or modify obsolete files** that are no longer applicable
+3. **Consolidate learnings** from multiple iterations into final design documents
+4. **Avoid accumulation** of outdated design proposals
+
+**Rationale**: Design directories should reflect the current state of thinking, not historical iterations. Old designs create confusion and maintenance burden.
+
+### Rule 2: Design Cleanup After Implementation
+When implementing features from design documents:
+1. **After development is complete**, delete the corresponding design file(s)
+2. **Move relevant documentation** to `reports/` if it documents the implemented feature
+3. **Keep only designs** that are:
+   - Under discussion or review
+   - Planned but not yet implemented
+   - Awaiting approval before development starts
+
+**Rationale**: Once a design is implemented, it becomes part of the actual codebase (code is the truth). The design document served its purpose and should be archived or removed to keep the designs directory clean.
+
+**Examples:**
+- Create: `designs/NODE_STANDARDIZATION_PLAN.md` → Implementation starts
+- During: Multiple iterations and refinements of the design
+- After: Implementation complete → Delete `designs/NODE_STANDARDIZATION_PLAN.md`
+- Document: Move relevant implementation notes to `reports/NODE_STANDARDIZATION_IMPLEMENTATION.md` if needed for future reference
