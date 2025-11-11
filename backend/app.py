@@ -103,20 +103,23 @@ def get_project(project_id: str) -> Dict[str, Any]:
         edges = []
 
         for node_info in project_data["nodes"]:
-            # Determine node type for frontend visualization
-            node_type = "compute"  # default
-            if node_info["type"] == "data_source":
-                node_type = "data"
-            elif node_info["type"] == "chart":
-                node_type = "chart"
+            # Map backend node types directly to frontend
+            # Backend supports: data_source, compute, chart, image, tool
+            # Frontend now supports: data_source, compute, chart, image, tool (via config)
+            node_type = node_info.get("type", "compute")  # default to compute
+
+            # For backward compatibility, map old "data" type to "data_source"
+            if node_type == "data":
+                node_type = "data_source"
 
             nodes.append({
                 "id": node_info["node_id"],
                 "label": node_info["name"],
-                "type": node_type,
+                "type": node_type,  # Pass through backend type directly
                 "execution_status": node_info.get("execution_status", "not_executed"),
                 "result_format": node_info.get("result_format"),
                 "result_path": node_info.get("result_path"),
+                "output": node_info.get("output"),  # Include output metadata for frontend display rules
             })
 
             # Build edges from dependencies
