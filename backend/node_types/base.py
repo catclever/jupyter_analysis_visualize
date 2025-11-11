@@ -29,6 +29,24 @@ class DisplayType(Enum):
     NONE = "none"
 
 
+class ResultFormat(Enum):
+    """Enumeration of result file storage formats"""
+    PARQUET = "parquet"  # For DataFrames
+    JSON = "json"        # For dict/list and chart configs
+    NONE = "none"        # For functions (no file storage)
+
+
+# Mapping from OutputType to ResultFormat
+OUTPUT_TO_RESULT_FORMAT = {
+    OutputType.DATAFRAME: ResultFormat.PARQUET,
+    OutputType.DICT_LIST: ResultFormat.JSON,
+    OutputType.PLOTLY: ResultFormat.JSON,
+    OutputType.ECHARTS: ResultFormat.JSON,
+    OutputType.FUNCTION: ResultFormat.NONE,
+    OutputType.UNKNOWN: ResultFormat.JSON,
+}
+
+
 @dataclass
 class NodeOutput:
     """
@@ -37,10 +55,12 @@ class NodeOutput:
     Attributes:
         output_type: Type of the output (dataframe, dict_list, plotly, echarts, function)
         display_type: How to display the output on frontend (table, json_viewer, chart, none)
+        result_format: How to store the result (parquet, json, none)
         description: Human-readable description of the output
     """
     output_type: OutputType
     display_type: DisplayType
+    result_format: ResultFormat
     description: str = ""
 
     def to_dict(self) -> Dict[str, str]:
@@ -48,6 +68,7 @@ class NodeOutput:
         return {
             'output_type': self.output_type.value,
             'display_type': self.display_type.value,
+            'result_format': self.result_format.value,
             'description': self.description
         }
 
@@ -57,6 +78,7 @@ class NodeOutput:
         return cls(
             output_type=OutputType(data['output_type']),
             display_type=DisplayType(data['display_type']),
+            result_format=ResultFormat(data['result_format']),
             description=data.get('description', '')
         )
 

@@ -7,7 +7,7 @@ Output: DataFrame (required)
 
 from typing import Any, Dict
 import pandas as pd
-from .base import BaseNode, NodeMetadata, NodeOutput, OutputType, DisplayType
+from .base import BaseNode, NodeMetadata, NodeOutput, OutputType, DisplayType, ResultFormat, OUTPUT_TO_RESULT_FORMAT
 
 
 class DataSourceNode(BaseNode):
@@ -61,5 +61,6 @@ class DataSourceNode(BaseNode):
         return NodeOutput(
             output_type=OutputType.DATAFRAME,
             display_type=DisplayType.TABLE,
+            result_format=OUTPUT_TO_RESULT_FORMAT[OutputType.DATAFRAME],
             description=f"DataFrame with shape {result.shape}"
         )

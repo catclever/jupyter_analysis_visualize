@@ -7,7 +7,7 @@ Output: Plotly Figure or ECharts configuration
 
 from typing import Any, Dict
 import plotly.graph_objects as go
-from .base import BaseNode, NodeMetadata, NodeOutput, OutputType, DisplayType
+from .base import BaseNode, NodeMetadata, NodeOutput, OutputType, DisplayType, ResultFormat, OUTPUT_TO_RESULT_FORMAT
 
 
 class ChartNode(BaseNode):
@@ -58,6 +58,7 @@ class ChartNode(BaseNode):
             return NodeOutput(
                 output_type=OutputType.PLOTLY,
                 display_type=DisplayType.PLOTLY_CHART,
+                result_format=OUTPUT_TO_RESULT_FORMAT[OutputType.PLOTLY],
                 description="Plotly interactive visualization"
             )
 
@@ -68,6 +69,7 @@ class ChartNode(BaseNode):
                 return NodeOutput(
                     output_type=OutputType.ECHARTS,
                     display_type=DisplayType.ECHARTS_CHART,
+                    result_format=OUTPUT_TO_RESULT_FORMAT[OutputType.ECHARTS],
                     description="ECharts visualization configuration"
                 )
 

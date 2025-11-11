@@ -22,7 +22,8 @@ from node_types import (
     NodeTypeRegistry,
     NodeMetadata,
     OutputType,
-    DisplayType
+    DisplayType,
+    ResultFormat
 )
 from execution_manager import ExecutionManager
 from project_manager import ProjectManager
@@ -70,10 +71,12 @@ def test_data_source_node():
     print(f"✓ DataFrame inference:")
     print(f"  - output_type: {output.output_type.value}")
     print(f"  - display_type: {output.display_type.value}")
+    print(f"  - result_format: {output.result_format.value}")
     print(f"  - description: {output.description}")
 
     assert output.output_type == OutputType.DATAFRAME
     assert output.display_type == DisplayType.TABLE
+    assert output.result_format == ResultFormat.PARQUET
     print("✓ Output type is correct")
 
     return True
@@ -144,9 +147,11 @@ def test_chart_node():
     print(f"✓ Plotly Figure inference:")
     print(f"  - output_type: {output.output_type.value}")
     print(f"  - display_type: {output.display_type.value}")
+    print(f"  - result_format: {output.result_format.value}")
 
     assert output.output_type == OutputType.PLOTLY
     assert output.display_type == DisplayType.PLOTLY_CHART
+    assert output.result_format == ResultFormat.JSON
     print("✓ Output type is correct")
 
     # Test ECharts configuration
@@ -161,9 +166,11 @@ def test_chart_node():
     print(f"✓ ECharts configuration inference:")
     print(f"  - output_type: {output.output_type.value}")
     print(f"  - display_type: {output.display_type.value}")
+    print(f"  - result_format: {output.result_format.value}")
 
     assert output.output_type == OutputType.ECHARTS
     assert output.display_type == DisplayType.ECHARTS_CHART
+    assert output.result_format == ResultFormat.JSON
     print("✓ Output type is correct")
 
     return True

@@ -14,7 +14,7 @@ Architecture:
 """
 
 from .registry import NodeTypeRegistry, get_node_type, register_node_type
-from .base import BaseNode, NodeMetadata, NodeOutput, OutputType, DisplayType
+from .base import BaseNode, NodeMetadata, NodeOutput, OutputType, DisplayType, ResultFormat, OUTPUT_TO_RESULT_FORMAT
 
 __all__ = [
     'NodeTypeRegistry',
@@ -25,4 +25,6 @@ __all__ = [
     'NodeOutput',
     'OutputType',
     'DisplayType',
+    'ResultFormat',
+    'OUTPUT_TO_RESULT_FORMAT',
 ]
