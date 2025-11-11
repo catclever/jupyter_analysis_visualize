@@ -3576,30 +3576,24 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           <ResizablePanel defaultSize={40} minSize={25}>
             {isEditingMarkdown ? (
               <div className="h-full flex flex-col">
-                <div className="flex items-center justify-between px-4 py-2 border-b border-border gap-2">
-                  <div className="text-sm font-medium text-muted-foreground">
-                    {hasMarkdownChanges && <span className="text-amber-600">● </span>}
-                    Editing Markdown
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleMarkdownSave}
-                      disabled={!hasMarkdownChanges || isSavingMarkdown}
-                      className="h-7 px-2 text-xs"
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleMarkdownCancel}
-                      variant="outline"
-                      disabled={isSavingMarkdown}
-                      className="h-7 px-2 text-xs"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+                  <Button
+                    size="sm"
+                    onClick={handleMarkdownSave}
+                    disabled={!hasMarkdownChanges || isSavingMarkdown}
+                    className="h-7 px-2 text-xs"
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleMarkdownCancel}
+                    variant="outline"
+                    disabled={isSavingMarkdown}
+                    className="h-7 px-2 text-xs"
+                  >
+                    Cancel
+                  </Button>
                 </div>
                 <Textarea
                   value={editingMarkdown}
