@@ -18,6 +18,7 @@
       "output": {
         "output_type": "dataframe",
         "display_type": "table",
+        "result_format": "parquet",
         "description": "Sales transaction data with columns: date, product, region, amount"
       }
     },
@@ -33,6 +34,7 @@
       "output": {
         "output_type": "dataframe",
         "display_type": "table",
+        "result_format": "parquet",
         "description": "Sales targets with columns: region, quarter, target_amount"
       }
     },
@@ -50,6 +52,7 @@
       "output": {
         "output_type": "dataframe",
         "display_type": "table",
+        "result_format": "parquet",
         "description": "Processed sales data aggregated by region and month"
       }
     },
@@ -68,24 +71,26 @@
       "output": {
         "output_type": "dataframe",
         "display_type": "table",
+        "result_format": "parquet",
         "description": "Performance metrics: region, total_sales, target, achievement_rate"
       }
     },
     {
       "node_id": "visualization",
-      "type": "chart",
+      "type": "image",
       "name": "Visualize Sales Performance",
-      "description": "Create interactive chart showing performance vs targets",
+      "description": "Create visualization showing performance vs targets as static image",
       "depends_on": [
         "metrics"
       ],
       "execution_status": "validated",
-      "result_format": "json",
-      "result_path": "parquets/visualization.json",
+      "result_format": "image",
+      "result_path": "parquets/visualization.png",
       "output": {
-        "output_type": "plotly",
-        "display_type": "plotly_chart",
-        "description": "Interactive bar chart comparing actual sales vs targets by region"
+        "output_type": "image",
+        "display_type": "image_viewer",
+        "result_format": "image",
+        "description": "PNG image showing bar chart comparing actual sales vs targets by region"
       }
     }
   ],

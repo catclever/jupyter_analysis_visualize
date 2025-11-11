@@ -18,6 +18,7 @@
       "output": {
         "output_type": "dataframe",
         "display_type": "table",
+        "result_format": "parquet",
         "description": "User profiles with columns: user_id, name, signup_date, region"
       }
     },
@@ -33,6 +34,7 @@
       "output": {
         "output_type": "dataframe",
         "display_type": "table",
+        "result_format": "parquet",
         "description": "Activity logs with columns: user_id, timestamp, action, duration"
       }
     },
@@ -51,6 +53,7 @@
       "output": {
         "output_type": "dataframe",
         "display_type": "table",
+        "result_format": "parquet",
         "description": "Merged dataset with user profiles and activity data"
       }
     },
@@ -69,24 +72,26 @@
       "output": {
         "output_type": "dataframe",
         "display_type": "table",
+        "result_format": "parquet",
         "description": "Statistics: user_id, total_actions, avg_duration, engagement_score"
       }
     },
     {
       "node_id": "behavior_chart",
-      "type": "chart",
+      "type": "image",
       "name": "Visualize User Engagement",
-      "description": "Create visualization of user engagement patterns",
+      "description": "Create visualization of user engagement patterns as static image",
       "depends_on": [
         "statistics"
       ],
       "execution_status": "validated",
-      "result_format": "json",
-      "result_path": "parquets/behavior_chart.json",
+      "result_format": "image",
+      "result_path": "parquets/behavior_chart.png",
       "output": {
-        "output_type": "plotly",
-        "display_type": "plotly_chart",
-        "description": "Interactive scatter plot showing user engagement scores over time"
+        "output_type": "image",
+        "display_type": "image_viewer",
+        "result_format": "image",
+        "description": "PNG image showing user engagement scores visualization"
       }
     }
   ],
