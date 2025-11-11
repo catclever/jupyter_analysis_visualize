@@ -9,8 +9,10 @@ Serves project data to frontend including:
 
 import json
 import os
+import ast
+import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 from fastapi.responses import FileResponse
 
 import pandas as pd
@@ -46,6 +48,56 @@ def get_project_manager(project_id: str) -> ProjectManager:
         raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
     pm.load()
     return pm
+
+
+def extract_variable_names(code: str) -> Set[str]:
+    """
+    Extract variable names used in code
+    Returns a set of variable names that are referenced (not assigned)
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        # If code has syntax errors, try to extract names using regex
+        # Look for variable names that are not being assigned
+        names = set()
+        # Match identifiers that are not preceded by = or def or class
+        pattern = r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b'
+        for match in re.finditer(pattern, code):
+            names.add(match.group(1))
+        return names
+
+    # Collect all names that are loaded (referenced)
+    loaded_names = set()
+
+    class NameVisitor(ast.NodeVisitor):
+        def visit_Name(self, node):
+            # Load context means the variable is being referenced/used
+            if isinstance(node.ctx, ast.Load):
+                loaded_names.add(node.id)
+            self.generic_visit(node)
+
+        def visit_Attribute(self, node):
+            # For obj.attr, we're interested in obj being loaded
+            self.generic_visit(node)
+
+    visitor = NameVisitor()
+    visitor.visit(tree)
+
+    # Filter out built-in names and common pandas/numpy names
+    builtins = {'print', 'len', 'range', 'sum', 'min', 'max', 'str', 'int', 'float',
+                 'list', 'dict', 'set', 'tuple', 'enumerate', 'zip', 'map', 'filter',
+                 'open', 'read', 'write', 'True', 'False', 'None', 'Exception',
+                 'ValueError', 'TypeError', 'KeyError', 'IndexError', 'AttributeError',
+                 'os', 'sys', 'json', 'pd', 'np', 'plt', 'sns', 'datetime', 'time',
+                 'pandas', 'numpy', 'matplotlib', 'seaborn', 'display', 'sqrt', 'math',
+                 'mean', 'std', 'var', 'pow', 'abs', 'round', 'sorted', 'reversed',
+                 'any', 'all', 'iter', 'next', 'callable', 'hasattr', 'getattr',
+                 'setattr', 'isinstance', 'issubclass', 'type', 'super', 'property',
+                 'staticmethod', 'classmethod', 'object'}
+
+    return loaded_names - builtins
+
 
 
 @app.get("/api/projects")
@@ -538,7 +590,10 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dic
     """
     Update the code of a node in the notebook
 
-    Updates the code cell linked to the node
+    Updates the code cell linked to the node, and:
+    1. Changes execution_status to 'not_executed'
+    2. Analyzes code variables to update dependencies
+    3. Updates project.json with new depends_on relationships
     """
     try:
         pm = get_project_manager(project_id)
@@ -548,15 +603,20 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dic
 
         code_content = body.get('code', '')
 
+        # Step 1: Extract variable names used in the code
+        used_variables = extract_variable_names(code_content)
+
         # Get notebook dict
         notebook = pm.notebook_manager.notebook
         cells = notebook.get('cells', [])
 
-        # Find code cell with matching linked_node_id and update it
+        # Find code cell with matching node_id and update it
+        target_cell = None
         for cell in cells:
             if cell.get('cell_type') == 'code':
                 metadata = cell.get('metadata', {})
                 if metadata.get('node_id') == node_id:
+                    target_cell = cell
                     # Update the cell source
                     # Convert to list format (Jupyter format)
                     lines = code_content.split('\n')
@@ -569,16 +629,48 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dic
 
                     cell['source'] = source
 
-                    # Save notebook
-                    pm.notebook_manager.save()
+                    # Step 2: Update execution_status to 'not_executed'
+                    cell['metadata']['execution_status'] = 'not_executed'
+                    break
 
-                    return {
-                        "node_id": node_id,
-                        "code": code_content,
-                        "language": "python"
-                    }
+        if target_cell is None:
+            raise HTTPException(status_code=404, detail=f"Code not found for node {node_id}")
 
-        raise HTTPException(status_code=404, detail=f"Code not found for node {node_id}")
+        # Step 3: Update project.json with new dependencies
+        project_file = pm.project_file
+        if project_file.exists():
+            with open(project_file, 'r') as f:
+                project_data = json.load(f)
+
+            # Find the node in project.json and update its dependencies and status
+            for node in project_data.get('nodes', []):
+                if node['node_id'] == node_id:
+                    # Update depends_on based on variable names
+                    # The variables used in code should match other node IDs
+                    new_depends = []
+                    for var_name in used_variables:
+                        # Check if this variable name matches any node_id
+                        if any(n['node_id'] == var_name for n in project_data.get('nodes', [])):
+                            new_depends.append(var_name)
+
+                    node['depends_on'] = new_depends
+                    node['execution_status'] = 'not_executed'
+                    break
+
+            # Save updated project.json
+            with open(project_file, 'w') as f:
+                json.dump(project_data, f, indent=2)
+
+        # Save notebook
+        pm.notebook_manager.save()
+
+        return {
+            "node_id": node_id,
+            "code": code_content,
+            "language": "python",
+            "execution_status": "not_executed",
+            "depends_on": list(used_variables)
+        }
 
     except HTTPException:
         raise
