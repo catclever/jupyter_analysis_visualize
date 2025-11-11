@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { DataSourceSidebar } from "@/components/DataSourceSidebar";
 import { FlowDiagram } from "@/components/FlowDiagram";
-import { DataTable } from "@/components/DataTable";
+import { ResultPanel } from "@/components/ResultPanel";
 import { AnalysisSidebar } from "@/components/AnalysisSidebar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
@@ -70,7 +70,7 @@ const Index = () => {
 
               <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 66.67 : 50} minSize={20}>
                 <div className="h-full overflow-auto p-6">
-                  <DataTable selectedNodeId={selectedNodeId} onNodeDeselect={() => setSelectedNodeId(null)} currentDatasetId={currentDatasetId} />
+                  <ResultPanel selectedNodeId={selectedNodeId} onNodeDeselect={() => setSelectedNodeId(null)} currentDatasetId={currentDatasetId} />
                 </div>
               </ResizablePanel>
             </ResizablePanelGroup>

@@ -15,10 +15,18 @@ import '@xyflow/react/dist/style.css';
 import { nodes as initialNodes, edges as initialEdges } from '@/data';
 import { getDatasetById } from '@/data/datasets';
 import { getProject, type ProjectNode, type ProjectEdge } from '@/services/api';
+import {
+  getNodeColor,
+  getNodeCategory,
+  getNodeTypeConfig,
+  NodeType,
+  NodeCategory,
+  CATEGORY_LAYOUTS
+} from '@/config';
 
 interface FlowNodeData extends Record<string, unknown> {
   label: string;
-  type: 'data' | 'compute' | 'chart';
+  type: string;
   phase?: string;
 }
 
@@ -52,25 +60,47 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         const project = await getProject(projectId);
 
         // 转换 API 数据为 ReactFlow 格式，计算节点位置
-        const flowNodes: Node<FlowNodeData>[] = project.nodes.map((node: ProjectNode, index: number) => {
-          // 根据节点类型和索引计算位置
-          let x = 0;
-          let y = 0;
+        // 首先按类别分组节点
+        const nodesByCategory = new Map<string, ProjectNode[]>();
+        const categoryIndices = new Map<string, number>();
 
-          if (node.type === 'data') {
-            // 数据源节点放在左边
-            x = 0;
-            y = index * 120;
-          } else if (node.type === 'compute') {
-            // 计算节点放在中间
-            const computeIndex = project.nodes.filter((n, i) => i < index && n.type === 'compute').length;
-            x = 300 + ((computeIndex % 3) * 300);
-            y = (computeIndex % 3) * 120;
-          } else if (node.type === 'chart') {
-            // 图表节点放在右边
-            const chartIndex = project.nodes.filter((n, i) => i < index && n.type === 'chart').length;
-            x = 900 + ((chartIndex % 2) * 300);
-            y = (chartIndex % 2) * 200;
+        project.nodes.forEach((node: ProjectNode) => {
+          const category = getNodeCategory(node.type);
+          if (!category) return;
+
+          if (!nodesByCategory.has(category)) {
+            nodesByCategory.set(category, []);
+            categoryIndices.set(category, 0);
+          }
+          nodesByCategory.get(category)!.push(node);
+        });
+
+        const flowNodes: Node<FlowNodeData>[] = project.nodes.map((node: ProjectNode) => {
+          const category = getNodeCategory(node.type);
+          if (!category) {
+            return {
+              id: node.id,
+              type: 'default',
+              position: { x: 0, y: 0 },
+              data: { label: node.label, type: node.type },
+              className: `flow-node-${node.type}`,
+            };
+          }
+
+          const layout = CATEGORY_LAYOUTS[category];
+          const categoryNodes = nodesByCategory.get(category) || [];
+          const nodeIndexInCategory = categoryNodes.findIndex(n => n.id === node.id);
+
+          // 计算位置
+          let x = layout.x;
+          let y = nodeIndexInCategory * layout.spacing;
+
+          // 如果有列数限制，则使用网格布局
+          if (layout.columnCount) {
+            const row = Math.floor(nodeIndexInCategory / layout.columnCount);
+            const col = nodeIndexInCategory % layout.columnCount;
+            x = layout.x + (col * layout.spacing);
+            y = row * 250;  // 行间距为250
           }
 
           return {
@@ -132,8 +162,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   const [nodes, setNodes, onNodesChange] = useNodesState(currentNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(currentEdges);
   const [localMinimapOpen, setLocalMinimapOpen] = React.useState(minimapOpen);
-  const [nodeTypeFilter, setNodeTypeFilter] = React.useState<Set<'data' | 'compute' | 'chart'>>(
-    new Set(['data', 'compute', 'chart'])
+  const [nodeTypeFilter, setNodeTypeFilter] = React.useState<Set<NodeCategory | string>>(
+    new Set(Object.values(NodeCategory))
   );
 
   // 当数据集改变时，更新 nodes 和 edges
@@ -221,46 +251,32 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       {/* 筛选条 */}
       <div className="flex items-center justify-end gap-3 p-3 border-b border-border bg-muted/50">
         <div className="flex gap-3">
-          {(['data', 'compute', 'chart'] as const).map((type) => {
-            const colorMap = {
-              data: '#a8c5da',
-              compute: '#c4a8d4',
-              chart: '#c9a8a8',
-            };
-            const labelMap = {
-              data: '数据',
-              compute: '计算',
-              chart: '图表',
-            };
-            const bgColor = colorMap[type];
-            return (
-              <button
-                key={type}
-                onClick={() => toggleNodeTypeFilter(type)}
-                className="px-3 py-1 rounded transition-all"
-                style={{
-                  backgroundColor: nodeTypeFilter.has(type) ? bgColor + '80' : bgColor + '08',
-                  border: `1px solid ${bgColor}`,
-                  color: nodeTypeFilter.has(type) ? '#000000' : bgColor,
-                  opacity: nodeTypeFilter.has(type) ? 0.9 : 0.35,
-                }}
-                title={labelMap[type]}
-              >
-                <span className="text-xs font-medium">
-                  {labelMap[type]}
-                </span>
-              </button>
-            );
-          })}
+          {Object.values(CATEGORY_LAYOUTS).map((layout) => (
+            <button
+              key={layout.category}
+              onClick={() => toggleNodeTypeFilter(layout.category)}
+              className="px-3 py-1 rounded transition-all"
+              style={{
+                backgroundColor: nodeTypeFilter.has(layout.category) ? layout.color + '80' : layout.color + '08',
+                border: `1px solid ${layout.color}`,
+                color: nodeTypeFilter.has(layout.category) ? '#000000' : layout.color,
+                opacity: nodeTypeFilter.has(layout.category) ? 0.9 : 0.35,
+              }}
+              title={layout.label}
+            >
+              <span className="text-xs font-medium">
+                {layout.label}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Flow 区域 */}
       <div className="flex-1 overflow-hidden">
       <style>{`
-        /* 数据源节点 - 莫兰迪蓝 */
-        .flow-node-data {
-          background: #a8c5da !important;
+        /* 基础样式 */
+        [class*="flow-node-"] {
           border: none !important;
           border-radius: 8px;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
@@ -269,52 +285,50 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           padding: 12px 20px;
         }
 
-        .flow-node-data > div {
-          color: #3d4a5a !important;
+        [class*="flow-node-"] > div {
           font-weight: 500;
           font-size: 13px;
           text-align: center;
           cursor: pointer;
         }
 
-        .flow-node-data.selected {
+        /* 数据源节点 (data_source) - 莫兰迪蓝 */
+        .flow-node-data_source {
+          background: #a8c5da !important;
+        }
+
+        .flow-node-data_source > div {
+          color: #3d4a5a !important;
+        }
+
+        .flow-node-data_source.selected {
           background: #a8c5da !important;
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 197, 218, 0.8) !important;
         }
 
-        .flow-node-data.parent {
+        .flow-node-data_source.parent {
           background: #a8c5da !important;
           opacity: 1;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
 
-        .flow-node-data.ancestor {
+        .flow-node-data_source.ancestor {
           background: #bfd5e8 !important;
           opacity: 0.7;
         }
 
-        .flow-node-data.dimmed {
+        .flow-node-data_source.dimmed {
           background: #d6dfe8 !important;
           opacity: 0.4;
         }
 
-        /* 计算/分析节点 - 莫兰迪紫 */
+        /* 计算节点 (compute) - 莫兰迪紫 */
         .flow-node-compute {
           background: #c4a8d4 !important;
-          border: none !important;
-          border-radius: 8px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-          width: auto !important;
-          min-width: 140px;
-          padding: 12px 20px;
         }
 
         .flow-node-compute > div {
           color: #4a3d53 !important;
-          font-weight: 500;
-          font-size: 13px;
-          text-align: center;
-          cursor: pointer;
         }
 
         .flow-node-compute.selected {
@@ -338,43 +352,69 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           opacity: 0.4;
         }
 
-        /* 图表节点 - 莫兰迪红 */
-        .flow-node-chart {
-          background: #c9a8a8 !important;
-          border: none !important;
-          border-radius: 8px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-          width: auto !important;
-          min-width: 140px;
-          padding: 12px 20px;
+        /* 图表节点 (chart & image) - 莫兰迪棕 */
+        .flow-node-chart,
+        .flow-node-image {
+          background: #d4c4a8 !important;
         }
 
-        .flow-node-chart > div {
-          color: #52363a !important;
-          font-weight: 500;
-          font-size: 13px;
-          text-align: center;
-          cursor: pointer;
+        .flow-node-chart > div,
+        .flow-node-image > div {
+          color: #524a3a !important;
         }
 
-        .flow-node-chart.selected {
-          background: #c9a8a8 !important;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(201, 168, 168, 0.8) !important;
+        .flow-node-chart.selected,
+        .flow-node-image.selected {
+          background: #d4c4a8 !important;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(212, 196, 168, 0.8) !important;
         }
 
-        .flow-node-chart.parent {
-          background: #c9a8a8 !important;
+        .flow-node-chart.parent,
+        .flow-node-image.parent {
+          background: #d4c4a8 !important;
           opacity: 1;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
 
-        .flow-node-chart.ancestor {
-          background: #d6bfbe !important;
+        .flow-node-chart.ancestor,
+        .flow-node-image.ancestor {
+          background: #ddd5c7 !important;
           opacity: 0.7;
         }
 
-        .flow-node-chart.dimmed {
-          background: #dccccb !important;
+        .flow-node-chart.dimmed,
+        .flow-node-image.dimmed {
+          background: #e4ddd0 !important;
+          opacity: 0.4;
+        }
+
+        /* 工具节点 (tool) - 莫兰迪青 */
+        .flow-node-tool {
+          background: #a8d4c4 !important;
+        }
+
+        .flow-node-tool > div {
+          color: #3a524a !important;
+        }
+
+        .flow-node-tool.selected {
+          background: #a8d4c4 !important;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 212, 196, 0.8) !important;
+        }
+
+        .flow-node-tool.parent {
+          background: #a8d4c4 !important;
+          opacity: 1;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .flow-node-tool.ancestor {
+          background: #c4ddd5 !important;
+          opacity: 0.7;
+        }
+
+        .flow-node-tool.dimmed {
+          background: #d0e4dc !important;
           opacity: 0.4;
         }
 
@@ -415,7 +455,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         nodes={nodes
           .filter(node => {
             const nodeData = node.data as FlowNodeData;
-            return nodeTypeFilter.has(nodeData.type);
+            const category = getNodeCategory(nodeData.type);
+            return category && nodeTypeFilter.has(category);
           })
           .map(node => {
             let classNames = node.className || '';
@@ -441,9 +482,13 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           const sourceData = sourceNode.data as FlowNodeData;
           const targetData = targetNode.data as FlowNodeData;
 
-          return nodeTypeFilter.has(sourceData.type) &&
-                 nodeTypeFilter.has(targetData.type) &&
-                 shouldShowEdge(edge);
+          const sourceCategory = getNodeCategory(sourceData.type);
+          const targetCategory = getNodeCategory(targetData.type);
+
+          return (sourceCategory && targetCategory &&
+                  nodeTypeFilter.has(sourceCategory) &&
+                  nodeTypeFilter.has(targetCategory) &&
+                  shouldShowEdge(edge));
         })}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
