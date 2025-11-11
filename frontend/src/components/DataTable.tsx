@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Table,
   TableBody,
@@ -31,8 +31,10 @@ import SyntaxHighlighter from "react-syntax-highlighter";
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, getImageUrl, type PaginatedData } from "@/services/api";
+import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, getImageUrl, type PaginatedData } from "@/services/api";
 import { useProjectCache } from "@/hooks/useProjectCache";
+import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
+import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
 
 interface DataRow {
   [key: string]: string | number;
@@ -3268,11 +3270,16 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const [nodeResultFormat, setNodeResultFormat] = useState<string>('parquet');
   const [isEditingMarkdown, setIsEditingMarkdown] = useState(false);
   const [editingMarkdown, setEditingMarkdown] = useState<string>('');
-  const [hasMarkdownChanges, setHasMarkdownChanges] = useState(false);
   const [isSavingMarkdown, setIsSavingMarkdown] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [displayedNodeId, setDisplayedNodeId] = useState<string | null>(selectedNodeId);
+  const [isEditingCode, setIsEditingCode] = useState(false);
+  const [editingCode, setEditingCode] = useState<string>('');
+  const [isSavingCode, setIsSavingCode] = useState(false);
 
   const { projectCache, loadProject } = useProjectCache();
+  const markdownChanges = useUnsavedChanges();
+  const codeChanges = useUnsavedChanges();
 
   // 映射前端 dataset ID 到后端项目 ID
   const projectIdMap: Record<string, string> = {
@@ -3282,17 +3289,44 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
 
   const projectId = projectIdMap[currentDatasetId] || currentDatasetId;
 
-  // 从API加载节点数据
+  // Check for unsaved changes when selectedNodeId (from props) changes
   useEffect(() => {
-    if (!selectedNodeId) {
+    // If the props selectedNodeId is different from what we're currently displaying
+    if (selectedNodeId !== displayedNodeId) {
+      // Check if there are unsaved changes in either markdown or code
+      const hasUnsavedMarkdown = markdownChanges.hasChanges && isEditingMarkdown;
+      const hasUnsavedCode = codeChanges.hasChanges && isEditingCode;
+
+      if (hasUnsavedMarkdown) {
+        // Show dialog for unsaved markdown
+        markdownChanges.checkAndNavigate(() => {
+          setDisplayedNodeId(selectedNodeId);
+        });
+      } else if (hasUnsavedCode) {
+        // Show dialog for unsaved code
+        codeChanges.checkAndNavigate(() => {
+          setDisplayedNodeId(selectedNodeId);
+        });
+      } else {
+        // No unsaved changes, just update the displayed node immediately
+        setDisplayedNodeId(selectedNodeId);
+      }
+    }
+  }, [selectedNodeId, displayedNodeId, markdownChanges.hasChanges, isEditingMarkdown, codeChanges.hasChanges, isEditingCode]);
+
+  // 从API加载节点数据（基于当前显示的节点）
+  useEffect(() => {
+    if (!displayedNodeId) {
       setApiData(null);
       setApiCode('');
       setApiMarkdown('');
       setCurrentPage(1);
+      markdownChanges.reset();
       return;
     }
 
-    const loadNodeData = async () => {
+    // If markdown is being edited, show confirmation dialog before switching nodes
+    const loadNewNode = async () => {
       try {
         setIsLoadingApi(true);
 
@@ -3302,7 +3336,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // Find node in cached project data to get result_format
         const cachedProject = projectCache[projectId];
         if (cachedProject) {
-          const node = cachedProject.nodes.find(n => n.id === selectedNodeId);
+          const node = cachedProject.nodes.find(n => n.id === displayedNodeId);
           if (node && node.result_format) {
             setNodeResultFormat(node.result_format);
           } else {
@@ -3311,28 +3345,34 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         }
 
         // 加载parquet、image或visualization格式的数据
-        const data = await getNodeData(projectId, selectedNodeId, 1, 10);
+        const data = await getNodeData(projectId, displayedNodeId, 1, 10);
         if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization') {
           setApiData(data);
         }
 
         // 加载代码
         try {
-          const codeData = await getNodeCode(projectId, selectedNodeId);
+          const codeData = await getNodeCode(projectId, displayedNodeId);
           setApiCode(codeData.code);
         } catch (err) {
-          console.log('No code available for node', selectedNodeId);
+          console.log('No code available for node', displayedNodeId);
           setApiCode('');
         }
 
         // 加载markdown总结
         try {
-          const markdownData = await getNodeMarkdown(projectId, selectedNodeId);
+          const markdownData = await getNodeMarkdown(projectId, displayedNodeId);
           setApiMarkdown(markdownData.markdown);
         } catch (err) {
-          console.log('No markdown available for node', selectedNodeId);
+          console.log('No markdown available for node', displayedNodeId);
           setApiMarkdown('');
         }
+
+        // Reset editing state and unsaved changes for new node
+        setIsEditingMarkdown(false);
+        setIsEditingCode(false);
+        markdownChanges.reset();
+        codeChanges.reset();
       } catch (err) {
         console.error('Failed to load node data:', err);
       } finally {
@@ -3340,13 +3380,14 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
       }
     };
 
-    loadNodeData();
     setCurrentPage(1); // 重置分页
-  }, [selectedNodeId, projectId, currentDatasetId, loadProject, projectCache]);
+    loadNewNode();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayedNodeId, projectId, currentDatasetId]);
 
   // 当currentPage改变时，重新加载该页的数据
   useEffect(() => {
-    if (!selectedNodeId) {
+    if (!displayedNodeId) {
       return;
     }
 
@@ -3358,7 +3399,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     const loadPageData = async () => {
       try {
         setIsLoadingApi(true);
-        const data = await getNodeData(projectId, selectedNodeId, currentPage, 10);
+        const data = await getNodeData(projectId, displayedNodeId, currentPage, 10);
         if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization') {
           setApiData(data);
         }
@@ -3370,12 +3411,12 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     };
 
     loadPageData();
-  }, [currentPage, selectedNodeId, projectId]);
+  }, [currentPage, displayedNodeId, projectId]);
 
   // 优先使用API数据，如果没有则回退到硬编码数据
   const currentData = apiData
     ? {
-        title: selectedNodeId || 'Data',
+        title: displayedNodeId || 'Data',
         headers: apiData.columns || [],
         data: (Array.isArray(apiData.data) ? apiData.data : [apiData.data]) as DataRow[],
         totalRecords: apiData.total_records,
@@ -3384,8 +3425,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         code: apiCode,
         conclusion: apiMarkdown,
       }
-    : (selectedNodeId && nodeDataMap[selectedNodeId]
-        ? nodeDataMap[selectedNodeId]
+    : (displayedNodeId && nodeDataMap[displayedNodeId]
+        ? nodeDataMap[displayedNodeId]
         : defaultData);
 
   const hasConclusion = !!currentData.conclusion;
@@ -3394,39 +3435,93 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const handleMarkdownEdit = () => {
     setEditingMarkdown(apiMarkdown);
     setIsEditingMarkdown(true);
-    setHasMarkdownChanges(false);
+    markdownChanges.reset(); // Clear any previous changes
   };
 
   const handleMarkdownChange = (newContent: string) => {
     setEditingMarkdown(newContent);
-    setHasMarkdownChanges(newContent !== apiMarkdown);
+    // Mark as changed if different from original, as saved if same
+    if (newContent !== apiMarkdown) {
+      markdownChanges.markAsChanged();
+    } else {
+      markdownChanges.markAsSaved();
+    }
   };
 
   const handleMarkdownSave = async () => {
-    if (!selectedNodeId || !hasMarkdownChanges) return;
+    if (!displayedNodeId || !markdownChanges.hasChanges) return;
 
+    setIsSavingMarkdown(true);
     try {
-      setIsSavingMarkdown(true);
-      await updateNodeMarkdown(projectId, selectedNodeId, editingMarkdown);
+      await updateNodeMarkdown(projectId, displayedNodeId, editingMarkdown);
       setApiMarkdown(editingMarkdown);
       setIsEditingMarkdown(false);
-      setHasMarkdownChanges(false);
+      markdownChanges.markAsSaved();
     } catch (err) {
       console.error('Failed to save markdown:', err);
       // TODO: Show error toast
+      throw err;
     } finally {
       setIsSavingMarkdown(false);
     }
   };
 
   const handleMarkdownCancel = () => {
-    if (hasMarkdownChanges) {
-      if (window.confirm('You have unsaved changes. Do you want to discard them?')) {
+    if (markdownChanges.hasChanges) {
+      // Show dialog for unsaved changes when canceling
+      markdownChanges.checkAndNavigate(() => {
         setIsEditingMarkdown(false);
-        setHasMarkdownChanges(false);
-      }
+      });
     } else {
+      // No changes, just exit edit mode
       setIsEditingMarkdown(false);
+    }
+  };
+
+  // Handle code edit mode
+  const handleCodeEdit = () => {
+    setEditingCode(apiCode);
+    setIsEditingCode(true);
+    codeChanges.reset(); // Clear any previous changes
+  };
+
+  const handleCodeChange = (newContent: string) => {
+    setEditingCode(newContent);
+    // Mark as changed if different from original, as saved if same
+    if (newContent !== apiCode) {
+      codeChanges.markAsChanged();
+    } else {
+      codeChanges.markAsSaved();
+    }
+  };
+
+  const handleCodeSave = async () => {
+    if (!displayedNodeId || !codeChanges.hasChanges) return;
+
+    setIsSavingCode(true);
+    try {
+      await updateNodeCode(projectId, displayedNodeId, editingCode);
+      setApiCode(editingCode);
+      setIsEditingCode(false);
+      codeChanges.markAsSaved();
+    } catch (err) {
+      console.error('Failed to save code:', err);
+      // TODO: Show error toast
+      throw err;
+    } finally {
+      setIsSavingCode(false);
+    }
+  };
+
+  const handleCodeCancel = () => {
+    if (codeChanges.hasChanges) {
+      // Show dialog for unsaved changes when canceling
+      codeChanges.checkAndNavigate(() => {
+        setIsEditingCode(false);
+      });
+    } else {
+      // No changes, just exit edit mode
+      setIsEditingCode(false);
     }
   };
 
@@ -3467,14 +3562,59 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     }
   };
 
+  // Helper function to check for unsaved changes when closing data panel or switching nodes
+  // Checks both markdown and code changes
+  const checkAndExecuteAction = (action: () => void) => {
+    const hasUnsavedMarkdown = markdownChanges.hasChanges && isEditingMarkdown;
+    const hasUnsavedCode = codeChanges.hasChanges && isEditingCode;
+
+    if (hasUnsavedMarkdown) {
+      // When markdown has changes, show markdown dialog
+      // After user handles markdown (save/discard), this callback will be triggered
+      markdownChanges.checkAndNavigate(() => {
+        // Check code changes again after markdown is handled
+        const hasUnsavedCodeNow = codeChanges.hasChanges && isEditingCode;
+        if (hasUnsavedCodeNow) {
+          // Show code dialog next
+          codeChanges.checkAndNavigate(action);
+        } else {
+          // No more changes, execute the action
+          action();
+        }
+      });
+    } else if (hasUnsavedCode) {
+      // Show code dialog directly
+      codeChanges.checkAndNavigate(action);
+    } else {
+      // No changes, execute action immediately
+      action();
+    }
+  };
+
+  // Helper function to check for unsaved changes when closing markdown panel
+  // Only checks markdown changes, allows closing markdown panel while editing code
+  const checkAndCloseMarkdownPanel = () => {
+    if (markdownChanges.hasChanges && isEditingMarkdown) {
+      markdownChanges.checkAndNavigate(() => {
+        setShowConclusion(false);
+      });
+    } else {
+      setShowConclusion(false);
+    }
+  };
+
   return (
     <div className="bg-card rounded-lg border border-border overflow-visible flex flex-col h-full relative">
-      {selectedNodeId && (
+      {displayedNodeId && (
         <Button
           variant="ghost"
           size="icon"
           className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full hover:bg-muted z-10 bg-card border border-border flex items-center justify-center"
-          onClick={() => onNodeDeselect?.()}
+          onClick={() => {
+            checkAndExecuteAction(() => {
+              onNodeDeselect?.();
+            });
+          }}
           title="关闭数据面板"
         >
           <X className="h-3.5 w-3.5" />
@@ -3498,7 +3638,13 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             variant={showConclusion ? 'default' : 'ghost'}
             size="icon"
             className="h-8 w-8"
-            onClick={() => setShowConclusion(!showConclusion)}
+            onClick={() => {
+              if (showConclusion) {
+                checkAndCloseMarkdownPanel();
+              } else {
+                setShowConclusion(true);
+              }
+            }}
             disabled={!hasConclusion}
           >
             <FileText className="h-4 w-4" />
@@ -3513,8 +3659,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               <div className="w-full h-full flex items-center justify-center p-4 bg-muted/10">
                 {currentData.result_format === 'image' || currentData.result_format === 'visualization' ? (
                   <img
-                    src={getImageUrl(projectId, selectedNodeId || '')}
-                    alt={`${selectedNodeId} visualization`}
+                    src={getImageUrl(projectId, displayedNodeId || '')}
+                    alt={`${displayedNodeId} visualization`}
                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                   />
                 ) : (
@@ -3552,21 +3698,56 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                   </TableBody>
                 </Table>
               </div>
+            ) : isEditingCode ? (
+              <div className="h-full flex flex-col">
+                <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+                  <Button
+                    size="sm"
+                    onClick={handleCodeSave}
+                    disabled={!codeChanges.hasChanges || isSavingCode}
+                    className="h-7 px-2 text-xs"
+                  >
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleCodeCancel}
+                    variant="outline"
+                    disabled={isSavingCode}
+                    className="h-7 px-2 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                <Textarea
+                  value={editingCode}
+                  onChange={(e) => handleCodeChange(e.target.value)}
+                  className="flex-1 font-mono text-xs rounded-none border-0 resize-none"
+                  placeholder="Enter code..."
+                  spellCheck="false"
+                />
+              </div>
             ) : (
               <ScrollArea className="h-full">
-                {/* @ts-ignore */}
-                <SyntaxHighlighter
-                  language="python"
-                  style={atomOneDark}
-                  className="p-4 text-sm"
-                  customStyle={{
-                    margin: 0,
-                    padding: '1rem',
-                    backgroundColor: 'transparent',
-                  }}
+                <div
+                  className="p-4 cursor-text hover:bg-muted/10 transition-colors"
+                  onDoubleClick={handleCodeEdit}
+                  title="Double-click to edit"
                 >
-                  {currentData.code}
-                </SyntaxHighlighter>
+                  {/* @ts-ignore */}
+                  <SyntaxHighlighter
+                    language="python"
+                    style={atomOneDark}
+                    className="text-sm"
+                    customStyle={{
+                      margin: 0,
+                      padding: 0,
+                      backgroundColor: 'transparent',
+                    }}
+                  >
+                    {currentData.code}
+                  </SyntaxHighlighter>
+                </div>
               </ScrollArea>
             )}
           </ResizablePanel>
@@ -3580,7 +3761,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                   <Button
                     size="sm"
                     onClick={handleMarkdownSave}
-                    disabled={!hasMarkdownChanges || isSavingMarkdown}
+                    disabled={!markdownChanges.hasChanges || isSavingMarkdown}
                     className="h-7 px-2 text-xs"
                   >
                     Save
@@ -3647,8 +3828,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         <div className="w-full flex-1 flex items-center justify-center p-4 bg-muted/10">
           {currentData.result_format === 'image' || currentData.result_format === 'visualization' ? (
             <img
-              src={getImageUrl(projectId, selectedNodeId || '')}
-              alt={`${selectedNodeId} visualization`}
+              src={getImageUrl(projectId, displayedNodeId || '')}
+              alt={`${displayedNodeId} visualization`}
               style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
             />
           ) : (
@@ -3656,21 +3837,58 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           )}
         </div>
       ) : currentData.type === 'chart' && viewMode === 'code' ? (
-        <ScrollArea className="flex-1">
-          {/* @ts-ignore */}
-          <SyntaxHighlighter
-            language="python"
-            style={atomOneDark}
-            className="p-4 text-sm"
-            customStyle={{
-              margin: 0,
-              padding: '1rem',
-              backgroundColor: 'transparent',
-            }}
-          >
-            {currentData.code}
-          </SyntaxHighlighter>
-        </ScrollArea>
+        isEditingCode ? (
+          <div className="flex-1 flex flex-col">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+              <Button
+                size="sm"
+                onClick={handleCodeSave}
+                disabled={!codeChanges.hasChanges || isSavingCode}
+                className="h-7 px-2 text-xs"
+              >
+                Save
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCodeCancel}
+                variant="outline"
+                disabled={isSavingCode}
+                className="h-7 px-2 text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
+            <Textarea
+              value={editingCode}
+              onChange={(e) => handleCodeChange(e.target.value)}
+              className="flex-1 font-mono text-xs rounded-none border-0 resize-none"
+              placeholder="Enter code..."
+              spellCheck="false"
+            />
+          </div>
+        ) : (
+          <ScrollArea className="flex-1">
+            <div
+              className="p-4 cursor-text hover:bg-muted/10 transition-colors"
+              onDoubleClick={handleCodeEdit}
+              title="Double-click to edit"
+            >
+              {/* @ts-ignore */}
+              <SyntaxHighlighter
+                language="python"
+                style={atomOneDark}
+                className="text-sm"
+                customStyle={{
+                  margin: 0,
+                  padding: 0,
+                  backgroundColor: 'transparent',
+                }}
+              >
+                {currentData.code}
+              </SyntaxHighlighter>
+            </div>
+          </ScrollArea>
+        )
       ) : (
         viewMode === 'table' ? (
           <div className="overflow-x-auto flex-1">
@@ -3703,26 +3921,61 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               </TableBody>
             </Table>
           </div>
+        ) : isEditingCode ? (
+          <div className="flex-1 flex flex-col">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+              <Button
+                size="sm"
+                onClick={handleCodeSave}
+                disabled={!codeChanges.hasChanges || isSavingCode}
+                className="h-7 px-2 text-xs"
+              >
+                Save
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCodeCancel}
+                variant="outline"
+                disabled={isSavingCode}
+                className="h-7 px-2 text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
+            <Textarea
+              value={editingCode}
+              onChange={(e) => handleCodeChange(e.target.value)}
+              className="flex-1 font-mono text-xs rounded-none border-0 resize-none"
+              placeholder="Enter code..."
+              spellCheck="false"
+            />
+          </div>
         ) : (
           <ScrollArea className="flex-1">
-            {/* @ts-ignore */}
-            <SyntaxHighlighter
-              language="python"
-              style={atomOneDark}
-              className="p-4 text-sm"
-              customStyle={{
-                margin: 0,
-                padding: '1rem',
-                backgroundColor: 'transparent',
-              }}
+            <div
+              className="p-4 cursor-text hover:bg-muted/10 transition-colors"
+              onDoubleClick={handleCodeEdit}
+              title="Double-click to edit"
             >
-              {currentData.code}
-            </SyntaxHighlighter>
+              {/* @ts-ignore */}
+              <SyntaxHighlighter
+                language="python"
+                style={atomOneDark}
+                className="text-sm"
+                customStyle={{
+                  margin: 0,
+                  padding: 0,
+                  backgroundColor: 'transparent',
+                }}
+              >
+                {currentData.code}
+              </SyntaxHighlighter>
+            </div>
           </ScrollArea>
         )
       )}
 
-      {currentData.totalRecords > 10 && viewMode !== 'code' && currentData.type !== 'chart' && selectedNodeId && (
+      {currentData.totalRecords > 10 && viewMode !== 'code' && currentData.type !== 'chart' && displayedNodeId && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
           <div className="text-sm text-muted-foreground">
             共 <span className="font-medium text-foreground">{currentData.totalRecords.toLocaleString()}</span> 条
@@ -3770,6 +4023,26 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           </div>
         </div>
       )}
+
+      {/* Unsaved Changes Dialogs */}
+      <UnsavedChangesDialog
+        open={markdownChanges.showDialog}
+        isSaving={isSavingMarkdown}
+        onSave={() => markdownChanges.confirmSave(handleMarkdownSave)}
+        onDiscard={markdownChanges.confirmDiscard}
+        onCancel={markdownChanges.confirmCancel}
+        title="Unsaved Markdown Changes"
+        description="You have unsaved changes in the markdown editor. What would you like to do?"
+      />
+      <UnsavedChangesDialog
+        open={codeChanges.showDialog}
+        isSaving={isSavingCode}
+        onSave={() => codeChanges.confirmSave(handleCodeSave)}
+        onDiscard={codeChanges.confirmDiscard}
+        onCancel={codeChanges.confirmCancel}
+        title="Unsaved Code Changes"
+        description="You have unsaved changes in the code editor. What would you like to do?"
+      />
     </div>
   );
 }

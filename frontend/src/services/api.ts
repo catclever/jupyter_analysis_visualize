@@ -209,3 +209,27 @@ export async function updateNodeMarkdown(
   }
   return response.json();
 }
+
+/**
+ * Update node code in notebook
+ */
+export async function updateNodeCode(
+  projectId: string,
+  nodeId: string,
+  code: string
+): Promise<{ node_id: string; code: string; language: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/code`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code }),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to update node code: ${response.statusText}`);
+  }
+  return response.json();
+}

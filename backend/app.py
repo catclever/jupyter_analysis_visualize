@@ -533,6 +533,59 @@ def update_node_markdown(project_id: str, node_id: str, body: Dict[str, Any]) ->
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.put("/api/projects/{project_id}/nodes/{node_id}/code")
+def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Update the code of a node in the notebook
+
+    Updates the code cell linked to the node
+    """
+    try:
+        pm = get_project_manager(project_id)
+
+        if pm.notebook_manager is None or pm.notebook_manager.notebook is None:
+            raise HTTPException(status_code=500, detail="Failed to load notebook")
+
+        code_content = body.get('code', '')
+
+        # Get notebook dict
+        notebook = pm.notebook_manager.notebook
+        cells = notebook.get('cells', [])
+
+        # Find code cell with matching linked_node_id and update it
+        for cell in cells:
+            if cell.get('cell_type') == 'code':
+                metadata = cell.get('metadata', {})
+                if metadata.get('node_id') == node_id:
+                    # Update the cell source
+                    # Convert to list format (Jupyter format)
+                    lines = code_content.split('\n')
+                    source = []
+                    for i, line in enumerate(lines):
+                        if i < len(lines) - 1:
+                            source.append(line + '\n')
+                        elif line:  # Only add last line if not empty
+                            source.append(line)
+
+                    cell['source'] = source
+
+                    # Save notebook
+                    pm.notebook_manager.save()
+
+                    return {
+                        "node_id": node_id,
+                        "code": code_content,
+                        "language": "python"
+                    }
+
+        raise HTTPException(status_code=404, detail=f"Code not found for node {node_id}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/health")
 def health_check() -> Dict[str, str]:
     """Health check endpoint"""
