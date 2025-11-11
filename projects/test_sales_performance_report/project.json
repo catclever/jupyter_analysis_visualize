@@ -85,7 +85,7 @@
       ],
       "execution_status": "validated",
       "result_format": "image",
-      "result_path": "parquets/visualization.png",
+      "result_path": "visualizations/visualization.png",
       "output": {
         "output_type": "image",
         "display_type": "image_viewer",

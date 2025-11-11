@@ -104,7 +104,7 @@
       ],
       "execution_status": "validated",
       "result_format": "image",
-      "result_path": "parquets/behavior_chart.png",
+      "result_path": "visualizations/behavior_chart.png",
       "output": {
         "output_type": "image",
         "display_type": "image_viewer",
