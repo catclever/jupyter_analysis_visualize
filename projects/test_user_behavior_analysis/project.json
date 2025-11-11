@@ -77,6 +77,24 @@
       }
     },
     {
+      "node_id": "report",
+      "type": "compute",
+      "name": "Generate Report",
+      "description": "Generate final analysis report summarizing user behavior patterns",
+      "depends_on": [
+        "statistics"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/report.parquet",
+      "output": {
+        "output_type": "dataframe",
+        "display_type": "table",
+        "result_format": "parquet",
+        "description": "Final report with title, generated timestamp, and status"
+      }
+    },
+    {
       "node_id": "behavior_chart",
       "type": "image",
       "name": "Visualize User Engagement",
@@ -101,6 +119,7 @@
       "activity_data",
       "merged_data",
       "statistics",
+      "report",
       "behavior_chart"
     ],
     "edges": [
@@ -119,6 +138,10 @@
       [
         "user_data",
         "statistics"
+      ],
+      [
+        "statistics",
+        "report"
       ],
       [
         "statistics",
