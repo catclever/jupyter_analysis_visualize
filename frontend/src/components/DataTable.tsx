@@ -3341,7 +3341,36 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     };
 
     loadNodeData();
+    setCurrentPage(1); // 重置分页
   }, [selectedNodeId, projectId, currentDatasetId, loadProject, projectCache]);
+
+  // 当currentPage改变时，重新加载该页的数据
+  useEffect(() => {
+    if (!selectedNodeId) {
+      return;
+    }
+
+    // 只有当页码不是1时才需要加载（因为初始化时已经加载过第一页）
+    if (currentPage === 1) {
+      return;
+    }
+
+    const loadPageData = async () => {
+      try {
+        setIsLoadingApi(true);
+        const data = await getNodeData(projectId, selectedNodeId, currentPage, 10);
+        if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization') {
+          setApiData(data);
+        }
+      } catch (err) {
+        console.error('Failed to load page data:', err);
+      } finally {
+        setIsLoadingApi(false);
+      }
+    };
+
+    loadPageData();
+  }, [currentPage, selectedNodeId, projectId]);
 
   // 优先使用API数据，如果没有则回退到硬编码数据
   const currentData = apiData
@@ -3699,7 +3728,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         )
       )}
 
-      {currentData.totalRecords > 0 && viewMode !== 'code' && currentData.type !== 'chart' && selectedNodeId && selectedNodeId.startsWith('data-') && (
+      {currentData.totalRecords > 10 && viewMode !== 'code' && currentData.type !== 'chart' && selectedNodeId && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
           <div className="text-sm text-muted-foreground">
             共 <span className="font-medium text-foreground">{currentData.totalRecords.toLocaleString()}</span> 条
