@@ -47,7 +47,7 @@ export interface ProjectDetail {
 
 export interface PaginatedData<T> {
   node_id: string;
-  format: 'parquet' | 'json' | 'image' | 'visualization';
+  format: 'parquet' | 'json' | 'image' | 'visualization' | 'pkl';
   total_records: number;
   page: number;
   page_size: number;

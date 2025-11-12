@@ -40,6 +40,7 @@ import { useProjectCache } from "@/hooks/useProjectCache";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
 import { useToast } from "@/hooks/use-toast";
+import { shouldLoadResultData, getDefaultPanel, shouldShowCodePanel } from "@/config/displayRegistry";
 
 interface DataRow {
   [key: string]: string | number;
@@ -3485,10 +3486,12 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // Find node in cached project data to get result_format and execution_status
         const cachedProject = projectCache[projectId];
         let isNodeNotExecuted = false;
+        let nodeResultFormat: string = 'parquet';
         if (cachedProject) {
           const node = cachedProject.nodes.find(n => n.id === displayedNodeId);
           if (node) {
-            setNodeResultFormat(node.result_format || 'parquet');
+            nodeResultFormat = node.result_format || 'parquet';
+            setNodeResultFormat(nodeResultFormat);
             setNodeExecutionStatus(node.execution_status || null);
 
             // If node is not executed, force code view and enter edit mode
@@ -3501,6 +3504,10 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               setNodeResultFormat(node.result_format);
               setNodeConclusionState(displayedNodeId, true);
               setNodeViewMode(displayedNodeId, 'table');
+            } else if (node.result_format === 'pkl') {
+              // For tool nodes with pkl format, default to code view
+              const defaultPanel = getDefaultPanel(node.result_format);
+              setNodeViewMode(displayedNodeId, defaultPanel === 'code' ? 'code' : 'table');
             }
           } else {
             setNodeResultFormat('parquet'); // default
@@ -3508,16 +3515,21 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           }
         }
 
-        // 加载parquet、image或visualization格式的数据
-        // 注意：未执行的节点不会有结果数据，会返回400错误
-        try {
-          const data = await getNodeData(projectId, displayedNodeId, 1, 10);
-          if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization') {
-            setApiData(data);
+        // 根据结果格式决定是否加载数据
+        // 某些格式（如pkl）不需要通过API加载数据
+        if (shouldLoadResultData(nodeResultFormat)) {
+          try {
+            const data = await getNodeData(projectId, displayedNodeId, 1, 10);
+            if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization' || data.format === 'pkl') {
+              setApiData(data);
+            }
+          } catch (err) {
+            // 未执行节点没有数据，这是正常的
+            console.log('No data available for node (may not be executed)', displayedNodeId);
+            setApiData(null);
           }
-        } catch (err) {
-          // 未执行节点没有数据，这是正常的
-          console.log('No data available for node (may not be executed)', displayedNodeId);
+        } else {
+          // 某些格式（如pkl）不需要加载结果数据
           setApiData(null);
         }
 
@@ -3838,43 +3850,48 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           {currentData.title}
         </h3>
         <div className="flex gap-2">
-          <Button
-            variant={effectiveNodeExecutionStatus === 'not_executed' ? 'default' : (currentNodeViewMode === 'code' ? 'default' : 'ghost')}
-            size="icon"
-            className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
-            onClick={() => {
-              if (effectiveNodeExecutionStatus === 'not_executed') {
-                toast({
-                  description: 'Please execute the code first',
-                });
-              } else {
-                setNodeViewMode(displayedNodeId, currentNodeViewMode === 'code' ? 'table' : 'code');
-              }
-            }}
-            disabled={effectiveNodeExecutionStatus !== 'not_executed' && !currentData.code}
-            title={effectiveNodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
-          >
-            <Code className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={nodeShowsConclusion ? 'default' : 'ghost'}
-            size="icon"
-            className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
-            onClick={() => {
-              if (effectiveNodeExecutionStatus === 'not_executed') {
-                toast({
-                  description: 'Please execute the code first',
-                });
-              } else if (nodeShowsConclusion) {
-                checkAndCloseMarkdownPanel();
-              } else {
-                setNodeConclusionState(displayedNodeId, true);
-              }
-            }}
-            disabled={!hasConclusion && effectiveNodeExecutionStatus !== 'not_executed'}
-          >
-            <FileText className="h-4 w-4" />
-          </Button>
+          {/* Code/Result toggle buttons - hidden for formats like pkl */}
+          {shouldShowCodePanel(effectiveNodeResultFormat) && (
+            <>
+              <Button
+                variant={effectiveNodeExecutionStatus === 'not_executed' ? 'default' : (currentNodeViewMode === 'code' ? 'default' : 'ghost')}
+                size="icon"
+                className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={() => {
+                  if (effectiveNodeExecutionStatus === 'not_executed') {
+                    toast({
+                      description: 'Please execute the code first',
+                    });
+                  } else {
+                    setNodeViewMode(displayedNodeId, currentNodeViewMode === 'code' ? 'table' : 'code');
+                  }
+                }}
+                disabled={effectiveNodeExecutionStatus !== 'not_executed' && !currentData.code}
+                title={effectiveNodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
+              >
+                <Code className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={nodeShowsConclusion ? 'default' : 'ghost'}
+                size="icon"
+                className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={() => {
+                  if (effectiveNodeExecutionStatus === 'not_executed') {
+                    toast({
+                      description: 'Please execute the code first',
+                    });
+                  } else if (nodeShowsConclusion) {
+                    checkAndCloseMarkdownPanel();
+                  } else {
+                    setNodeConclusionState(displayedNodeId, true);
+                  }
+                }}
+                disabled={!hasConclusion && effectiveNodeExecutionStatus !== 'not_executed'}
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

@@ -136,6 +136,12 @@ export const RESULT_FORMAT_INFO: Record<ResultFormat, ResultFormatInfo> = {
     mimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/bmp', 'image/svg+xml', 'image/webp'],
     binaryFormat: true
   },
+  [ResultFormat.PKL]: {
+    format: ResultFormat.PKL,
+    extensions: ['.pkl', '.pickle'],
+    mimeTypes: ['application/octet-stream'],
+    binaryFormat: true
+  },
   [ResultFormat.NONE]: {
     format: ResultFormat.NONE,
     extensions: [],

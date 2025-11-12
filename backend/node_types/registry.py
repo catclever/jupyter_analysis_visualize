@@ -147,3 +147,39 @@ def _register_builtin_types():
 
 # Execute registration on module import
 _register_builtin_types()
+
+
+# ============ Display Type Mapping ============
+# Maps backend node types to frontend display types
+# This defines what kind of output each node type produces
+
+NODE_DISPLAY_TYPE_MAPPING = {
+    'data_source': 'table',           # Data source nodes output DataFrames → table display
+    'compute': 'table',               # DataFrame nodes output DataFrames → table display (alias: dataframe)
+    'dataframe': 'table',             # Alternative name for compute nodes
+    'chart': 'plotly_chart',          # Chart nodes output interactive visualizations
+    'image': 'image_viewer',          # Image nodes output static images
+    'tool': 'none',                   # Tool nodes output functions → no display
+}
+
+
+def get_display_type_for_node(node_type: str) -> str:
+    """
+    Get the frontend display type for a backend node type.
+
+    Args:
+        node_type: The backend node type (e.g., 'data_source', 'compute')
+
+    Returns:
+        The frontend display type (e.g., 'table', 'plotly_chart', 'none')
+
+    Raises:
+        ValueError: If the node type is not registered
+    """
+    if node_type not in NODE_DISPLAY_TYPE_MAPPING:
+        available = list(NODE_DISPLAY_TYPE_MAPPING.keys())
+        raise ValueError(
+            f"Unknown node type '{node_type}'. "
+            f"Available types: {available}"
+        )
+    return NODE_DISPLAY_TYPE_MAPPING[node_type]

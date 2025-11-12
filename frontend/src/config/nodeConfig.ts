@@ -59,6 +59,7 @@ export enum ResultFormat {
   PARQUET = 'parquet',
   JSON = 'json',
   IMAGE = 'image',
+  PKL = 'pkl',
   NONE = 'none'
 }
 

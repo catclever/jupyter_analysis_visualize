@@ -9,3 +9,6 @@ export * from './nodeConfig';
 
 // Display rules configuration
 export * from './displayRules';
+
+// Display registry configuration
+export * from './displayRegistry';
