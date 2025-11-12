@@ -129,7 +129,26 @@ class BaseNode(ABC):
 
     Each concrete node type (DataSourceNode, ComputeNode, ChartNode, etc.)
     should inherit from this class and implement the required methods.
+
+    Class-level attributes that subclasses should define:
+        node_type: Unique identifier for the node type (e.g., 'data_source')
+        supported_output_types: List of OutputType this node can produce
+        output_storage_config: Dict mapping OutputType to storage format and path
     """
+
+    # Should be overridden by subclasses
+    node_type: str = None
+
+    # Supported output types: what this node type can produce
+    # Used during infer_output() to validate the result
+    # Subclasses should override this
+    supported_output_types: List[OutputType] = []
+
+    # Output storage configuration: how to save and load results
+    # Maps OutputType to storage format and path pattern
+    # Used when saving/loading node results
+    # Subclasses should override this
+    output_storage_config: Dict[OutputType, Dict[str, str]] = {}
 
     def __init__(self, metadata: NodeMetadata):
         """
@@ -151,30 +170,56 @@ class BaseNode(ABC):
         return self.metadata.node_type
 
     @abstractmethod
-    def validate_inputs(self, input_data: Dict[str, Any]) -> bool:
-        """
-        Validate if the provided input data matches this node's requirements.
-
-        Args:
-            input_data: Dictionary of input values
-
-        Returns:
-            True if inputs are valid, False otherwise
-        """
-        pass
-
-    @abstractmethod
     def infer_output(self, result: Any) -> NodeOutput:
         """
         Infer the output type and display type from the execution result.
+
+        At runtime, this method:
+        1. Detects the actual output type from the result
+        2. Looks up the ResultFormat from output_declarations
+        3. Returns a NodeOutput with the appropriate format
 
         Args:
             result: The actual output from executing this node
 
         Returns:
-            NodeOutput instance describing the output
+            NodeOutput instance describing the output, with result_format from declarations
         """
         pass
+
+    def get_storage_config(self, output_type: OutputType) -> Dict[str, str]:
+        """
+        Get the storage configuration for a specific output type.
+
+        This includes the save format and result path pattern.
+
+        Args:
+            output_type: The type of output
+
+        Returns:
+            Dict with 'save_format' and 'result_path_pattern' keys
+
+        Raises:
+            ValueError: If this output_type is not in storage config
+        """
+        if output_type not in self.output_storage_config:
+            raise ValueError(
+                f"{self.__class__.__name__} has no storage config for output type {output_type.value}. "
+                f"Configured types: {list(self.output_storage_config.keys())}"
+            )
+        return self.output_storage_config[output_type]
+
+    def is_output_type_supported(self, output_type: OutputType) -> bool:
+        """
+        Check if this node type supports producing the given output type.
+
+        Args:
+            output_type: The type of output to check
+
+        Returns:
+            True if supported, False otherwise
+        """
+        return output_type in self.supported_output_types
 
     def get_metadata_dict(self) -> Dict[str, Any]:
         """Get metadata as dictionary for storage"""

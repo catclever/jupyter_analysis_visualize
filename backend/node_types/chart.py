@@ -7,7 +7,7 @@ Output: Plotly Figure or ECharts configuration (JSON)
 Note: For static image outputs (PNG, JPG, etc.), use ImageNode instead.
 """
 
-from typing import Any, Dict
+from typing import Any
 import plotly.graph_objects as go
 from .base import BaseNode, NodeMetadata, NodeOutput, OutputType, DisplayType, ResultFormat, OUTPUT_TO_RESULT_FORMAT
 
@@ -25,10 +25,26 @@ class ChartNode(BaseNode):
     - Plotly Figure objects (rendered as interactive HTML charts)
     - ECharts configuration dicts (with xAxis, yAxis, series, etc.)
 
-    For static image outputs (PNG, JPG, etc.), use ImageNode instead.
+    Output Types: PLOTLY, ECHARTS
+    Storage: JSON format, saved to visualizations/ directory
     """
 
     node_type = "chart"
+
+    # What output types this node can produce
+    supported_output_types = [OutputType.PLOTLY, OutputType.ECHARTS]
+
+    # How to store each output type
+    output_storage_config = {
+        OutputType.PLOTLY: {
+            'save_format': ResultFormat.JSON.value,
+            'result_path_pattern': 'visualizations/{node_id}.json',
+        },
+        OutputType.ECHARTS: {
+            'save_format': ResultFormat.JSON.value,
+            'result_path_pattern': 'visualizations/{node_id}.json',
+        },
+    }
 
     def __init__(self, metadata: NodeMetadata):
         """Initialize a chart node"""
@@ -36,37 +52,27 @@ class ChartNode(BaseNode):
             raise ValueError(f"Expected node_type '{self.node_type}', got '{metadata.node_type}'")
         super().__init__(metadata)
 
-    def validate_inputs(self, input_data: Dict[str, Any]) -> bool:
-        """
-        Chart nodes accept any type of input.
-
-        Args:
-            input_data: Dictionary of input values
-
-        Returns:
-            Always True (charts are flexible in what they accept)
-        """
-        return True
-
     def infer_output(self, result: Any) -> NodeOutput:
         """
-        Infer output type from the result.
+        Validate result matches declared output and return NodeOutput.
 
         Args:
             result: The result from executing this node
 
         Returns:
-            NodeOutput describing the visualization
+            NodeOutput with metadata for the result
 
         Raises:
-            TypeError: If result is not a supported visualization type
+            TypeError: If result type doesn't match supported output types
         """
         # Check for Plotly Figure
         if isinstance(result, go.Figure):
+            output_type = OutputType.PLOTLY
+            storage_config = self.get_storage_config(output_type)
             return NodeOutput(
-                output_type=OutputType.PLOTLY,
+                output_type=output_type,
                 display_type=DisplayType.PLOTLY_CHART,
-                result_format=OUTPUT_TO_RESULT_FORMAT[OutputType.PLOTLY],
+                result_format=ResultFormat(storage_config['save_format']),
                 description="Plotly interactive visualization"
             )
 
@@ -74,10 +80,12 @@ class ChartNode(BaseNode):
         if isinstance(result, dict):
             # ECharts configs typically have xAxis/yAxis or series
             if any(key in result for key in ['xAxis', 'yAxis', 'series', 'legend']):
+                output_type = OutputType.ECHARTS
+                storage_config = self.get_storage_config(output_type)
                 return NodeOutput(
-                    output_type=OutputType.ECHARTS,
+                    output_type=output_type,
                     display_type=DisplayType.ECHARTS_CHART,
-                    result_format=OUTPUT_TO_RESULT_FORMAT[OutputType.ECHARTS],
+                    result_format=ResultFormat(storage_config['save_format']),
                     description="ECharts visualization configuration"
                 )
 
