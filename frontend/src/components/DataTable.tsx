@@ -3617,14 +3617,15 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
 
   // 优先使用API数据，如果没有则回退到硬编码数据
   // 如果displayedNodeId存在，则使用API加载的数据（即使是空值也要用，不要回退到defaultData）
+  // 使用effectiveNodeResultFormat而不是nodeResultFormat以确保首次加载时图片正确显示
   const currentData = displayedNodeId
     ? {
         title: displayedNodeId || 'Data',
         headers: apiData?.columns || [],
         data: apiData ? (Array.isArray(apiData.data) ? apiData.data : [apiData.data]) as DataRow[] : [],
         totalRecords: apiData?.total_records || 0,
-        result_format: nodeResultFormat,
-        type: (nodeResultFormat === 'image' || nodeResultFormat === 'visualization') ? 'chart' : 'table' as const,
+        result_format: effectiveNodeResultFormat,
+        type: (effectiveNodeResultFormat === 'image' || effectiveNodeResultFormat === 'visualization') ? 'chart' : 'table' as const,
         code: apiCode,
         codeWithMetadata: apiCodeWithMetadata,
         conclusion: apiMarkdown,
