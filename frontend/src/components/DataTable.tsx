@@ -3096,6 +3096,7 @@ const defaultData: {
   totalRecords: number;
   type?: 'table' | 'chart';
   code?: string;
+  codeWithMetadata?: string;
   conclusion?: string;
   chartType?: string;
   result_format?: string;
@@ -3105,6 +3106,7 @@ const defaultData: {
   data: [{ '提示': '点击左侧流程图中的任意节点，即可查看对应的分析结果' }],
   totalRecords: 0,
   code: undefined,
+  codeWithMetadata: undefined,
   conclusion: undefined,
   result_format: undefined,
 };
@@ -3451,6 +3453,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
 
         // Find node in cached project data to get result_format and execution_status
         const cachedProject = projectCache[projectId];
+        let isNodeNotExecuted = false;
         if (cachedProject) {
           const node = cachedProject.nodes.find(n => n.id === displayedNodeId);
           if (node) {
@@ -3459,6 +3462,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
 
             // If node is not executed, force code view and enter edit mode
             if (node.execution_status === 'not_executed') {
+              isNodeNotExecuted = true;
               setViewMode('code');
               setIsEditingCode(true);
             }
@@ -3505,8 +3509,12 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         }
 
         // Reset editing state and unsaved changes for new node
+        // But only reset markdown editing - code editing is kept for unexecuted nodes
         setIsEditingMarkdown(false);
-        setIsEditingCode(false);
+        // For executed nodes, reset code editing state; for unexecuted nodes, keep it
+        if (!isNodeNotExecuted) {
+          setIsEditingCode(false);
+        }
         markdownChanges.reset();
         codeChanges.reset();
       } catch (err) {
@@ -3549,22 +3557,30 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     loadPageData();
   }, [currentPage, displayedNodeId, projectId]);
 
+  // 从缓存中同步获取节点执行状态（不需要异步等待）
+  const cachedExecutionStatus = displayedNodeId
+    ? projectCache[projectId]?.nodes.find(n => n.id === displayedNodeId)?.execution_status || null
+    : null;
+
+  // 优先使用缓存中的执行状态，如果没有则使用状态中的值
+  const effectiveNodeExecutionStatus = cachedExecutionStatus !== null ? cachedExecutionStatus : nodeExecutionStatus;
+
   // 优先使用API数据，如果没有则回退到硬编码数据
-  const currentData = apiData
+  // 如果displayedNodeId存在，则使用API加载的数据（即使是空值也要用，不要回退到defaultData）
+  const currentData = displayedNodeId
     ? {
         title: displayedNodeId || 'Data',
-        headers: apiData.columns || [],
-        data: (Array.isArray(apiData.data) ? apiData.data : [apiData.data]) as DataRow[],
-        totalRecords: apiData.total_records,
+        headers: apiData?.columns || [],
+        data: apiData ? (Array.isArray(apiData.data) ? apiData.data : [apiData.data]) as DataRow[] : [],
+        totalRecords: apiData?.total_records || 0,
         result_format: nodeResultFormat,
         type: (nodeResultFormat === 'image' || nodeResultFormat === 'visualization') ? 'chart' : 'table' as const,
         code: apiCode,
         codeWithMetadata: apiCodeWithMetadata,
         conclusion: apiMarkdown,
+        chartType: undefined,
       }
-    : (displayedNodeId && nodeDataMap[displayedNodeId]
-        ? nodeDataMap[displayedNodeId]
-        : defaultData);
+    : defaultData;
 
   const hasConclusion = !!currentData.conclusion;
 
@@ -3776,7 +3792,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             size="icon"
             className="h-8 w-8"
             onClick={() => {
-              if (nodeExecutionStatus === 'not_executed') {
+              if (effectiveNodeExecutionStatus === 'not_executed') {
                 toast({
                   title: 'Cannot view data',
                   description: 'Please run the code first to view the results',
@@ -3787,7 +3803,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               }
             }}
             disabled={!currentData.code}
-            title={nodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
+            title={effectiveNodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
           >
             <Code className="h-4 w-4" />
           </Button>
@@ -3796,7 +3812,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             size="icon"
             className="h-8 w-8"
             onClick={() => {
-              if (nodeExecutionStatus === 'not_executed') {
+              if (effectiveNodeExecutionStatus === 'not_executed') {
                 toast({
                   title: 'Cannot view summary',
                   description: 'Please run the code first to view the summary',
@@ -3808,14 +3824,58 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 setShowConclusion(true);
               }
             }}
-            disabled={!hasConclusion || nodeExecutionStatus === 'not_executed'}
+            disabled={!hasConclusion || effectiveNodeExecutionStatus === 'not_executed'}
           >
             <FileText className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {showConclusion ? (
+      {effectiveNodeExecutionStatus === 'not_executed' ? (
+        <div className="h-full flex flex-col">
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+            <Button
+              size="sm"
+              onClick={handleCodeSave}
+              disabled={!codeChanges.hasChanges}
+              className="h-7 px-2 text-xs"
+            >
+              Save
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleCodeCancel}
+              variant="outline"
+              className="h-7 px-2 text-xs"
+            >
+              Cancel
+            </Button>
+          </div>
+          <textarea
+            value={apiCode}
+            onChange={(e) => {
+              setApiCode(e.target.value);
+              codeChanges.markAsChanged();
+            }}
+            placeholder="Enter code..."
+            spellCheck={false}
+            style={{
+              width: '100%',
+              height: '100%',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              lineHeight: '1.5',
+              padding: '8px 12px',
+              backgroundColor: '#282c34',
+              color: '#abb2bf',
+              border: 'none',
+              borderRadius: '0',
+              resize: 'none',
+              outline: 'none',
+            }}
+          />
+        </div>
+      ) : showConclusion ? (
         <ResizablePanelGroup direction="horizontal" className="flex-1">
           <ResizablePanel defaultSize={60} minSize={30}>
             {currentData.type === 'chart' && viewMode === 'table' ? (
