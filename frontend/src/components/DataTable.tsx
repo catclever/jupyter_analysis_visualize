@@ -3377,7 +3377,6 @@ function renderChart(chartType: string | undefined, data: DataRow[]) {
 
 export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'data-analysis', onProjectUpdate }: DataTableProps) {
   const [viewMode, setViewMode] = useState<'table' | 'code'>('table');
-  const [showConclusion, setShowConclusion] = useState(false);
   const [apiData, setApiData] = useState<PaginatedData<any> | null>(null);
   const [apiCode, setApiCode] = useState<string>('');
   const [apiCodeWithMetadata, setApiCodeWithMetadata] = useState<string>('');
@@ -3393,11 +3392,28 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const [isEditingCode, setIsEditingCode] = useState(false);
   const [editingCode, setEditingCode] = useState<string>('');
   const [isSavingCode, setIsSavingCode] = useState(false);
+  // Per-node panel state tracking
+  const [nodeConclusionStates, setNodeConclusionStates] = useState<Record<string, boolean>>({});
 
   const { projectCache, loadProject } = useProjectCache();
   const markdownChanges = useUnsavedChanges();
   const codeChanges = useUnsavedChanges();
   const { toast } = useToast();
+
+  // Get per-node conclusion state, or use default if not set
+  const getNodeConclusionState = (nodeId: string | null): boolean => {
+    if (!nodeId) return false;
+    return nodeConclusionStates[nodeId] ?? false;
+  };
+
+  // Set per-node conclusion state
+  const setNodeConclusionState = (nodeId: string | null, state: boolean) => {
+    if (!nodeId) return;
+    setNodeConclusionStates(prev => ({
+      ...prev,
+      [nodeId]: state
+    }));
+  };
 
   // 映射前端 dataset ID 到后端项目 ID
   const projectIdMap: Record<string, string> = {
@@ -3468,7 +3484,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             } else if (node.result_format === 'image' || node.result_format === 'visualization') {
               // For image nodes, automatically show the visualization
               setNodeResultFormat(node.result_format);
-              setShowConclusion(true);
+              setNodeConclusionState(displayedNodeId, true);
               setViewMode('table');
             }
           } else {
@@ -3576,8 +3592,10 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   // 优先使用缓存中的结果格式，如果没有则使用状态中的值
   const effectiveNodeResultFormat = cachedResultFormat !== null ? cachedResultFormat : nodeResultFormat;
 
-  // 对于image节点，自动显示showConclusion面板（即使状态为false）
-  const effectiveShowConclusion = showConclusion || (effectiveNodeResultFormat === 'image' || effectiveNodeResultFormat === 'visualization');
+  // 对于image节点，自动显示markdown面板（即使用户未显式打开）
+  const isImageNode = effectiveNodeResultFormat === 'image' || effectiveNodeResultFormat === 'visualization';
+  const nodeShowsConclusion = getNodeConclusionState(displayedNodeId);
+  const effectiveShowConclusion = nodeShowsConclusion || isImageNode;
 
   // 优先使用API数据，如果没有则回退到硬编码数据
   // 如果displayedNodeId存在，则使用API加载的数据（即使是空值也要用，不要回退到defaultData）
@@ -3772,10 +3790,10 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const checkAndCloseMarkdownPanel = () => {
     if (markdownChanges.hasChanges && isEditingMarkdown) {
       markdownChanges.checkAndNavigate(() => {
-        setShowConclusion(false);
+        setNodeConclusionState(displayedNodeId, false);
       });
     } else {
-      setShowConclusion(false);
+      setNodeConclusionState(displayedNodeId, false);
     }
   };
 
@@ -3820,7 +3838,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             <Code className="h-4 w-4" />
           </Button>
           <Button
-            variant={showConclusion ? 'default' : 'ghost'}
+            variant={nodeShowsConclusion ? 'default' : 'ghost'}
             size="icon"
             className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
             onClick={() => {
@@ -3828,10 +3846,10 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 toast({
                   description: 'Please execute the code first',
                 });
-              } else if (showConclusion) {
+              } else if (nodeShowsConclusion) {
                 checkAndCloseMarkdownPanel();
               } else {
-                setShowConclusion(true);
+                setNodeConclusionState(displayedNodeId, true);
               }
             }}
             disabled={!hasConclusion && effectiveNodeExecutionStatus !== 'not_executed'}
