@@ -597,8 +597,10 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any] = Body(
     3. Updates project.json with new depends_on relationships
     4. Regenerates metadata comments with updated dependencies
     """
+    print(f"DEBUG: update_node_code called with project_id={project_id}, node_id={node_id}", flush=True)
     try:
         pm = get_project_manager(project_id)
+        print(f"DEBUG: Got project manager", flush=True)
 
         if pm.notebook_manager is None or pm.notebook_manager.notebook is None:
             raise HTTPException(status_code=500, detail="Failed to load notebook")
@@ -702,6 +704,9 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any] = Body(
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_msg = f"{str(e)}\n{traceback.format_exc()}"
+        print(f"Error in update_node_code: {error_msg}", flush=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

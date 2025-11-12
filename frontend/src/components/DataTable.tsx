@@ -4158,7 +4158,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
       <UnsavedChangesDialog
         open={codeChanges.showDialog}
         isSaving={isSavingCode}
-        onSave={() => codeChanges.confirmSave(handleCodeSave)}
+        onSave={() => codeChanges.confirmSave(() => handleCodeSave())}
         onDiscard={codeChanges.confirmDiscard}
         onCancel={codeChanges.confirmCancel}
         title="Unsaved Code Changes"
