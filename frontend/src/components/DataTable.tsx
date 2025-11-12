@@ -3465,6 +3465,10 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               isNodeNotExecuted = true;
               setViewMode('code');
               setIsEditingCode(true);
+            } else if (node.result_format === 'image' || node.result_format === 'visualization') {
+              // For image nodes, automatically show the visualization
+              setShowConclusion(true);
+              setViewMode('table');
             }
           } else {
             setNodeResultFormat('parquet'); // default
