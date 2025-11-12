@@ -14,6 +14,7 @@ const Index = () => {
   const [minimapOpen, setMinimapOpen] = useState(false); // 默认关闭 minimap
   const [shouldCloseMinimap, setShouldCloseMinimap] = useState(false); // 用于追踪数据面板打开状态变化
   const [currentDatasetId, setCurrentDatasetId] = useState<string>("data-analysis");
+  const [projectRefreshKey, setProjectRefreshKey] = useState(0); // Trigger project reload when code is saved
 
   // Use project cache hook for efficient data loading
   const { loadProject } = useProjectCache();
@@ -58,6 +59,7 @@ const Index = () => {
               <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 33.33 : 50} minSize={20}>
                 <div className="h-full overflow-auto p-6">
                   <FlowDiagram
+                    key={projectRefreshKey}
                     onNodeClick={setSelectedNodeId}
                     selectedNodeId={selectedNodeId}
                     minimapOpen={minimapOpen}
@@ -70,7 +72,12 @@ const Index = () => {
 
               <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 66.67 : 50} minSize={20}>
                 <div className="h-full overflow-auto p-6">
-                  <DataTable selectedNodeId={selectedNodeId} onNodeDeselect={() => setSelectedNodeId(null)} currentDatasetId={currentDatasetId} />
+                  <DataTable
+                    selectedNodeId={selectedNodeId}
+                    onNodeDeselect={() => setSelectedNodeId(null)}
+                    currentDatasetId={currentDatasetId}
+                    onProjectUpdate={() => setProjectRefreshKey(prev => prev + 1)}
+                  />
                 </div>
               </ResizablePanel>
             </ResizablePanelGroup>

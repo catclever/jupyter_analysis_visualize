@@ -44,6 +44,7 @@ interface DataTableProps {
   selectedNodeId: string | null;
   onNodeDeselect?: () => void;
   currentDatasetId?: string;
+  onProjectUpdate?: () => void;
 }
 
 // 贷款风控分析场景的节点数据
@@ -3260,7 +3261,7 @@ function renderChart(chartType: string | undefined, data: DataRow[]) {
   }
 }
 
-export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'data-analysis' }: DataTableProps) {
+export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'data-analysis', onProjectUpdate }: DataTableProps) {
   const [viewMode, setViewMode] = useState<'table' | 'code'>('table');
   const [showConclusion, setShowConclusion] = useState(false);
   const [apiData, setApiData] = useState<PaginatedData<any> | null>(null);
@@ -3504,6 +3505,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
       setApiCode(editingCode);
       setIsEditingCode(false);
       codeChanges.markAsSaved();
+
+      // Trigger project update to refresh flow diagram with new dependencies
+      onProjectUpdate?.();
     } catch (err) {
       console.error('Failed to save code:', err);
       // TODO: Show error toast
