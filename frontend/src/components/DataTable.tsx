@@ -3382,6 +3382,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const [isLoadingApi, setIsLoadingApi] = useState(false);
   const [nodeResultFormat, setNodeResultFormat] = useState<string>('parquet');
   const [isEditingMarkdown, setIsEditingMarkdown] = useState(false);
+  const [nodeExecutionStatus, setNodeExecutionStatus] = useState<string | null>(null);
   const [editingMarkdown, setEditingMarkdown] = useState<string>('');
   const [isSavingMarkdown, setIsSavingMarkdown] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -3446,21 +3447,35 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // Load project cache to get node metadata
         await loadProject(currentDatasetId);
 
-        // Find node in cached project data to get result_format
+        // Find node in cached project data to get result_format and execution_status
         const cachedProject = projectCache[projectId];
         if (cachedProject) {
           const node = cachedProject.nodes.find(n => n.id === displayedNodeId);
-          if (node && node.result_format) {
-            setNodeResultFormat(node.result_format);
+          if (node) {
+            setNodeResultFormat(node.result_format || 'parquet');
+            setNodeExecutionStatus(node.execution_status || null);
+
+            // If node is not executed, force code view and disable switching
+            if (node.execution_status === 'not_executed') {
+              setViewMode('code');
+            }
           } else {
             setNodeResultFormat('parquet'); // default
+            setNodeExecutionStatus(null);
           }
         }
 
         // 加载parquet、image或visualization格式的数据
-        const data = await getNodeData(projectId, displayedNodeId, 1, 10);
-        if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization') {
-          setApiData(data);
+        // 注意：未执行的节点不会有结果数据，会返回400错误
+        try {
+          const data = await getNodeData(projectId, displayedNodeId, 1, 10);
+          if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization') {
+            setApiData(data);
+          }
+        } catch (err) {
+          // 未执行节点没有数据，这是正常的
+          console.log('No data available for node (may not be executed)', displayedNodeId);
+          setApiData(null);
         }
 
         // 加载代码
@@ -3758,7 +3773,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             size="icon"
             className="h-8 w-8"
             onClick={() => setViewMode(viewMode === 'code' ? 'table' : 'code')}
-            disabled={!currentData.code}
+            disabled={!currentData.code || nodeExecutionStatus === 'not_executed'}
+            title={nodeExecutionStatus === 'not_executed' ? 'Cannot switch views for unexecuted nodes' : ''}
           >
             <Code className="h-4 w-4" />
           </Button>
