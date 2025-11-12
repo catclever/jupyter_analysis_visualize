@@ -82,8 +82,7 @@
       "name": "Generate Report",
       "description": "Generate final analysis report summarizing user behavior patterns",
       "depends_on": [
-        "statistics",
-        "report"
+        "statistics"
       ],
       "execution_status": "not_executed",
       "result_format": "parquet",
