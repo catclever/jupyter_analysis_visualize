@@ -3781,39 +3781,20 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                     Cancel
                   </Button>
                 </div>
-                <div className="flex-1 relative overflow-hidden">
-                  {/* Syntax highlighted code in background */}
-                  <div className="absolute inset-0 overflow-auto pointer-events-none">
-                    {/* @ts-ignore */}
-                    <SyntaxHighlighter
-                      language="python"
-                      style={atomOneDark}
-                      className="text-xs"
-                      customStyle={{
-                        margin: 0,
-                        padding: '8px 12px',
-                        backgroundColor: 'transparent',
-                        fontSize: '12px',
-                        lineHeight: '1.5',
-                      }}
-                    >
-                      {editingCode || '# Enter code...'}
-                    </SyntaxHighlighter>
-                  </div>
-                  {/* Transparent textarea overlay */}
-                  <Textarea
-                    value={editingCode}
-                    onChange={(e) => handleCodeChange(e.target.value)}
-                    className="absolute inset-0 font-mono text-xs rounded-none border-0 resize-none bg-transparent text-transparent caret-white"
-                    placeholder="Enter code..."
-                    spellCheck="false"
-                    style={{
-                      backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                      color: 'transparent',
-                      caretColor: 'white',
-                    }}
-                  />
-                </div>
+                <Textarea
+                  value={editingCode}
+                  onChange={(e) => handleCodeChange(e.target.value)}
+                  className="flex-1 font-mono text-xs rounded-none border-0 resize-none"
+                  placeholder="Enter code..."
+                  spellCheck="false"
+                  style={{
+                    backgroundColor: '#282c34',
+                    color: '#abb2bf',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    lineHeight: '1.5',
+                  }}
+                />
               </div>
             ) : (
               <ScrollArea className="h-full">
