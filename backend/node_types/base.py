@@ -36,6 +36,7 @@ class ResultFormat(Enum):
     PARQUET = "parquet"  # For DataFrames
     JSON = "json"        # For dict/list and interactive chart configs
     IMAGE = "image"      # For PNG, JPG, etc.
+    PKL = "pkl"          # For general Python objects (functions, custom objects)
     NONE = "none"        # For functions (no file storage)
 
 
