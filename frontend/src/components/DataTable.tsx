@@ -3311,6 +3311,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const [showConclusion, setShowConclusion] = useState(false);
   const [apiData, setApiData] = useState<PaginatedData<any> | null>(null);
   const [apiCode, setApiCode] = useState<string>('');
+  const [apiCodeWithMetadata, setApiCodeWithMetadata] = useState<string>('');
   const [apiMarkdown, setApiMarkdown] = useState<string>('');
   const [isLoadingApi, setIsLoadingApi] = useState(false);
   const [nodeResultFormat, setNodeResultFormat] = useState<string>('parquet');
@@ -3399,12 +3400,15 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // 加载代码
         try {
           const codeData = await getNodeCode(projectId, displayedNodeId);
-          // Strip metadata comments for display
+          // Save original code with metadata for viewing
+          setApiCodeWithMetadata(codeData.code);
+          // Strip metadata comments for editing
           const cleanedCode = stripMetadataComments(codeData.code);
           setApiCode(cleanedCode);
         } catch (err) {
           console.log('No code available for node', displayedNodeId);
           setApiCode('');
+          setApiCodeWithMetadata('');
         }
 
         // 加载markdown总结
@@ -3471,6 +3475,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         result_format: nodeResultFormat,
         type: (nodeResultFormat === 'image' || nodeResultFormat === 'visualization') ? 'chart' : 'table' as const,
         code: apiCode,
+        codeWithMetadata: apiCodeWithMetadata,
         conclusion: apiMarkdown,
       }
     : (displayedNodeId && nodeDataMap[displayedNodeId]
@@ -3770,13 +3775,39 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                     Cancel
                   </Button>
                 </div>
-                <Textarea
-                  value={editingCode}
-                  onChange={(e) => handleCodeChange(e.target.value)}
-                  className="flex-1 font-mono text-xs rounded-none border-0 resize-none"
-                  placeholder="Enter code..."
-                  spellCheck="false"
-                />
+                <div className="flex-1 relative overflow-hidden">
+                  {/* Syntax highlighted code in background */}
+                  <div className="absolute inset-0 overflow-auto pointer-events-none">
+                    {/* @ts-ignore */}
+                    <SyntaxHighlighter
+                      language="python"
+                      style={atomOneDark}
+                      className="text-xs"
+                      customStyle={{
+                        margin: 0,
+                        padding: '8px 12px',
+                        backgroundColor: 'transparent',
+                        fontSize: '12px',
+                        lineHeight: '1.5',
+                      }}
+                    >
+                      {editingCode || '# Enter code...'}
+                    </SyntaxHighlighter>
+                  </div>
+                  {/* Transparent textarea overlay */}
+                  <Textarea
+                    value={editingCode}
+                    onChange={(e) => handleCodeChange(e.target.value)}
+                    className="absolute inset-0 font-mono text-xs rounded-none border-0 resize-none bg-transparent text-transparent caret-white"
+                    placeholder="Enter code..."
+                    spellCheck="false"
+                    style={{
+                      backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                      color: 'transparent',
+                      caretColor: 'white',
+                    }}
+                  />
+                </div>
               </div>
             ) : (
               <ScrollArea className="h-full">
@@ -3796,7 +3827,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                       backgroundColor: 'transparent',
                     }}
                   >
-                    {currentData.code}
+                    {currentData.codeWithMetadata || currentData.code}
                   </SyntaxHighlighter>
                 </div>
               </ScrollArea>
@@ -3909,13 +3940,39 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 Cancel
               </Button>
             </div>
-            <Textarea
-              value={editingCode}
-              onChange={(e) => handleCodeChange(e.target.value)}
-              className="flex-1 font-mono text-xs rounded-none border-0 resize-none"
-              placeholder="Enter code..."
-              spellCheck="false"
-            />
+            <div className="flex-1 relative overflow-hidden">
+              {/* Syntax highlighted code in background */}
+              <div className="absolute inset-0 overflow-auto pointer-events-none">
+                {/* @ts-ignore */}
+                <SyntaxHighlighter
+                  language="python"
+                  style={atomOneDark}
+                  className="text-xs"
+                  customStyle={{
+                    margin: 0,
+                    padding: '8px 12px',
+                    backgroundColor: 'transparent',
+                    fontSize: '12px',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  {editingCode || '# Enter code...'}
+                </SyntaxHighlighter>
+              </div>
+              {/* Transparent textarea overlay */}
+              <Textarea
+                value={editingCode}
+                onChange={(e) => handleCodeChange(e.target.value)}
+                className="absolute inset-0 font-mono text-xs rounded-none border-0 resize-none bg-transparent text-transparent caret-white"
+                placeholder="Enter code..."
+                spellCheck="false"
+                style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                  color: 'transparent',
+                  caretColor: 'white',
+                }}
+              />
+            </div>
           </div>
         ) : (
           <ScrollArea className="flex-1">
@@ -3935,7 +3992,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                   backgroundColor: 'transparent',
                 }}
               >
-                {currentData.code}
+                {currentData.codeWithMetadata || currentData.code}
               </SyntaxHighlighter>
             </div>
           </ScrollArea>
@@ -3993,13 +4050,39 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 Cancel
               </Button>
             </div>
-            <Textarea
-              value={editingCode}
-              onChange={(e) => handleCodeChange(e.target.value)}
-              className="flex-1 font-mono text-xs rounded-none border-0 resize-none"
-              placeholder="Enter code..."
-              spellCheck="false"
-            />
+            <div className="flex-1 relative overflow-hidden">
+              {/* Syntax highlighted code in background */}
+              <div className="absolute inset-0 overflow-auto pointer-events-none">
+                {/* @ts-ignore */}
+                <SyntaxHighlighter
+                  language="python"
+                  style={atomOneDark}
+                  className="text-xs"
+                  customStyle={{
+                    margin: 0,
+                    padding: '8px 12px',
+                    backgroundColor: 'transparent',
+                    fontSize: '12px',
+                    lineHeight: '1.5',
+                  }}
+                >
+                  {editingCode || '# Enter code...'}
+                </SyntaxHighlighter>
+              </div>
+              {/* Transparent textarea overlay */}
+              <Textarea
+                value={editingCode}
+                onChange={(e) => handleCodeChange(e.target.value)}
+                className="absolute inset-0 font-mono text-xs rounded-none border-0 resize-none bg-transparent text-transparent caret-white"
+                placeholder="Enter code..."
+                spellCheck="false"
+                style={{
+                  backgroundColor: 'rgba(0, 0, 0, 0.02)',
+                  color: 'transparent',
+                  caretColor: 'white',
+                }}
+              />
+            </div>
           </div>
         ) : (
           <ScrollArea className="flex-1">
@@ -4019,7 +4102,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                   backgroundColor: 'transparent',
                 }}
               >
-                {currentData.code}
+                {currentData.codeWithMetadata || currentData.code}
               </SyntaxHighlighter>
             </div>
           </ScrollArea>
