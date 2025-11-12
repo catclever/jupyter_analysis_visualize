@@ -3553,8 +3553,14 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
 
     setIsSavingCode(true);
     try {
-      await updateNodeCode(projectId, displayedNodeId, editingCode);
-      setApiCode(editingCode);
+      const result = await updateNodeCode(projectId, displayedNodeId, editingCode);
+
+      // Backend returns code with updated metadata comments
+      const fullCode = result.code || editingCode;
+      const cleanedCode = stripMetadataComments(fullCode);
+
+      setApiCodeWithMetadata(fullCode);
+      setApiCode(cleanedCode);
       setIsEditingCode(false);
       codeChanges.markAsSaved();
 

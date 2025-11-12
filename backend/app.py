@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Set
 from fastapi.responses import FileResponse
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 
 from project_manager import ProjectManager
@@ -534,7 +534,7 @@ def get_node_markdown(project_id: str, node_id: str) -> Dict[str, Any]:
 
 
 @app.put("/api/projects/{project_id}/nodes/{node_id}/markdown")
-def update_node_markdown(project_id: str, node_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+def update_node_markdown(project_id: str, node_id: str, body: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     Update the markdown summary/documentation of a node in the notebook
 
@@ -587,7 +587,7 @@ def update_node_markdown(project_id: str, node_id: str, body: Dict[str, Any]) ->
 
 
 @app.put("/api/projects/{project_id}/nodes/{node_id}/code")
-def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+def update_node_code(project_id: str, node_id: str, body: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     """
     Update the code of a node in the notebook
 
