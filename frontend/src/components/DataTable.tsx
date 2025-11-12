@@ -3536,13 +3536,15 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // 加载代码
         try {
           const codeData = await getNodeCode(projectId, displayedNodeId);
+          console.log(`Loaded code for ${displayedNodeId}: ${codeData.code.length} chars`);
           // Save original code with metadata for viewing
           setApiCodeWithMetadata(codeData.code);
           // Strip metadata comments for editing
           const cleanedCode = stripMetadataComments(codeData.code);
+          console.log(`After stripping metadata: ${cleanedCode.length} chars`);
           setApiCode(cleanedCode);
         } catch (err) {
-          console.log('No code available for node', displayedNodeId);
+          console.log('No code available for node', displayedNodeId, err);
           setApiCode('');
           setApiCodeWithMetadata('');
         }

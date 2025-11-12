@@ -68,7 +68,7 @@ export const RESULT_FORMAT_DISPLAY_MAP: Record<ResultFormat, DisplayFormatConfig
     loaderName: 'loadPklData',
     mimeTypes: ['application/octet-stream'],
     binaryFormat: true,
-    showCodePanel: false,      // Don't show code/result toggle for tool nodes
+    showCodePanel: true,       // Show code/markdown panels (but not the toggle button between code and result)
     defaultPanel: 'code',      // Default to showing code
     loadResultData: false,     // Don't attempt to load result data via API
   },
