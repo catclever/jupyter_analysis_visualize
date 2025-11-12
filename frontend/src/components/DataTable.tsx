@@ -3376,7 +3376,6 @@ function renderChart(chartType: string | undefined, data: DataRow[]) {
 }
 
 export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'data-analysis', onProjectUpdate }: DataTableProps) {
-  const [viewMode, setViewMode] = useState<'table' | 'code'>('table');
   const [apiData, setApiData] = useState<PaginatedData<any> | null>(null);
   const [apiCode, setApiCode] = useState<string>('');
   const [apiCodeWithMetadata, setApiCodeWithMetadata] = useState<string>('');
@@ -3394,6 +3393,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const [isSavingCode, setIsSavingCode] = useState(false);
   // Per-node panel state tracking
   const [nodeConclusionStates, setNodeConclusionStates] = useState<Record<string, boolean>>({});
+  const [nodeViewModeStates, setNodeViewModeStates] = useState<Record<string, 'table' | 'code'>>({});
 
   const { projectCache, loadProject } = useProjectCache();
   const markdownChanges = useUnsavedChanges();
@@ -3412,6 +3412,21 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     setNodeConclusionStates(prev => ({
       ...prev,
       [nodeId]: state
+    }));
+  };
+
+  // Get per-node viewMode state, default to 'table'
+  const getNodeViewMode = (nodeId: string | null): 'table' | 'code' => {
+    if (!nodeId) return 'table';
+    return nodeViewModeStates[nodeId] ?? 'table';
+  };
+
+  // Set per-node viewMode state
+  const setNodeViewMode = (nodeId: string | null, mode: 'table' | 'code') => {
+    if (!nodeId) return;
+    setNodeViewModeStates(prev => ({
+      ...prev,
+      [nodeId]: mode
     }));
   };
 
@@ -3479,13 +3494,13 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             // If node is not executed, force code view and enter edit mode
             if (node.execution_status === 'not_executed') {
               isNodeNotExecuted = true;
-              setViewMode('code');
+              setNodeViewMode(displayedNodeId, 'code');
               setIsEditingCode(true);
             } else if (node.result_format === 'image' || node.result_format === 'visualization') {
               // For image nodes, automatically show the visualization
               setNodeResultFormat(node.result_format);
               setNodeConclusionState(displayedNodeId, true);
-              setViewMode('table');
+              setNodeViewMode(displayedNodeId, 'table');
             }
           } else {
             setNodeResultFormat('parquet'); // default
@@ -3596,6 +3611,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const isImageNode = effectiveNodeResultFormat === 'image' || effectiveNodeResultFormat === 'visualization';
   const nodeShowsConclusion = getNodeConclusionState(displayedNodeId);
   const effectiveShowConclusion = nodeShowsConclusion || isImageNode;
+
+  // Get current node's viewMode
+  const currentNodeViewMode = getNodeViewMode(displayedNodeId);
 
   // 优先使用API数据，如果没有则回退到硬编码数据
   // 如果displayedNodeId存在，则使用API加载的数据（即使是空值也要用，不要回退到defaultData）
@@ -3820,7 +3838,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         </h3>
         <div className="flex gap-2">
           <Button
-            variant={effectiveNodeExecutionStatus === 'not_executed' ? 'default' : (viewMode === 'code' ? 'default' : 'ghost')}
+            variant={effectiveNodeExecutionStatus === 'not_executed' ? 'default' : (currentNodeViewMode === 'code' ? 'default' : 'ghost')}
             size="icon"
             className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
             onClick={() => {
@@ -3829,7 +3847,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                   description: 'Please execute the code first',
                 });
               } else {
-                setViewMode(viewMode === 'code' ? 'table' : 'code');
+                setNodeViewMode(displayedNodeId, currentNodeViewMode === 'code' ? 'table' : 'code');
               }
             }}
             disabled={effectiveNodeExecutionStatus !== 'not_executed' && !currentData.code}
@@ -3895,7 +3913,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
       ) : effectiveShowConclusion ? (
         <ResizablePanelGroup direction="horizontal" className="flex-1">
           <ResizablePanel defaultSize={60} minSize={30}>
-            {currentData.type === 'chart' && viewMode === 'table' ? (
+            {currentData.type === 'chart' && currentNodeViewMode === 'table' ? (
               <div className="w-full h-full flex items-center justify-center p-4 bg-muted/10">
                 {currentData.result_format === 'image' || currentData.result_format === 'visualization' ? (
                   <img
@@ -3907,7 +3925,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                   renderChart(currentData.chartType, currentData.data)
                 )}
               </div>
-            ) : viewMode === 'table' ? (
+            ) : currentNodeViewMode === 'table' ? (
               <div className="overflow-x-auto h-full">
                 <Table>
                   <TableHeader>
@@ -4061,7 +4079,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             )}
           </ResizablePanel>
         </ResizablePanelGroup>
-      ) : currentData.type === 'chart' && viewMode === 'table' ? (
+      ) : currentData.type === 'chart' && currentNodeViewMode === 'table' ? (
         <div className="w-full flex-1 flex items-center justify-center p-4 bg-muted/10">
           {currentData.result_format === 'image' || currentData.result_format === 'visualization' ? (
             <img
@@ -4073,7 +4091,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             renderChart(currentData.chartType, currentData.data)
           )}
         </div>
-      ) : currentData.type === 'chart' && viewMode === 'code' ? (
+      ) : currentData.type === 'chart' && currentNodeViewMode === 'code' ? (
         isEditingCode ? (
           <div className="flex-1 flex flex-col">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
@@ -4121,7 +4139,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           </ScrollArea>
         )
       ) : (
-        viewMode === 'table' ? (
+        currentNodeViewMode === 'table' ? (
           <div className="overflow-x-auto flex-1">
             <Table>
               <TableHeader>
@@ -4200,7 +4218,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         )
       )}
 
-      {currentData.totalRecords > 10 && viewMode !== 'code' && currentData.type !== 'chart' && displayedNodeId && (
+      {currentData.totalRecords > 10 && currentNodeViewMode !== 'code' && currentData.type !== 'chart' && displayedNodeId && (
         <div className="flex items-center justify-between px-4 py-3 border-t border-border">
           <div className="text-sm text-muted-foreground">
             共 <span className="font-medium text-foreground">{currentData.totalRecords.toLocaleString()}</span> 条
