@@ -628,9 +628,10 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any] = Body(
 
                     # Update depends_on based on variable names
                     # The variables used in code should match other node IDs
+                    # Exclude the current node itself (to avoid circular dependencies)
                     for var_name in used_variables:
-                        # Check if this variable name matches any node_id
-                        if any(n['node_id'] == var_name for n in project_data.get('nodes', [])):
+                        # Check if this variable name matches any node_id (but not itself)
+                        if var_name != node_id and any(n['node_id'] == var_name for n in project_data.get('nodes', [])):
                             new_depends.append(var_name)
 
                     node['depends_on'] = new_depends
