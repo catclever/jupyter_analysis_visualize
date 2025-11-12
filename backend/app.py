@@ -611,7 +611,7 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any] = Body(
         used_variables = extract_variable_names(code_content)
 
         # Step 2: Load project.json to get node info and validate dependencies
-        project_file = pm.project_file
+        project_file = pm.metadata_path
         new_depends = []
         node_type = None
         node_name = None
