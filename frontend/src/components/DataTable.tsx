@@ -3562,13 +3562,19 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     loadPageData();
   }, [currentPage, displayedNodeId, projectId]);
 
-  // 从缓存中同步获取节点执行状态（不需要异步等待）
-  const cachedExecutionStatus = displayedNodeId
-    ? projectCache[projectId]?.nodes.find(n => n.id === displayedNodeId)?.execution_status || null
+  // 从缓存中同步获取节点信息（不需要异步等待）
+  const cachedNode = displayedNodeId
+    ? projectCache[projectId]?.nodes.find(n => n.id === displayedNodeId)
     : null;
+
+  const cachedExecutionStatus = cachedNode?.execution_status || null;
+  const cachedResultFormat = cachedNode?.result_format || null;
 
   // 优先使用缓存中的执行状态，如果没有则使用状态中的值
   const effectiveNodeExecutionStatus = cachedExecutionStatus !== null ? cachedExecutionStatus : nodeExecutionStatus;
+
+  // 优先使用缓存中的结果格式，如果没有则使用状态中的值
+  const effectiveNodeResultFormat = cachedResultFormat !== null ? cachedResultFormat : nodeResultFormat;
 
   // 优先使用API数据，如果没有则回退到硬编码数据
   // 如果displayedNodeId存在，则使用API加载的数据（即使是空值也要用，不要回退到defaultData）
@@ -3865,12 +3871,14 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             }}
           />
         </div>
-      ) : (nodeResultFormat === 'image' || nodeResultFormat === 'visualization') ? (
+      ) : (effectiveNodeResultFormat === 'image' || effectiveNodeResultFormat === 'visualization') ? (
         <div className="w-full h-full flex items-center justify-center p-4 bg-muted/10">
           <img
             src={getImageUrl(projectId, displayedNodeId || '')}
             alt={`${displayedNodeId} visualization`}
             style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+            onLoad={() => console.log('Image loaded successfully')}
+            onError={() => console.log('Image load error')}
           />
         </div>
       ) : showConclusion ? (
