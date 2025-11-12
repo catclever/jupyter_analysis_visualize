@@ -3941,25 +3941,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                     Cancel
                   </Button>
                 </div>
-                <textarea
+                <CodeEditor
                   value={editingCode}
-                  onChange={(e) => handleCodeChange(e.target.value)}
-                  placeholder="Enter code..."
-                  spellCheck={false}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    fontFamily: 'monospace',
-                    fontSize: '12px',
-                    lineHeight: '1.5',
-                    padding: '8px 12px',
-                    backgroundColor: '#282c34',
-                    color: '#abb2bf',
-                    border: 'none',
-                    borderRadius: '0',
-                    resize: 'none',
-                    outline: 'none',
-                  }}
+                  onChange={handleCodeChange}
                 />
               </div>
             ) : (
