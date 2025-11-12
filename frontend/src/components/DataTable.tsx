@@ -3536,15 +3536,13 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // 加载代码
         try {
           const codeData = await getNodeCode(projectId, displayedNodeId);
-          console.log(`Loaded code for ${displayedNodeId}: ${codeData.code.length} chars`);
           // Save original code with metadata for viewing
           setApiCodeWithMetadata(codeData.code);
           // Strip metadata comments for editing
           const cleanedCode = stripMetadataComments(codeData.code);
-          console.log(`After stripping metadata: ${cleanedCode.length} chars`);
           setApiCode(cleanedCode);
         } catch (err) {
-          console.log('No code available for node', displayedNodeId, err);
+          console.log('No code available for node', displayedNodeId);
           setApiCode('');
           setApiCodeWithMetadata('');
         }
@@ -3852,48 +3850,48 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           {currentData.title}
         </h3>
         <div className="flex gap-2">
-          {/* Code/Result toggle buttons - hidden for formats like pkl */}
+          {/* Code toggle button - hidden for formats like pkl that don't have result tables */}
           {shouldShowCodePanel(effectiveNodeResultFormat) && (
-            <>
-              <Button
-                variant={effectiveNodeExecutionStatus === 'not_executed' ? 'default' : (currentNodeViewMode === 'code' ? 'default' : 'ghost')}
-                size="icon"
-                className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={() => {
-                  if (effectiveNodeExecutionStatus === 'not_executed') {
-                    toast({
-                      description: 'Please execute the code first',
-                    });
-                  } else {
-                    setNodeViewMode(displayedNodeId, currentNodeViewMode === 'code' ? 'table' : 'code');
-                  }
-                }}
-                disabled={effectiveNodeExecutionStatus !== 'not_executed' && !currentData.code}
-                title={effectiveNodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
-              >
-                <Code className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={nodeShowsConclusion ? 'default' : 'ghost'}
-                size="icon"
-                className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={() => {
-                  if (effectiveNodeExecutionStatus === 'not_executed') {
-                    toast({
-                      description: 'Please execute the code first',
-                    });
-                  } else if (nodeShowsConclusion) {
-                    checkAndCloseMarkdownPanel();
-                  } else {
-                    setNodeConclusionState(displayedNodeId, true);
-                  }
-                }}
-                disabled={!hasConclusion && effectiveNodeExecutionStatus !== 'not_executed'}
-              >
-                <FileText className="h-4 w-4" />
-              </Button>
-            </>
+            <Button
+              variant={effectiveNodeExecutionStatus === 'not_executed' ? 'default' : (currentNodeViewMode === 'code' ? 'default' : 'ghost')}
+              size="icon"
+              className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={() => {
+                if (effectiveNodeExecutionStatus === 'not_executed') {
+                  toast({
+                    description: 'Please execute the code first',
+                  });
+                } else {
+                  setNodeViewMode(displayedNodeId, currentNodeViewMode === 'code' ? 'table' : 'code');
+                }
+              }}
+              disabled={effectiveNodeExecutionStatus !== 'not_executed' && !currentData.code}
+              title={effectiveNodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
+            >
+              <Code className="h-4 w-4" />
+            </Button>
           )}
+
+          {/* Markdown toggle button - always shown for executed nodes */}
+          <Button
+            variant={nodeShowsConclusion ? 'default' : 'ghost'}
+            size="icon"
+            className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
+            onClick={() => {
+              if (effectiveNodeExecutionStatus === 'not_executed') {
+                toast({
+                  description: 'Please execute the code first',
+                });
+              } else if (nodeShowsConclusion) {
+                checkAndCloseMarkdownPanel();
+              } else {
+                setNodeConclusionState(displayedNodeId, true);
+              }
+            }}
+            disabled={!hasConclusion && effectiveNodeExecutionStatus !== 'not_executed'}
+          >
+            <FileText className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
