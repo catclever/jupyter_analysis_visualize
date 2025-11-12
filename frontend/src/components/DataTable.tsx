@@ -39,6 +39,7 @@ import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNo
 import { useProjectCache } from "@/hooks/useProjectCache";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface DataRow {
   [key: string]: string | number;
@@ -3394,6 +3395,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const { projectCache, loadProject } = useProjectCache();
   const markdownChanges = useUnsavedChanges();
   const codeChanges = useUnsavedChanges();
+  const { toast } = useToast();
 
   // 映射前端 dataset ID 到后端项目 ID
   const projectIdMap: Record<string, string> = {
@@ -3455,9 +3457,10 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             setNodeResultFormat(node.result_format || 'parquet');
             setNodeExecutionStatus(node.execution_status || null);
 
-            // If node is not executed, force code view and disable switching
+            // If node is not executed, force code view and enter edit mode
             if (node.execution_status === 'not_executed') {
               setViewMode('code');
+              setIsEditingCode(true);
             }
           } else {
             setNodeResultFormat('parquet'); // default
@@ -3772,9 +3775,19 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             variant={viewMode === 'code' ? 'default' : 'ghost'}
             size="icon"
             className="h-8 w-8"
-            onClick={() => setViewMode(viewMode === 'code' ? 'table' : 'code')}
-            disabled={!currentData.code || nodeExecutionStatus === 'not_executed'}
-            title={nodeExecutionStatus === 'not_executed' ? 'Cannot switch views for unexecuted nodes' : ''}
+            onClick={() => {
+              if (nodeExecutionStatus === 'not_executed') {
+                toast({
+                  title: 'Cannot view data',
+                  description: 'Please run the code first to view the results',
+                  variant: 'destructive',
+                });
+              } else {
+                setViewMode(viewMode === 'code' ? 'table' : 'code');
+              }
+            }}
+            disabled={!currentData.code}
+            title={nodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
           >
             <Code className="h-4 w-4" />
           </Button>
@@ -3783,13 +3796,19 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             size="icon"
             className="h-8 w-8"
             onClick={() => {
-              if (showConclusion) {
+              if (nodeExecutionStatus === 'not_executed') {
+                toast({
+                  title: 'Cannot view summary',
+                  description: 'Please run the code first to view the summary',
+                  variant: 'destructive',
+                });
+              } else if (showConclusion) {
                 checkAndCloseMarkdownPanel();
               } else {
                 setShowConclusion(true);
               }
             }}
-            disabled={!hasConclusion}
+            disabled={!hasConclusion || nodeExecutionStatus === 'not_executed'}
           >
             <FileText className="h-4 w-4" />
           </Button>
