@@ -92,6 +92,22 @@
         "result_format": "image",
         "description": "PNG image showing bar chart comparing actual sales vs targets by region"
       }
+    },
+    {
+      "node_id": "data_validation_tool",
+      "type": "tool",
+      "name": "Data Validation Tool",
+      "description": "A reusable tool for validating sales data integrity",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": "pkl",
+      "result_path": null,
+      "output": {
+        "output_type": "function",
+        "display_type": "none",
+        "result_format": "pkl",
+        "description": "Callable function for validating DataFrame structure and values"
+      }
     }
   ],
   "dag": {
@@ -100,7 +116,8 @@
       "targets",
       "processed_sales",
       "metrics",
-      "visualization"
+      "visualization",
+      "data_validation_tool"
     ],
     "edges": [
       [
