@@ -3467,6 +3467,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               setIsEditingCode(true);
             } else if (node.result_format === 'image' || node.result_format === 'visualization') {
               // For image nodes, automatically show the visualization
+              setNodeResultFormat(node.result_format);
               setShowConclusion(true);
               setViewMode('table');
             }
