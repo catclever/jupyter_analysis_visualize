@@ -3865,6 +3865,14 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             }}
           />
         </div>
+      ) : (nodeResultFormat === 'image' || nodeResultFormat === 'visualization') ? (
+        <div className="w-full h-full flex items-center justify-center p-4 bg-muted/10">
+          <img
+            src={getImageUrl(projectId, displayedNodeId || '')}
+            alt={`${displayedNodeId} visualization`}
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+          />
+        </div>
       ) : showConclusion ? (
         <ResizablePanelGroup direction="horizontal" className="flex-1">
           <ResizablePanel defaultSize={60} minSize={30}>
