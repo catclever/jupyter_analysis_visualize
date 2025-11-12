@@ -3794,15 +3794,13 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             onClick={() => {
               if (effectiveNodeExecutionStatus === 'not_executed') {
                 toast({
-                  title: 'Cannot view data',
-                  description: 'Please run the code first to view the results',
-                  variant: 'destructive',
+                  description: 'Please execute the code first',
                 });
               } else {
                 setViewMode(viewMode === 'code' ? 'table' : 'code');
               }
             }}
-            disabled={effectiveNodeExecutionStatus === 'not_executed' || !currentData.code}
+            disabled={effectiveNodeExecutionStatus !== 'not_executed' && !currentData.code}
             title={effectiveNodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
           >
             <Code className="h-4 w-4" />
@@ -3814,9 +3812,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             onClick={() => {
               if (effectiveNodeExecutionStatus === 'not_executed') {
                 toast({
-                  title: 'Cannot view summary',
-                  description: 'Please run the code first to view the summary',
-                  variant: 'destructive',
+                  description: 'Please execute the code first',
                 });
               } else if (showConclusion) {
                 checkAndCloseMarkdownPanel();
@@ -3824,7 +3820,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 setShowConclusion(true);
               }
             }}
-            disabled={!hasConclusion || effectiveNodeExecutionStatus === 'not_executed'}
+            disabled={!hasConclusion && effectiveNodeExecutionStatus !== 'not_executed'}
           >
             <FileText className="h-4 w-4" />
           </Button>
