@@ -3788,9 +3788,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         </h3>
         <div className="flex gap-2">
           <Button
-            variant={viewMode === 'code' ? 'default' : 'ghost'}
+            variant={effectiveNodeExecutionStatus === 'not_executed' ? 'default' : (viewMode === 'code' ? 'default' : 'ghost')}
             size="icon"
-            className="h-8 w-8"
+            className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
             onClick={() => {
               if (effectiveNodeExecutionStatus === 'not_executed') {
                 toast({
@@ -3802,7 +3802,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 setViewMode(viewMode === 'code' ? 'table' : 'code');
               }
             }}
-            disabled={!currentData.code}
+            disabled={effectiveNodeExecutionStatus === 'not_executed' || !currentData.code}
             title={effectiveNodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
           >
             <Code className="h-4 w-4" />
@@ -3810,7 +3810,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           <Button
             variant={showConclusion ? 'default' : 'ghost'}
             size="icon"
-            className="h-8 w-8"
+            className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
             onClick={() => {
               if (effectiveNodeExecutionStatus === 'not_executed') {
                 toast({
@@ -3837,7 +3837,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             <Button
               size="sm"
               onClick={handleCodeSave}
-              disabled={!codeChanges.hasChanges}
+              disabled={!codeChanges.hasChanges || isSavingCode}
               className="h-7 px-2 text-xs"
             >
               Save
@@ -3846,32 +3846,21 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               size="sm"
               onClick={handleCodeCancel}
               variant="outline"
+              disabled={isSavingCode}
               className="h-7 px-2 text-xs"
             >
               Cancel
             </Button>
           </div>
-          <textarea
+          <CodeEditor
             value={apiCode}
-            onChange={(e) => {
-              setApiCode(e.target.value);
-              codeChanges.markAsChanged();
-            }}
-            placeholder="Enter code..."
-            spellCheck={false}
-            style={{
-              width: '100%',
-              height: '100%',
-              fontFamily: 'monospace',
-              fontSize: '12px',
-              lineHeight: '1.5',
-              padding: '8px 12px',
-              backgroundColor: '#282c34',
-              color: '#abb2bf',
-              border: 'none',
-              borderRadius: '0',
-              resize: 'none',
-              outline: 'none',
+            onChange={(newValue) => {
+              setApiCode(newValue);
+              if (newValue !== apiCodeWithMetadata) {
+                codeChanges.markAsChanged();
+              } else {
+                codeChanges.markAsSaved();
+              }
             }}
           />
         </div>
