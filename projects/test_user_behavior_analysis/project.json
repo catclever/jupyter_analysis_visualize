@@ -82,9 +82,10 @@
       "name": "Generate Report",
       "description": "Generate final analysis report summarizing user behavior patterns",
       "depends_on": [
-        "statistics"
+        "statistics",
+        "report"
       ],
-      "execution_status": "validated",
+      "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": "parquets/report.parquet",
       "output": {
