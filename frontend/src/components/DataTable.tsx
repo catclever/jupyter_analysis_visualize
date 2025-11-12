@@ -30,6 +30,10 @@ import {
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { atomOneDark } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import ReactMarkdown from "react-markdown";
+import Editor from "react-simple-code-editor";
+import { highlight, languages } from "prismjs";
+import "prismjs/components/prism-python";
+import "prismjs/themes/prism-tomorrow.css";
 import remarkGfm from "remark-gfm";
 import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, getImageUrl, type PaginatedData } from "@/services/api";
 import { useProjectCache } from "@/hooks/useProjectCache";
@@ -90,6 +94,68 @@ function stripMetadataComments(code: string): string {
   }
 
   return result.join('\n');
+}
+
+/**
+ * Syntax-highlighted code editor component
+ * Uses react-simple-code-editor with prismjs for integrated highlighting
+ * No layering issues - single unified editor with built-in syntax highlighting
+ */
+interface CodeEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+  language?: string;
+}
+
+function CodeEditor({ value, onChange, language = 'python' }: CodeEditorProps) {
+  return (
+    <div className="w-full h-full flex-1 overflow-hidden" style={{ backgroundColor: '#282c34' }}>
+      <style>{`
+        .editor-container {
+          font-family: 'Fira Code', 'Courier New', monospace;
+          font-size: 12px;
+          line-height: 1.5;
+        }
+        .editor-container textarea {
+          background-color: transparent !important;
+          color: #abb2bf !important;
+          caret-color: #61afef !important;
+          outline: none !important;
+          border: none !important;
+        }
+        .editor-container pre {
+          background-color: #282c34 !important;
+          color: #abb2bf !important;
+        }
+        .token.punctuation { color: #abb2bf; }
+        .token.keyword { color: #c678dd; }
+        .token.string { color: #98c379; }
+        .token.function { color: #61afef; }
+        .token.number { color: #d19a66; }
+        .token.comment { color: #5c6370; font-style: italic; }
+        .token.operator { color: #abb2bf; }
+      `}</style>
+      {/* @ts-ignore */}
+      <Editor
+        value={value}
+        onValueChange={onChange}
+        highlight={(code) => highlight(code, languages.python, 'python')}
+        padding={12}
+        style={{
+          fontFamily: 'inherit',
+          fontSize: '12px',
+          lineHeight: '1.5',
+          width: '100%',
+          height: '100%',
+          backgroundColor: '#282c34',
+          color: '#abb2bf',
+        }}
+        className="editor-container"
+        textareaClassName="editor-textarea"
+        preClassName="editor-pre"
+      />
+    </div>
+  );
 }
 
 // 贷款风控分析场景的节点数据
@@ -3933,26 +3999,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 Cancel
               </Button>
             </div>
-            <textarea
-              value={editingCode}
-              onChange={(e) => handleCodeChange(e.target.value)}
-              placeholder="Enter code..."
-              spellCheck={false}
-              style={{
-                width: '100%',
-                height: '100%',
-                fontFamily: 'monospace',
-                fontSize: '12px',
-                lineHeight: '1.5',
-                padding: '8px 12px',
-                backgroundColor: '#282c34',
-                color: '#abb2bf',
-                border: 'none',
-                borderRadius: '0',
-                resize: 'none',
-                outline: 'none',
-              }}
-            />
+            <CodeEditor value={editingCode} onChange={handleCodeChange} />
           </div>
         ) : (
           <ScrollArea className="flex-1">
@@ -4030,26 +4077,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 Cancel
               </Button>
             </div>
-            <textarea
-              value={editingCode}
-              onChange={(e) => handleCodeChange(e.target.value)}
-              placeholder="Enter code..."
-              spellCheck={false}
-              style={{
-                width: '100%',
-                height: '100%',
-                fontFamily: 'monospace',
-                fontSize: '12px',
-                lineHeight: '1.5',
-                padding: '8px 12px',
-                backgroundColor: '#282c34',
-                color: '#abb2bf',
-                border: 'none',
-                borderRadius: '0',
-                resize: 'none',
-                outline: 'none',
-              }}
-            />
+            <CodeEditor value={editingCode} onChange={handleCodeChange} />
           </div>
         ) : (
           <ScrollArea className="flex-1">
@@ -4129,7 +4157,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
       <UnsavedChangesDialog
         open={markdownChanges.showDialog}
         isSaving={isSavingMarkdown}
-        onSave={() => markdownChanges.confirmSave(handleMarkdownSave)}
+        onSave={() => markdownChanges.confirmSave(() => handleMarkdownSave())}
         onDiscard={markdownChanges.confirmDiscard}
         onCancel={markdownChanges.confirmCancel}
         title="Unsaved Markdown Changes"
