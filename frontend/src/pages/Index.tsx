@@ -84,6 +84,7 @@ const Index = () => {
           ) : (
             <div className="h-full overflow-auto p-6">
               <FlowDiagram
+                key={projectRefreshKey}
                 onNodeClick={setSelectedNodeId}
                 selectedNodeId={selectedNodeId}
                 minimapOpen={minimapOpen}
