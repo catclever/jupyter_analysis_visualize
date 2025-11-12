@@ -680,8 +680,9 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dic
 
                     cell['source'] = source
 
-                    # Update execution_status in metadata
+                    # Update metadata fields in cell
                     cell['metadata']['execution_status'] = 'not_executed'
+                    cell['metadata']['depends_on'] = new_depends
                     break
 
         if target_cell is None:
