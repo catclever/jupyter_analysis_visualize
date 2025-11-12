@@ -3781,18 +3781,24 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                     Cancel
                   </Button>
                 </div>
-                <Textarea
+                <textarea
                   value={editingCode}
                   onChange={(e) => handleCodeChange(e.target.value)}
-                  className="flex-1 font-mono text-xs rounded-none border-0 resize-none"
                   placeholder="Enter code..."
-                  spellCheck="false"
+                  spellCheck={false}
                   style={{
-                    backgroundColor: '#282c34',
-                    color: '#abb2bf',
+                    width: '100%',
+                    height: '100%',
                     fontFamily: 'monospace',
                     fontSize: '12px',
                     lineHeight: '1.5',
+                    padding: '8px 12px',
+                    backgroundColor: '#282c34',
+                    color: '#abb2bf',
+                    border: 'none',
+                    borderRadius: '0',
+                    resize: 'none',
+                    outline: 'none',
                   }}
                 />
               </div>
@@ -3927,39 +3933,26 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 Cancel
               </Button>
             </div>
-            <div className="flex-1 relative overflow-hidden">
-              {/* Syntax highlighted code in background */}
-              <div className="absolute inset-0 overflow-auto pointer-events-none">
-                {/* @ts-ignore */}
-                <SyntaxHighlighter
-                  language="python"
-                  style={atomOneDark}
-                  className="text-xs"
-                  customStyle={{
-                    margin: 0,
-                    padding: '8px 12px',
-                    backgroundColor: 'transparent',
-                    fontSize: '12px',
-                    lineHeight: '1.5',
-                  }}
-                >
-                  {editingCode || '# Enter code...'}
-                </SyntaxHighlighter>
-              </div>
-              {/* Transparent textarea overlay */}
-              <Textarea
-                value={editingCode}
-                onChange={(e) => handleCodeChange(e.target.value)}
-                className="absolute inset-0 font-mono text-xs rounded-none border-0 resize-none bg-transparent text-transparent caret-white"
-                placeholder="Enter code..."
-                spellCheck="false"
-                style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                  color: 'transparent',
-                  caretColor: 'white',
-                }}
-              />
-            </div>
+            <textarea
+              value={editingCode}
+              onChange={(e) => handleCodeChange(e.target.value)}
+              placeholder="Enter code..."
+              spellCheck={false}
+              style={{
+                width: '100%',
+                height: '100%',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                lineHeight: '1.5',
+                padding: '8px 12px',
+                backgroundColor: '#282c34',
+                color: '#abb2bf',
+                border: 'none',
+                borderRadius: '0',
+                resize: 'none',
+                outline: 'none',
+              }}
+            />
           </div>
         ) : (
           <ScrollArea className="flex-1">
@@ -4037,39 +4030,26 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 Cancel
               </Button>
             </div>
-            <div className="flex-1 relative overflow-hidden">
-              {/* Syntax highlighted code in background */}
-              <div className="absolute inset-0 overflow-auto pointer-events-none">
-                {/* @ts-ignore */}
-                <SyntaxHighlighter
-                  language="python"
-                  style={atomOneDark}
-                  className="text-xs"
-                  customStyle={{
-                    margin: 0,
-                    padding: '8px 12px',
-                    backgroundColor: 'transparent',
-                    fontSize: '12px',
-                    lineHeight: '1.5',
-                  }}
-                >
-                  {editingCode || '# Enter code...'}
-                </SyntaxHighlighter>
-              </div>
-              {/* Transparent textarea overlay */}
-              <Textarea
-                value={editingCode}
-                onChange={(e) => handleCodeChange(e.target.value)}
-                className="absolute inset-0 font-mono text-xs rounded-none border-0 resize-none bg-transparent text-transparent caret-white"
-                placeholder="Enter code..."
-                spellCheck="false"
-                style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.02)',
-                  color: 'transparent',
-                  caretColor: 'white',
-                }}
-              />
-            </div>
+            <textarea
+              value={editingCode}
+              onChange={(e) => handleCodeChange(e.target.value)}
+              placeholder="Enter code..."
+              spellCheck={false}
+              style={{
+                width: '100%',
+                height: '100%',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                lineHeight: '1.5',
+                padding: '8px 12px',
+                backgroundColor: '#282c34',
+                color: '#abb2bf',
+                border: 'none',
+                borderRadius: '0',
+                resize: 'none',
+                outline: 'none',
+              }}
+            />
           </div>
         ) : (
           <ScrollArea className="flex-1">
