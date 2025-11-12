@@ -47,6 +47,51 @@ interface DataTableProps {
   onProjectUpdate?: () => void;
 }
 
+/**
+ * Strip metadata comments from code
+ *
+ * Removes system-generated metadata comments that look like:
+ * # ===== System-managed metadata (auto-generated, understand to edit) =====
+ * # @node_type: compute
+ * # @node_id: report
+ * # ...
+ * # ===== End of system-managed metadata =====
+ */
+function stripMetadataComments(code: string): string {
+  const lines = code.split('\n');
+  let result: string[] = [];
+  let inMetadataBlock = false;
+
+  for (const line of lines) {
+    // Check if entering metadata block
+    if (line.includes('System-managed metadata')) {
+      inMetadataBlock = true;
+      continue;
+    }
+    // Check if exiting metadata block
+    if (line.includes('End of system-managed metadata')) {
+      inMetadataBlock = false;
+      continue;
+    }
+    // Skip lines inside metadata block
+    if (inMetadataBlock) {
+      continue;
+    }
+    // Keep all other lines
+    result.push(line);
+  }
+
+  // Remove leading/trailing empty lines
+  while (result.length > 0 && result[0].trim() === '') {
+    result.shift();
+  }
+  while (result.length > 0 && result[result.length - 1].trim() === '') {
+    result.pop();
+  }
+
+  return result.join('\n');
+}
+
 // 贷款风控分析场景的节点数据
 const nodeDataMap: Record<string, {
   title: string;
@@ -3354,7 +3399,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // 加载代码
         try {
           const codeData = await getNodeCode(projectId, displayedNodeId);
-          setApiCode(codeData.code);
+          // Strip metadata comments for display
+          const cleanedCode = stripMetadataComments(codeData.code);
+          setApiCode(cleanedCode);
         } catch (err) {
           console.log('No code available for node', displayedNodeId);
           setApiCode('');

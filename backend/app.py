@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from project_manager import ProjectManager
+from notebook_manager import NotebookManager
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -594,6 +595,7 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dic
     1. Changes execution_status to 'not_executed'
     2. Analyzes code variables to update dependencies
     3. Updates project.json with new depends_on relationships
+    4. Regenerates metadata comments with updated dependencies
     """
     try:
         pm = get_project_manager(project_id)
@@ -606,48 +608,24 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dic
         # Step 1: Extract variable names used in the code
         used_variables = extract_variable_names(code_content)
 
-        # Get notebook dict
-        notebook = pm.notebook_manager.notebook
-        cells = notebook.get('cells', [])
-
-        # Find code cell with matching node_id and update it
-        target_cell = None
-        for cell in cells:
-            if cell.get('cell_type') == 'code':
-                metadata = cell.get('metadata', {})
-                if metadata.get('node_id') == node_id:
-                    target_cell = cell
-                    # Update the cell source
-                    # Convert to list format (Jupyter format)
-                    lines = code_content.split('\n')
-                    source = []
-                    for i, line in enumerate(lines):
-                        if i < len(lines) - 1:
-                            source.append(line + '\n')
-                        elif line:  # Only add last line if not empty
-                            source.append(line)
-
-                    cell['source'] = source
-
-                    # Step 2: Update execution_status to 'not_executed'
-                    cell['metadata']['execution_status'] = 'not_executed'
-                    break
-
-        if target_cell is None:
-            raise HTTPException(status_code=404, detail=f"Code not found for node {node_id}")
-
-        # Step 3: Update project.json with new dependencies
+        # Step 2: Load project.json to get node info and validate dependencies
         project_file = pm.project_file
+        new_depends = []
+        node_type = None
+        node_name = None
+
         if project_file.exists():
             with open(project_file, 'r') as f:
                 project_data = json.load(f)
 
-            # Find the node in project.json and update its dependencies and status
+            # Find the node in project.json
             for node in project_data.get('nodes', []):
                 if node['node_id'] == node_id:
+                    node_type = node.get('type')
+                    node_name = node.get('name')
+
                     # Update depends_on based on variable names
                     # The variables used in code should match other node IDs
-                    new_depends = []
                     for var_name in used_variables:
                         # Check if this variable name matches any node_id
                         if any(n['node_id'] == var_name for n in project_data.get('nodes', [])):
@@ -661,6 +639,54 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dic
             with open(project_file, 'w') as f:
                 json.dump(project_data, f, indent=2)
 
+        # Step 3: Get notebook and find the code cell
+        notebook = pm.notebook_manager.notebook
+        cells = notebook.get('cells', [])
+
+        # Find code cell with matching node_id and update it
+        target_cell = None
+        for cell in cells:
+            if cell.get('cell_type') == 'code':
+                metadata = cell.get('metadata', {})
+                if metadata.get('node_id') == node_id:
+                    target_cell = cell
+
+                    # Step 4: Regenerate metadata comments with updated dependencies
+                    # Get node type from metadata if not found in project.json
+                    if not node_type:
+                        node_type = metadata.get('type', 'compute')
+
+                    # Generate new header with updated dependencies
+                    header = NotebookManager._generate_header_from_metadata(
+                        node_type=node_type,
+                        node_id=node_id,
+                        execution_status='not_executed',
+                        depends_on=new_depends if new_depends else None,
+                        name=node_name
+                    )
+
+                    # Combine header with code content
+                    full_code = header + '\n\n' + code_content
+
+                    # Update the cell source
+                    # Convert to list format (Jupyter format)
+                    lines = full_code.split('\n')
+                    source = []
+                    for i, line in enumerate(lines):
+                        if i < len(lines) - 1:
+                            source.append(line + '\n')
+                        elif line:  # Only add last line if not empty
+                            source.append(line)
+
+                    cell['source'] = source
+
+                    # Update execution_status in metadata
+                    cell['metadata']['execution_status'] = 'not_executed'
+                    break
+
+        if target_cell is None:
+            raise HTTPException(status_code=404, detail=f"Code not found for node {node_id}")
+
         # Save notebook
         pm.notebook_manager.save()
 
@@ -669,7 +695,7 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any]) -> Dic
             "code": code_content,
             "language": "python",
             "execution_status": "not_executed",
-            "depends_on": list(used_variables)
+            "depends_on": new_depends
         }
 
     except HTTPException:
