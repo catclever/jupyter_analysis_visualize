@@ -3785,6 +3785,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // Reload project to get updated execution status
         await loadProject(projectId);
 
+        // Update local node execution status immediately for UI refresh
+        setNodeExecutionStatus('validated');
+
         // Also reload the node's result data immediately
         if (displayedNodeId) {
           try {
@@ -3806,6 +3809,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           variant: 'destructive',
           description: result.error_message || 'Execution failed - check error details',
         });
+        // Update local node execution status to reflect pending validation
+        setNodeExecutionStatus('pending_validation');
         // Still reload to see pending_validation status
         await loadProject(projectId);
       } else {

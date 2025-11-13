@@ -463,10 +463,29 @@ print(f"✓ Saved pickle to functions/{node_id}.pkl")"""
                 self.pm._save_metadata()
                 return result
 
-            # Step 9: Update node status to validated
+            # Step 9: Update node status to validated and set result_path
             node['execution_status'] = 'validated'
             node['error_message'] = None
             node['last_execution_time'] = datetime.now().isoformat()
+
+            # Set result_path based on result format
+            result_format = node.get('result_format', 'parquet')
+            is_visualization = node.get('type') in ['image', 'chart']
+            target_dir = 'visualizations' if is_visualization else 'parquets'
+
+            # Determine file extension based on format
+            if result_format == 'parquet':
+                file_ext = 'parquet'
+            elif result_format == 'json':
+                file_ext = 'json'
+            elif result_format in ['image', 'visualization']:
+                file_ext = 'png'
+            elif result_format == 'pkl':
+                file_ext = 'pkl'
+            else:
+                file_ext = result_format
+
+            node['result_path'] = f"{target_dir}/{node_id}.{file_ext}"
             self.pm._save_metadata()
 
             result["status"] = "success"
