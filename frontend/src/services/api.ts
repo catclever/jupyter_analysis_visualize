@@ -233,3 +233,31 @@ export async function updateNodeCode(
   }
   return response.json();
 }
+
+/**
+ * Execute a node with dependency resolution
+ */
+export async function executeNode(
+  projectId: string,
+  nodeId: string
+): Promise<{
+  node_id: string;
+  status: 'success' | 'pending_validation' | 'error';
+  error_message: string | null;
+  execution_time: number | null;
+  result_cell_added: boolean;
+}> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/execute`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to execute node: ${response.statusText}`);
+  }
+  return response.json();
+}

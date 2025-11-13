@@ -65,7 +65,9 @@ class ProjectMetadata:
             "depends_on": depends_on or [],
             "execution_status": execution_status,  # not_executed | pending_validation | validated
             "result_format": result_format,
-            "result_path": result_path
+            "result_path": result_path,
+            "error_message": None,  # Error message if execution failed
+            "last_execution_time": None  # ISO format timestamp of last execution
         }
         self.updated_at = datetime.now().isoformat()
 

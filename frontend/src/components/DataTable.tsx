@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ChevronLeft, ChevronRight, Code, FileText, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Code, FileText, X, Play, AlertCircle, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import {
@@ -35,7 +35,7 @@ import { highlight, languages } from "prismjs";
 import "prismjs/components/prism-python";
 import "prismjs/themes/prism-tomorrow.css";
 import remarkGfm from "remark-gfm";
-import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, getImageUrl, type PaginatedData } from "@/services/api";
+import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, executeNode, getImageUrl, type PaginatedData } from "@/services/api";
 import { useProjectCache } from "@/hooks/useProjectCache";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
@@ -3395,6 +3395,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   // Per-node panel state tracking
   const [nodeConclusionStates, setNodeConclusionStates] = useState<Record<string, boolean>>({});
   const [nodeViewModeStates, setNodeViewModeStates] = useState<Record<string, 'table' | 'code'>>({});
+  // Execution state tracking
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [nodeErrors, setNodeErrors] = useState<Record<string, string>>({});
 
   const { projectCache, loadProject } = useProjectCache();
   const markdownChanges = useUnsavedChanges();
@@ -3750,6 +3753,69 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     }
   };
 
+  const handleExecuteNode = async () => {
+    if (!displayedNodeId) return;
+
+    // First, save code changes if any
+    if (codeChanges.hasChanges && isEditingCode) {
+      try {
+        await updateNodeCode(projectId, displayedNodeId, apiCode);
+        codeChanges.markAsSaved();
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          description: 'Failed to save code before execution',
+        });
+        return;
+      }
+    }
+
+    setIsExecuting(true);
+    // Clear previous error
+    setNodeErrors((prev) => ({ ...prev, [displayedNodeId]: '' }));
+
+    try {
+      const result = await executeNode(projectId, displayedNodeId);
+
+      if (result.status === 'success') {
+        toast({
+          description: `Node executed successfully in ${result.execution_time?.toFixed(2)}s`,
+        });
+        // Reload project to get updated execution status
+        await loadProject(projectId);
+      } else if (result.status === 'pending_validation') {
+        // Show error message
+        setNodeErrors((prev) => ({
+          ...prev,
+          [displayedNodeId]: result.error_message || 'Execution failed',
+        }));
+        toast({
+          variant: 'destructive',
+          description: result.error_message || 'Execution failed - check error details',
+        });
+        // Still reload to see pending_validation status
+        await loadProject(projectId);
+      } else {
+        toast({
+          variant: 'destructive',
+          description: result.error_message || 'Execution error',
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Execution failed';
+      setNodeErrors((prev) => ({
+        ...prev,
+        [displayedNodeId]: message,
+      }));
+      toast({
+        variant: 'destructive',
+        description: message,
+      });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
   // Handle pagination
   const totalPages = apiData?.total_pages || 1;
   const pageSize = 5; // Show 5 page buttons at a time
@@ -3915,7 +3981,38 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             >
               Cancel
             </Button>
+            <div className="flex-1" />
+            <Button
+              size="sm"
+              onClick={handleExecuteNode}
+              disabled={isExecuting}
+              className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700"
+            >
+              {isExecuting ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  Executing...
+                </>
+              ) : (
+                <>
+                  <Play className="h-3 w-3 mr-1" />
+                  Execute
+                </>
+              )}
+            </Button>
           </div>
+          {/* Show error message if execution failed */}
+          {nodeErrors[displayedNodeId || ''] && (
+            <div className="px-4 py-2 bg-red-50 border-b border-red-200">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-red-600">
+                  <p className="font-semibold">Execution Error</p>
+                  <p className="mt-1">{nodeErrors[displayedNodeId || '']}</p>
+                </div>
+              </div>
+            </div>
+          )}
           <CodeEditor
             value={apiCode}
             onChange={(newValue) => {

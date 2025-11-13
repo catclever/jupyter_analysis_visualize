@@ -173,6 +173,8 @@ def get_project(project_id: str) -> Dict[str, Any]:
                 "result_format": node_info.get("result_format"),
                 "result_path": node_info.get("result_path"),
                 "output": node_info.get("output"),  # Include output metadata for frontend display rules
+                "error_message": node_info.get("error_message"),  # Error message if execution failed
+                "last_execution_time": node_info.get("last_execution_time"),  # ISO timestamp of last execution
             })
 
             # Build edges from dependencies
@@ -708,6 +710,60 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any] = Body(
         import traceback
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
         print(f"Error in update_node_code: {error_msg}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/projects/{project_id}/nodes/{node_id}/execute")
+def execute_node(project_id: str, node_id: str) -> Dict[str, Any]:
+    """
+    Execute a node with intelligent dependency resolution.
+
+    Workflow:
+    1. Pre-check: does code assign same-named variable?
+    2. Auto-append result-saving code if needed
+    3. Build execution order (dependencies)
+    4. Execute dependent nodes if needed
+    5. Execute current node
+    6. Post-check: verify variable exists and file saved
+    7. Generate result cell to reload results
+    8. Update node execution_status to 'validated'
+
+    On error:
+    - Set execution_status to 'pending_validation'
+    - Store error_message in node
+    - Return error details to frontend
+    """
+    try:
+        from code_executor import CodeExecutor
+        from kernel_manager import KernelManager
+
+        pm = get_project_manager(project_id)
+
+        if pm.notebook_manager is None:
+            raise HTTPException(status_code=500, detail="Failed to load notebook")
+
+        # Initialize kernel manager and code executor
+        km = KernelManager(max_idle_time=300)
+        executor = CodeExecutor(pm, km, pm.notebook_manager)
+
+        # Execute the node
+        result = executor.execute_node(node_id)
+
+        # Return execution result
+        return {
+            "node_id": node_id,
+            "status": result.get("status", "error"),
+            "error_message": result.get("error_message"),
+            "execution_time": result.get("execution_time"),
+            "result_cell_added": result.get("result_cell_added", False)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_msg = f"{str(e)}\n{traceback.format_exc()}"
+        print(f"Error in execute_node: {error_msg}", flush=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
