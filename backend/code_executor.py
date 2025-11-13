@@ -232,70 +232,6 @@ print(f"✓ Saved pickle to functions/{node_id}.pkl")"""
 
         return code + save_code
 
-    def _get_kernel_variables(self, kernel_id: str) -> Dict[str, Any]:
-        """
-        Query kernel variables directly without loading from file.
-
-        Returns dict of variable_name -> variable_value
-        """
-        try:
-            # Get the kernel instance
-            kernel_instance = self.km.kernels.get(kernel_id)
-            if not kernel_instance:
-                return {}
-
-            # Execute code to get variable names
-            execute_code = """
-import json
-vars_info = {}
-for name in dir():
-    if not name.startswith('_'):
-        try:
-            obj = eval(name)
-            # Store type info instead of full object
-            vars_info[name] = type(obj).__name__
-        except:
-            pass
-print(json.dumps(vars_info))
-"""
-
-            km = kernel_instance.kernel_manager
-            msg_id = km.iopub_channel.execute(execute_code)
-
-            # This is a simplified approach - in real implementation would need
-            # to properly handle async kernel communication
-            return {}
-
-        except Exception as e:
-            print(f"Error querying kernel variables: {e}")
-            return {}
-
-    def _query_kernel_variable_exists(
-        self,
-        kernel_id: str,
-        variable_name: str
-    ) -> bool:
-        """
-        Check if a variable exists in the kernel.
-
-        Returns True if variable exists and is not None.
-        """
-        try:
-            # Get kernel instance
-            kernel_instance = self.km.kernels.get(kernel_id)
-            if not kernel_instance:
-                return False
-
-            # Create a check code
-            check_code = f"'{variable_name}' in dir() and {variable_name} is not None"
-
-            # This would need proper async kernel communication
-            # For now, return False as safe default
-            return False
-
-        except Exception:
-            return False
-
     def _build_execution_order(self, node_id: str) -> List[str]:
         """
         Build execution order for current node + dependencies.
@@ -379,10 +315,6 @@ print(json.dumps(vars_info))
                 result["error_message"] = f"Node {node_id} not found"
                 return result
 
-            # Get kernel (or create one)
-            kernel = self.km.get_or_create_kernel(self.pm.project_id)
-            kernel_id = kernel.kernel_id
-
             # Step 1: Get node code
             notebook = self.nm.notebook
             if not notebook:
@@ -435,7 +367,7 @@ print(json.dumps(vars_info))
 
             # Step 6: Execute current node code
             try:
-                output = self.km.execute_code(kernel_id, code, timeout=30)
+                output = self.km.execute_code(self.pm.project_id, code, timeout=30)
                 execution_successful = True
                 execution_output = output
             except Exception as e:
@@ -454,8 +386,8 @@ print(json.dumps(vars_info))
             # Step 7: Post-check - verify same-named variable exists and has value
             # Try to get the variable from kernel namespace
             try:
-                # This is simplified - would need proper kernel variable access
-                var_value = self.km.get_variable(kernel_id, node_id)
+                # Check if variable exists in kernel
+                var_value = self.km.get_variable(self.pm.project_id, node_id)
                 if var_value is None:
                     result["error_message"] = f"Execution produced no value for '{node_id}'"
                     result["status"] = "pending_validation"
