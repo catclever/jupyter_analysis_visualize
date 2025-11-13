@@ -35,7 +35,7 @@ import { highlight, languages } from "prismjs";
 import "prismjs/components/prism-python";
 import "prismjs/themes/prism-tomorrow.css";
 import remarkGfm from "remark-gfm";
-import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, executeNode, getImageUrl, type PaginatedData } from "@/services/api";
+import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, executeNode, getImageUrl, getProject, type PaginatedData } from "@/services/api";
 import { useProjectCache } from "@/hooks/useProjectCache";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
@@ -3399,7 +3399,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const [isExecuting, setIsExecuting] = useState(false);
   const [nodeErrors, setNodeErrors] = useState<Record<string, string>>({});
 
-  const { projectCache, loadProject } = useProjectCache();
+  const { projectCache, loadProject, updateProjectCache } = useProjectCache();
   const markdownChanges = useUnsavedChanges();
   const codeChanges = useUnsavedChanges();
   const { toast } = useToast();
@@ -3782,8 +3782,16 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           description: `Node executed successfully in ${result.execution_time?.toFixed(2)}s`,
         });
 
-        // Reload project to get updated execution status
-        await loadProject(projectId);
+        // Force reload from backend (bypass cache) to get updated execution status
+        try {
+          const updatedProject = await getProject(projectId);
+          // Update cache with new project data
+          if (projectCache && updatedProject) {
+            updateProjectCache(projectId, updatedProject);
+          }
+        } catch (error) {
+          console.error('Failed to refresh project data:', error);
+        }
 
         // Update local node execution status immediately for UI refresh
         setNodeExecutionStatus('validated');
@@ -3811,8 +3819,15 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         });
         // Update local node execution status to reflect pending validation
         setNodeExecutionStatus('pending_validation');
-        // Still reload to see pending_validation status
-        await loadProject(projectId);
+        // Force reload from backend to see pending_validation status
+        try {
+          const updatedProject = await getProject(projectId);
+          if (projectCache && updatedProject) {
+            updateProjectCache(projectId, updatedProject);
+          }
+        } catch (error) {
+          console.error('Failed to refresh project data:', error);
+        }
       } else {
         toast({
           variant: 'destructive',
