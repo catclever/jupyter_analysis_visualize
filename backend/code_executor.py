@@ -183,48 +183,64 @@ class CodeExecutor:
         Adds code at the end to:
         1. Save the variable to file (parquet/json/pkl)
         2. Print confirmation
+
+        Uses absolute paths to ensure files are saved to the correct project directory.
         """
         # Check if already has the variable
         if CodeValidator.has_same_named_variable(code, node_id):
             return code
+
+        # Use absolute paths for parquets directory
+        parquets_dir = str(self.pm.parquets_path)
 
         # Build save code based on result_format
         if result_format == "parquet":
             save_code = f"""
 # Auto-appended: Save result to parquet
 import os
-os.makedirs('parquets', exist_ok=True)
-{node_id}.to_parquet('parquets/{node_id}.parquet', index=False)
-print(f"✓ Saved parquet to parquets/{node_id}.parquet")"""
+from pathlib import Path
+parquets_dir = Path(r'{parquets_dir}')
+parquets_dir.mkdir(parents=True, exist_ok=True)
+save_path = parquets_dir / '{node_id}.parquet'
+{node_id}.to_parquet(str(save_path), index=False)
+print(f"✓ Saved parquet to {{save_path}}")"""
 
         elif result_format == "json":
             save_code = f"""
 # Auto-appended: Save result to JSON
 import json
 import os
-os.makedirs('parquets', exist_ok=True)
+from pathlib import Path
+parquets_dir = Path(r'{parquets_dir}')
+parquets_dir.mkdir(parents=True, exist_ok=True)
 if isinstance({node_id}, dict):
-    with open('parquets/{node_id}.json', 'w', encoding='utf-8') as f:
+    save_path = parquets_dir / '{node_id}.json'
+    with open(str(save_path), 'w', encoding='utf-8') as f:
         json.dump({node_id}, f, indent=2)
 else:
     # If it's not a dict, try to convert
     import pandas as pd
     if isinstance({node_id}, pd.DataFrame):
-        {node_id}.to_json('parquets/{node_id}.json', orient='records')
+        save_path = parquets_dir / '{node_id}.json'
+        {node_id}.to_json(str(save_path), orient='records')
     else:
-        with open('parquets/{node_id}.json', 'w', encoding='utf-8') as f:
+        save_path = parquets_dir / '{node_id}.json'
+        with open(str(save_path), 'w', encoding='utf-8') as f:
             json.dump({node_id}, f, indent=2)
-print(f"✓ Saved JSON to parquets/{node_id}.json")"""
+print(f"✓ Saved JSON to {{save_path}}")"""
 
         elif result_format == "pkl":
+            functions_dir = str(self.pm.project_path / 'functions')
             save_code = f"""
 # Auto-appended: Save result to pickle
 import pickle
-import os
-os.makedirs('functions', exist_ok=True)
-with open('functions/{node_id}.pkl', 'wb') as f:
+from pathlib import Path
+functions_dir = Path(r'{functions_dir}')
+functions_dir.mkdir(parents=True, exist_ok=True)
+save_path = functions_dir / '{node_id}.pkl'
+with open(str(save_path), 'wb') as f:
     pickle.dump({node_id}, f)
-print(f"✓ Saved pickle to functions/{node_id}.pkl")"""
+print(f"✓ Saved pickle to {{save_path}}")"""
 
         else:
             # No save code needed
