@@ -504,6 +504,9 @@ print(f"✓ Saved pickle to {{save_path}}")"""
             node['result_path'] = f"{target_dir}/{node_id}.{file_ext}"
             self.pm._save_metadata()
 
+            # Step 10: Generate/update markdown documentation for execution completion
+            self._generate_execution_markdown(node_id, node, start_time)
+
             result["status"] = "success"
             result["execution_time"] = (datetime.now() - start_time).total_seconds()
 
@@ -514,3 +517,55 @@ print(f"✓ Saved pickle to {{save_path}}")"""
             result["status"] = "error"
             result["execution_time"] = (datetime.now() - start_time).total_seconds()
             return result
+
+    def _generate_execution_markdown(self, node_id: str, node: Dict[str, Any], start_time: datetime) -> None:
+        """
+        Generate or update markdown documentation for execution completion.
+
+        Creates a markdown cell linked to the node with:
+        - Execution completion timestamp
+        - Execution duration
+        - Basic execution summary
+
+        Future: Can be extended with AI-generated summaries
+        """
+        try:
+            execution_time = (datetime.now() - start_time).total_seconds()
+            completion_time = datetime.now().isoformat()
+            node_name = node.get('name', node_id)
+
+            # Generate markdown content with execution details
+            markdown_content = f"""## ✓ Execution Complete: {node_name}
+
+**Completed at:** {completion_time}
+
+**Execution time:** {execution_time:.2f}s
+
+**Status:** ✅ Success
+
+---
+
+_Note: This documentation is auto-generated. For detailed AI-powered summaries, please enable summary generation in node settings._"""
+
+            # Find existing markdown cell linked to this node
+            existing_cells = self.nm.find_markdown_cells_by_linked_node(node_id)
+
+            if existing_cells:
+                # Update existing markdown cell
+                for cell in existing_cells:
+                    cell['source'] = markdown_content.split('\n')
+                    cell['source'] = [line + '\n' if i < len(cell['source'])-1
+                                    else line for i, line in enumerate(cell['source'])]
+            else:
+                # Create new markdown cell linked to this node
+                self.nm.append_markdown_cell(
+                    markdown_content,
+                    linked_node_id=node_id
+                )
+
+            # Save notebook
+            self.nm.save()
+
+        except Exception as e:
+            # Don't fail execution if markdown generation fails
+            print(f"Warning: Failed to generate markdown for node {node_id}: {e}")
