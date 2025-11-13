@@ -94,7 +94,7 @@
         "description": "Final report with title, generated timestamp, and status"
       },
       "error_message": null,
-      "last_execution_time": "2025-11-13T11:56:13.803199"
+      "last_execution_time": "2025-11-13T15:11:40.926912"
     },
     {
       "node_id": "behavior_chart",
@@ -114,41 +114,5 @@
         "description": "PNG image showing user engagement scores visualization"
       }
     }
-  ],
-  "dag": {
-    "nodes": [
-      "user_data",
-      "activity_data",
-      "merged_data",
-      "statistics",
-      "report",
-      "behavior_chart"
-    ],
-    "edges": [
-      [
-        "user_data",
-        "merged_data"
-      ],
-      [
-        "activity_data",
-        "merged_data"
-      ],
-      [
-        "merged_data",
-        "statistics"
-      ],
-      [
-        "user_data",
-        "statistics"
-      ],
-      [
-        "statistics",
-        "report"
-      ],
-      [
-        "statistics",
-        "behavior_chart"
-      ]
-    ]
-  }
+  ]
 }
