@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from pathlib import Path
 from datetime import datetime
 
+import pandas as pd
+
 from project_manager import ProjectManager
 from kernel_manager import KernelManager
 from notebook_manager import NotebookManager
@@ -456,6 +458,47 @@ with open(r'{full_path}', 'rb') as f:
                 node['error_message'] = result["error_message"]
                 self.pm._save_metadata()
                 return result
+
+            # Step 7.5: Save result to file after verification
+            # Try to directly save the variable to file
+            try:
+                result_format = node.get('result_format', 'parquet')
+
+                # Use a temporary variable to capture and save
+                if result_format == 'parquet':
+                    parquets_dir = self.pm.parquets_path
+                    parquets_dir.mkdir(parents=True, exist_ok=True)
+                    save_path = parquets_dir / f'{node_id}.parquet'
+
+                    # Get variable from kernel and save directly
+                    kernel_var = self.km.get_variable(self.pm.project_id, node_id)
+                    if kernel_var is not None and isinstance(kernel_var, pd.DataFrame):
+                        kernel_var.to_parquet(str(save_path), index=False)
+                elif result_format == 'json':
+                    import json
+                    parquets_dir = self.pm.parquets_path
+                    parquets_dir.mkdir(parents=True, exist_ok=True)
+                    save_path = parquets_dir / f'{node_id}.json'
+
+                    kernel_var = self.km.get_variable(self.pm.project_id, node_id)
+                    if kernel_var is not None:
+                        if isinstance(kernel_var, pd.DataFrame):
+                            kernel_var.to_json(str(save_path), orient='records')
+                        else:
+                            with open(str(save_path), 'w', encoding='utf-8') as f:
+                                json.dump(kernel_var, f, indent=2)
+                elif result_format == 'pkl':
+                    functions_dir = self.pm.project_path / 'functions'
+                    functions_dir.mkdir(parents=True, exist_ok=True)
+                    save_path = functions_dir / f'{node_id}.pkl'
+
+                    kernel_var = self.km.get_variable(self.pm.project_id, node_id)
+                    if kernel_var is not None:
+                        with open(str(save_path), 'wb') as f:
+                            pickle.dump(kernel_var, f)
+            except Exception as e:
+                # Log but don't fail - execution succeeded, just couldn't save
+                pass
 
             # Step 8: Generate/overwrite result cell
             try:
