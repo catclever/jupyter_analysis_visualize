@@ -3781,8 +3781,21 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         toast({
           description: `Node executed successfully in ${result.execution_time?.toFixed(2)}s`,
         });
+
         // Reload project to get updated execution status
         await loadProject(projectId);
+
+        // Also reload the node's result data immediately
+        if (displayedNodeId) {
+          try {
+            const data = await getNodeData(projectId, displayedNodeId, 1, 10);
+            setApiData(data);
+            // Auto-switch to result view on success
+            setNodeViewMode(displayedNodeId, 'table');
+          } catch (error) {
+            console.error('Failed to load result data:', error);
+          }
+        }
       } else if (result.status === 'pending_validation') {
         // Show error message
         setNodeErrors((prev) => ({
