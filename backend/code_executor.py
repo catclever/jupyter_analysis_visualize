@@ -379,7 +379,7 @@ print(f"✓ Saved pickle to functions/{node_id}.pkl")"""
                 # Update node status to pending_validation
                 node['execution_status'] = 'pending_validation'
                 node['error_message'] = result["error_message"]
-                self.pm.save()
+                self.pm._save_metadata()
 
                 return result
 
@@ -393,14 +393,14 @@ print(f"✓ Saved pickle to functions/{node_id}.pkl")"""
                     result["status"] = "pending_validation"
                     node['execution_status'] = 'pending_validation'
                     node['error_message'] = result["error_message"]
-                    self.pm.save()
+                    self.pm._save_metadata()
                     return result
             except Exception as e:
                 result["error_message"] = f"Could not verify execution: {e}"
                 result["status"] = "pending_validation"
                 node['execution_status'] = 'pending_validation'
                 node['error_message'] = result["error_message"]
-                self.pm.save()
+                self.pm._save_metadata()
                 return result
 
             # Step 8: Generate/overwrite result cell
@@ -460,14 +460,14 @@ print(f"✓ Saved pickle to functions/{node_id}.pkl")"""
                 result["status"] = "pending_validation"
                 node['execution_status'] = 'pending_validation'
                 node['error_message'] = result["error_message"]
-                self.pm.save()
+                self.pm._save_metadata()
                 return result
 
             # Step 9: Update node status to validated
             node['execution_status'] = 'validated'
             node['error_message'] = None
             node['last_execution_time'] = datetime.now().isoformat()
-            self.pm.save()
+            self.pm._save_metadata()
 
             result["status"] = "success"
             result["execution_time"] = (datetime.now() - start_time).total_seconds()
