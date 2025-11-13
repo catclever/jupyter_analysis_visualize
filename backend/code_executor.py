@@ -178,18 +178,17 @@ class CodeExecutor:
 
     def _auto_append_save_code(self, code: str, node_id: str, result_format: str) -> str:
         """
-        Auto-append result-saving code if missing same-named variable assignment.
+        Auto-append result-saving code to persist execution results.
 
         Adds code at the end to:
         1. Save the variable to file (parquet/json/pkl)
         2. Print confirmation
 
         Uses absolute paths to ensure files are saved to the correct project directory.
-        """
-        # Check if already has the variable
-        if CodeValidator.has_same_named_variable(code, node_id):
-            return code
 
+        Note: Saves regardless of whether the code already assigns the variable.
+        This ensures results are always persisted for display in the frontend.
+        """
         # Use absolute paths for parquets directory
         parquets_dir = str(self.pm.parquets_path)
 
@@ -199,11 +198,28 @@ class CodeExecutor:
 # Auto-appended: Save result to parquet
 import os
 from pathlib import Path
-parquets_dir = Path(r'{parquets_dir}')
-parquets_dir.mkdir(parents=True, exist_ok=True)
-save_path = parquets_dir / '{node_id}.parquet'
-{node_id}.to_parquet(str(save_path), index=False)
-print(f"✓ Saved parquet to {{save_path}}")"""
+# Debug: write to file to prove this code executes
+with open('/tmp/report_debug.txt', 'w') as df:
+    df.write('DEBUG: Save code executing\\n')
+try:
+    parquets_dir = Path(r'{parquets_dir}')
+    parquets_dir.mkdir(parents=True, exist_ok=True)
+    save_path = parquets_dir / '{node_id}.parquet'
+    with open('/tmp/report_debug.txt', 'a') as df:
+        df.write(f'Variable type: {{type({node_id})}}\\n')
+        df.write(f'Save path: {{save_path}}\\n')
+    {node_id}.to_parquet(str(save_path), index=False)
+    with open('/tmp/report_debug.txt', 'a') as df:
+        df.write('File saved successfully\\n')
+    print(f"✓ Saved parquet to {{save_path}}")
+except Exception as save_error:
+    with open('/tmp/report_debug.txt', 'a') as df:
+        df.write(f'Error: {{save_error}}\\n')
+        import traceback
+        df.write(traceback.format_exc())
+    print(f"❌ Failed to save parquet: {{save_error}}")
+    import traceback
+    traceback.print_exc()"""
 
         elif result_format == "json":
             save_code = f"""
@@ -360,12 +376,12 @@ print(f"✓ Saved pickle to {{save_path}}")"""
             # Step 2: Pre-check - does code have same-named variable?
             has_var, check_msg = self._check_same_named_variable_in_code(node_id, code)
 
-            # Step 3: Auto-append save code if needed
+            # Step 3: Auto-append save code to persist results
             node_type = node.get('type', 'compute')
             result_format = node.get('result_format', 'parquet')
 
-            if not has_var:
-                code = self._auto_append_save_code(code, node_id, result_format)
+            # Always append save code to ensure results are persisted for frontend display
+            code = self._auto_append_save_code(code, node_id, result_format)
 
             # Step 4-5: Build execution order and execute parents
             execution_order = self._build_execution_order(node_id)
@@ -378,8 +394,42 @@ print(f"✓ Saved pickle to {{save_path}}")"""
                 parent_node = self.pm.get_node(exec_node_id)
                 parent_status = parent_node.get('execution_status', 'not_executed')
 
-                # For now, just note that we would execute parents
-                # Full implementation would execute them here
+                # Execute parent if needed - load from result file if exists
+                parent_result_format = parent_node.get('result_format', 'parquet')
+                parent_result_path = parent_node.get('result_path')
+
+                if parent_result_path:
+                    # Try to load the result from file
+                    full_path = self.pm.project_path / parent_result_path
+                    if full_path.exists():
+                        # Load parent result into kernel
+                        if parent_result_format == 'parquet':
+                            load_code = f"""
+import pandas as pd
+{exec_node_id} = pd.read_parquet(r'{full_path}')
+"""
+                        elif parent_result_format == 'json':
+                            load_code = f"""
+import json
+with open(r'{full_path}', 'r', encoding='utf-8') as f:
+    {exec_node_id} = json.load(f)
+"""
+                        elif parent_result_format == 'pkl':
+                            load_code = f"""
+import pickle
+with open(r'{full_path}', 'rb') as f:
+    {exec_node_id} = pickle.load(f)
+"""
+                        else:
+                            continue
+
+                        # Execute load code in kernel
+                        try:
+                            self.km.execute_code(self.pm.project_id, load_code, timeout=30)
+                        except Exception as e:
+                            result["error_message"] = f"Failed to load parent {exec_node_id}: {str(e)}"
+                            result["status"] = "pending_validation"
+                            return result
 
             # Step 6: Execute current node code
             try:
