@@ -80,20 +80,8 @@ class ProjectMetadata:
             "version": self.version,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
-            "nodes": list(self.nodes.values()),
-            "dag": self._build_dag()
-        }
-
-    def _build_dag(self) -> Dict[str, Any]:
-        """Build DAG (directed acyclic graph) from nodes"""
-        edges = []
-        for node_id, node_info in self.nodes.items():
-            for dep in node_info.get("depends_on", []):
-                edges.append([dep, node_id])
-
-        return {
-            "nodes": list(self.nodes.keys()),
-            "edges": edges
+            "nodes": list(self.nodes.values())
+            # DAG is no longer stored - it's inferred from code on every load
         }
 
     @staticmethod

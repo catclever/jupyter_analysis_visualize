@@ -20,7 +20,9 @@
         "display_type": "table",
         "result_format": "parquet",
         "description": "Sales transaction data with columns: date, product, region, amount"
-      }
+      },
+      "error_message": null,
+      "last_execution_time": "2025-11-13T11:52:14.981756"
     },
     {
       "node_id": "targets",
@@ -109,33 +111,5 @@
         "description": "Callable function for validating DataFrame structure and values"
       }
     }
-  ],
-  "dag": {
-    "nodes": [
-      "sales_data",
-      "targets",
-      "processed_sales",
-      "metrics",
-      "visualization",
-      "data_validation_tool"
-    ],
-    "edges": [
-      [
-        "sales_data",
-        "processed_sales"
-      ],
-      [
-        "processed_sales",
-        "metrics"
-      ],
-      [
-        "targets",
-        "metrics"
-      ],
-      [
-        "metrics",
-        "visualization"
-      ]
-    ]
-  }
+  ]
 }

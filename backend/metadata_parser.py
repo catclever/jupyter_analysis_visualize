@@ -13,6 +13,8 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 
+from dependency_inferencer import DependencyInferencer
+
 
 class MetadataParseError(Exception):
     """Raised when metadata parsing fails"""
@@ -160,6 +162,24 @@ class ProjectMetadataParser:
             if cell_meta.is_node:
                 metadata.node_cells.append(cell_meta)
                 metadata.dag_nodes.append(cell_meta.node_id)
+
+        # After parsing all cells, infer dependencies from code
+        # This allows us to use actual code references instead of maintaining explicit lists
+        all_node_ids = metadata.dag_nodes
+
+        for cell_meta in metadata.node_cells:
+            # Get the code for this node (only from non-result cells)
+            if not cell_meta.is_result_cell:
+                # Infer dependencies from code
+                inferred_deps = DependencyInferencer.infer_dependencies(
+                    node_id=cell_meta.node_id,
+                    code=cell_meta.content,
+                    all_node_ids=all_node_ids,
+                    explicit_dependencies=cell_meta.depends_on if cell_meta.depends_on else None
+                )
+
+                # Use inferred dependencies
+                cell_meta.depends_on = inferred_deps
 
                 # Build DAG edges
                 for dep in cell_meta.depends_on:

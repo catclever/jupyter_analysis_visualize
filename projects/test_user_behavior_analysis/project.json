@@ -84,7 +84,7 @@
       "depends_on": [
         "statistics"
       ],
-      "execution_status": "not_executed",
+      "execution_status": "validated",
       "result_format": "parquet",
       "result_path": "parquets/report.parquet",
       "output": {
@@ -92,7 +92,9 @@
         "display_type": "table",
         "result_format": "parquet",
         "description": "Final report with title, generated timestamp, and status"
-      }
+      },
+      "error_message": null,
+      "last_execution_time": "2025-11-13T11:56:13.803199"
     },
     {
       "node_id": "behavior_chart",
