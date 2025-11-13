@@ -195,31 +195,19 @@ class CodeExecutor:
         # Build save code based on result_format
         if result_format == "parquet":
             save_code = f"""
+
 # Auto-appended: Save result to parquet
 import os
 from pathlib import Path
-# Debug: write to file to prove this code executes
-with open('/tmp/report_debug.txt', 'w') as df:
-    df.write('DEBUG: Save code executing\\n')
+parquets_dir = Path(r'{parquets_dir}')
+parquets_dir.mkdir(parents=True, exist_ok=True)
+save_path = parquets_dir / '{node_id}.parquet'
 try:
-    parquets_dir = Path(r'{parquets_dir}')
-    parquets_dir.mkdir(parents=True, exist_ok=True)
-    save_path = parquets_dir / '{node_id}.parquet'
-    with open('/tmp/report_debug.txt', 'a') as df:
-        df.write(f'Variable type: {{type({node_id})}}\\n')
-        df.write(f'Save path: {{save_path}}\\n')
     {node_id}.to_parquet(str(save_path), index=False)
-    with open('/tmp/report_debug.txt', 'a') as df:
-        df.write('File saved successfully\\n')
-    print(f"✓ Saved parquet to {{save_path}}")
-except Exception as save_error:
-    with open('/tmp/report_debug.txt', 'a') as df:
-        df.write(f'Error: {{save_error}}\\n')
-        import traceback
-        df.write(traceback.format_exc())
-    print(f"❌ Failed to save parquet: {{save_error}}")
-    import traceback
-    traceback.print_exc()"""
+    print(f"✓ Saved parquet: {{save_path}}")
+except Exception as e:
+    print(f"ERROR saving parquet: {{e}}")
+    raise"""
 
         elif result_format == "json":
             save_code = f"""
