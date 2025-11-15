@@ -258,18 +258,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       </div>
 
       {/* Flow 区域 */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        {currentNodes.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center bg-muted/20">
-            <div className="text-center">
-              <p className="text-muted-foreground text-lg mb-2">No nodes available</p>
-              <p className="text-muted-foreground text-sm">
-                {error ? `Error: ${error}` : 'This project has no nodes to display'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div>
+      <div className="flex-1 overflow-hidden flex flex-col relative">
+        <div>
         <style>{`
         /* 基础样式 */
         [class*="flow-node-"] {
@@ -506,6 +496,17 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           </button>
         </div>
       </ReactFlow>
+        </div>
+
+        {/* Empty state overlay */}
+        {currentNodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/5 pointer-events-none">
+            <div className="text-center">
+              <p className="text-muted-foreground text-lg mb-2">No nodes available</p>
+              <p className="text-muted-foreground text-sm">
+                {error ? `Error: ${error}` : 'This project has no nodes to display'}
+              </p>
+            </div>
           </div>
         )}
       </div>
