@@ -39,7 +39,7 @@ interface TableData {
 export function ResultPanel({
   selectedNodeId,
   onNodeDeselect = () => {},
-  currentDatasetId = "data-analysis",
+  currentDatasetId = "ecommerce_analytics",
 }: ResultPanelProps) {
   const [nodeInfo, setNodeInfo] = useState<ProjectNode | null>(null);
   const [displayType, setDisplayType] = useState<DisplayType>(DisplayType.NONE);
@@ -51,13 +51,8 @@ export function ResultPanel({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
 
-  // Map frontend dataset ID to backend project ID
-  const projectIdMap: Record<string, string> = {
-    "data-analysis": "test_user_behavior_analysis",
-    "risk-model": "test_sales_performance_report",
-  };
-
-  const projectId = projectIdMap[currentDatasetId] || currentDatasetId;
+  // Use currentDatasetId directly - no mapping needed as we now load projects dynamically
+  const projectId = currentDatasetId;
 
   // Fetch node data
   useEffect(() => {

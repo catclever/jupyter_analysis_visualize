@@ -3376,7 +3376,7 @@ function renderChart(chartType: string | undefined, data: DataRow[]) {
   }
 }
 
-export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'data-analysis', onProjectUpdate }: DataTableProps) {
+export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'ecommerce_analytics', onProjectUpdate }: DataTableProps) {
   const [apiData, setApiData] = useState<PaginatedData<any> | null>(null);
   const [apiCode, setApiCode] = useState<string>('');
   const [apiCodeWithMetadata, setApiCodeWithMetadata] = useState<string>('');
@@ -3434,13 +3434,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     }));
   };
 
-  // 映射前端 dataset ID 到后端项目 ID
-  const projectIdMap: Record<string, string> = {
-    'data-analysis': 'test_user_behavior_analysis',
-    'risk-model': 'test_sales_performance_report',
-  };
-
-  const projectId = projectIdMap[currentDatasetId] || currentDatasetId;
+  // Use currentDatasetId directly - no mapping needed as we now load projects dynamically
+  const projectId = currentDatasetId;
 
   // Check for unsaved changes when selectedNodeId (from props) changes
   useEffect(() => {

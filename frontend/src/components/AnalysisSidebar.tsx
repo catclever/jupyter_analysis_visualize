@@ -20,7 +20,7 @@ export function AnalysisSidebar({
   onToggle,
   selectedNodeId,
   onNodeSelect,
-  currentDatasetId = "data-analysis",
+  currentDatasetId = "ecommerce_analytics",
 }: AnalysisSidebarProps) {
   const [manualActiveTab, setManualActiveTab] = useState<"current" | "all">("all");
 

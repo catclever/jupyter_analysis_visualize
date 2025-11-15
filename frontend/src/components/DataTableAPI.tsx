@@ -43,7 +43,7 @@ interface JsonData {
 export function DataTableAPI({
   selectedNodeId,
   onNodeDeselect = () => {},
-  currentDatasetId = "data-analysis",
+  currentDatasetId = "ecommerce_analytics",
 }: DataTableAPIProps) {
   const [tableData, setTableData] = useState<TableData | null>(null);
   const [jsonData, setJsonData] = useState<JsonData | null>(null);
@@ -54,13 +54,8 @@ export function DataTableAPI({
   const [pageSize] = useState(10);
   const [nodeInfo, setNodeInfo] = useState<ProjectNode | null>(null);
 
-  // 映射前端 dataset ID 到后端项目 ID
-  const projectIdMap: Record<string, string> = {
-    'data-analysis': 'test_user_behavior_analysis',
-    'risk-model': 'test_sales_performance_report',
-  };
-
-  const projectId = projectIdMap[currentDatasetId] || currentDatasetId;
+  // Use currentDatasetId directly - no mapping needed as we now load projects dynamically
+  const projectId = currentDatasetId;
 
   // 获取节点数据
   useEffect(() => {

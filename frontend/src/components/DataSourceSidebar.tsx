@@ -32,7 +32,7 @@ interface DataSourceSidebarProps {
 export function DataSourceSidebar({
   selectedNodeId,
   onNodeSelect,
-  currentDatasetId = "data-analysis",
+  currentDatasetId = "ecommerce_analytics",
   onDatasetChange = () => {},
 }: DataSourceSidebarProps) {
   const [searchQuery, setSearchQuery] = useState("");

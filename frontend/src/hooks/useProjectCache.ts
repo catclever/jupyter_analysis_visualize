@@ -22,12 +22,6 @@ export function useProjectCache() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Map frontend dataset IDs to backend project IDs
-  const projectIdMap: Record<string, string> = {
-    'data-analysis': 'test_user_behavior_analysis',
-    'risk-model': 'test_sales_performance_report',
-  };
-
   /**
    * Load project data with caching
    * - If already cached, use cached data
@@ -35,7 +29,8 @@ export function useProjectCache() {
    */
   const loadProject = useCallback(
     async (datasetId: string) => {
-      const backendProjectId = projectIdMap[datasetId] || datasetId;
+      // Use datasetId directly - no mapping needed as we now load projects dynamically
+      const backendProjectId = datasetId;
 
       // Use cached data if available
       if (projectCache[backendProjectId]) {
@@ -70,21 +65,8 @@ export function useProjectCache() {
     [projectCache]
   );
 
-  /**
-   * Load first project on mount
-   * This ensures the page shows data immediately when user enters
-   */
-  useEffect(() => {
-    const loadFirstProject = async () => {
-      try {
-        await loadProject('data-analysis');
-      } catch (err) {
-        console.error('Failed to load first project:', err);
-      }
-    };
-
-    loadFirstProject();
-  }, [loadProject]);
+  // Note: First project loading is now handled by Index component
+  // This ensures we don't try to load projects that don't exist anymore
 
   /**
    * Update project cache (used after editing or execution)
@@ -114,6 +96,5 @@ export function useProjectCache() {
     loadProject,
     updateProjectCache,
     clearCache,
-    projectIdMap,
   };
 }

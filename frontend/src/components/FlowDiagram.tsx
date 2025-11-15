@@ -37,7 +37,7 @@ interface FlowDiagramProps {
   currentDatasetId?: string;
 }
 
-export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, currentDatasetId = "data-analysis" }: FlowDiagramProps) {
+export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, currentDatasetId = "ecommerce_analytics" }: FlowDiagramProps) {
   const [apiNodes, setApiNodes] = useState<Node<FlowNodeData>[] | null>(null);
   const [apiEdges, setApiEdges] = useState<Edge[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
