@@ -13,7 +13,7 @@ const Index = () => {
   const [isAnalysisSidebarOpen, setIsAnalysisSidebarOpen] = useState(true);
   const [minimapOpen, setMinimapOpen] = useState(false); // 默认关闭 minimap
   const [shouldCloseMinimap, setShouldCloseMinimap] = useState(false); // 用于追踪数据面板打开状态变化
-  const [currentDatasetId, setCurrentDatasetId] = useState<string>("data-analysis");
+  const [currentDatasetId, setCurrentDatasetId] = useState<string>("ecommerce_analytics");
   const [projectRefreshKey, setProjectRefreshKey] = useState(0); // Trigger project reload when code is saved
 
   // Use project cache hook for efficient data loading
