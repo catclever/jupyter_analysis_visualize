@@ -498,13 +498,13 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       </ReactFlow>
         </div>
 
-        {/* Empty state overlay */}
+        {/* Empty state overlay - very light, non-intrusive */}
         {currentNodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/5 pointer-events-none">
-            <div className="text-center">
-              <p className="text-muted-foreground text-lg mb-2">No nodes available</p>
-              <p className="text-muted-foreground text-sm">
-                {error ? `Error: ${error}` : 'This project has no nodes to display'}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="text-center bg-background/80 rounded-lg p-6 border border-border">
+              <p className="text-muted-foreground text-base mb-2">No nodes in this project</p>
+              <p className="text-muted-foreground text-xs">
+                {error ? `Error: ${error}` : 'Start by adding nodes to build your workflow'}
               </p>
             </div>
           </div>
