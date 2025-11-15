@@ -159,7 +159,7 @@ def get_project(project_id: str) -> Dict[str, Any]:
             # Map backend node types directly to frontend
             # Backend supports: data_source, compute, chart, image, tool
             # Frontend now supports: data_source, compute, chart, image, tool (via config)
-            node_type = node_info.get("type", "compute")  # default to compute
+            node_type = node_info.get("node_type", "compute")  # default to compute
 
             # For backward compatibility, map old "data" type to "data_source"
             if node_type == "data":

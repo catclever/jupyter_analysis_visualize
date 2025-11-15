@@ -16,6 +16,3 @@ dependencies = [
     "plotly>=5.0.0",
     "pyecharts>=2.0.0",
 ]
-
-[tool.uv]
-python = "3.12"

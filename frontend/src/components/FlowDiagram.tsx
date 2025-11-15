@@ -50,14 +50,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         setIsLoading(true);
         setError(null);
 
-        // 映射前端 dataset ID 到后端项目 ID
-        const projectIdMap: Record<string, string> = {
-          'data-analysis': 'test_user_behavior_analysis',
-          'risk-model': 'test_sales_performance_report',
-        };
-
-        const projectId = projectIdMap[currentDatasetId] || currentDatasetId;
-        const project = await getProject(projectId);
+        // Use currentDatasetId directly - no mapping needed as we now load projects dynamically
+        const project = await getProject(currentDatasetId);
 
         // 转换 API 数据为 ReactFlow 格式，计算节点位置
         // 首先按类别分组节点
@@ -127,15 +121,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       } catch (err) {
         console.error('Failed to fetch project data:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch project data');
-        // Fallback to hardcoded data on error
-        try {
-          const fallbackData = getDatasetById(currentDatasetId);
-          setApiNodes(fallbackData.nodes);
-          setApiEdges(fallbackData.edges);
-        } catch {
-          setApiNodes(initialNodes);
-          setApiEdges(initialEdges);
-        }
+        // Show empty state on error instead of falling back to hardcoded data
+        setApiNodes([]);
+        setApiEdges([]);
       } finally {
         setIsLoading(false);
       }
@@ -149,15 +137,12 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     if (apiNodes !== null && apiEdges !== null) {
       return { nodes: apiNodes, edges: apiEdges };
     }
-    try {
-      return getDatasetById(currentDatasetId);
-    } catch {
-      return { nodes: initialNodes, edges: initialEdges };
-    }
+    // Don't fallback to hardcoded data - show empty state
+    return { nodes: [], edges: [] };
   }, [currentDatasetId, apiNodes, apiEdges]);
 
-  const currentNodes = datasetData.nodes || initialNodes;
-  const currentEdges = datasetData.edges || initialEdges;
+  const currentNodes = datasetData.nodes || [];
+  const currentEdges = datasetData.edges || [];
 
   const [nodes, setNodes, onNodesChange] = useNodesState(currentNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(currentEdges);
@@ -273,8 +258,19 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       </div>
 
       {/* Flow 区域 */}
-      <div className="flex-1 overflow-hidden">
-      <style>{`
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {currentNodes.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center bg-muted/20">
+            <div className="text-center">
+              <p className="text-muted-foreground text-lg mb-2">No nodes available</p>
+              <p className="text-muted-foreground text-sm">
+                {error ? `Error: ${error}` : 'This project has no nodes to display'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div>
+        <style>{`
         /* 基础样式 */
         [class*="flow-node-"] {
           border: none !important;
@@ -510,6 +506,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           </button>
         </div>
       </ReactFlow>
+          </div>
+        )}
       </div>
     </div>
   );

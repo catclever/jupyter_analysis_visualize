@@ -97,8 +97,14 @@ class ProjectMetadata:
         meta.updated_at = data.get("updated_at", meta.updated_at)
 
         # Restore nodes
-        for node in data.get("nodes", []):
-            meta.nodes[node["node_id"]] = node
+        nodes_data = data.get("nodes", {})
+        # Handle both dict and list formats for backward compatibility
+        if isinstance(nodes_data, dict):
+            for node_id, node_info in nodes_data.items():
+                meta.nodes[node_id] = node_info
+        else:
+            for node in nodes_data:
+                meta.nodes[node["node_id"]] = node
 
         return meta
 

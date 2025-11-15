@@ -49,6 +49,13 @@ export function DataSourceSidebar({
         setIsLoadingProjects(true);
         const projectList = await listProjects();
         setProjects(projectList);
+        // 当项目列表加载完成后，如果当前dataset不在列表中，选择第一个项目
+        if (projectList.length > 0) {
+          const currentProjectExists = projectList.some(p => p.id === currentDatasetId);
+          if (!currentProjectExists) {
+            onDatasetChange(projectList[0].id);
+          }
+        }
       } catch (error) {
         console.error("Failed to load projects:", error);
         // Fallback to hardcoded projects
@@ -59,7 +66,7 @@ export function DataSourceSidebar({
     };
 
     loadProjects();
-  }, []);
+  }, [currentDatasetId, onDatasetChange]);
 
   // 动态获取当前数据集的conclusions
   const currentDatasetConclusions = useMemo(() => {
