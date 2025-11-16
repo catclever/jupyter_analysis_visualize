@@ -113,35 +113,18 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           };
         });
 
-        // Build edges from depends_on field in node metadata
-        // This implements the dynamic dependency discovery system:
-        // - Nodes start with empty depends_on
-        // - During execution, backend analyzes code and updates depends_on
-        // - Frontend reads depends_on and renders edges dynamically
-        const flowEdges: Edge[] = [];
-        const processedEdges = new Set<string>();
-
-        for (const node of nodeList) {
-          const nodeId = node.node_id;
-          const dependencies = node.depends_on || [];
-
-          for (const depId of dependencies) {
-            const edgeId = `e_${depId}_${nodeId}`;
-            if (!processedEdges.has(edgeId)) {
-              flowEdges.push({
-                id: edgeId,
-                source: depId,
-                target: nodeId,
-                animated: false,
-              });
-              processedEdges.add(edgeId);
-            }
-          }
-        }
+        // Use edges from API response
+        // The backend already constructs edges from node.depends_on in the get_project endpoint (lines 182-188 of app.py)
+        // When a node is executed:
+        // 1. Backend analyzes code and updates node['depends_on'] in project.json
+        // 2. Frontend reloads project data via getProject()
+        // 3. Backend reconstructs edges from the updated depends_on values
+        // 4. Frontend receives the new edges and displays them dynamically
+        const flowEdges = projectData.edges || [];
 
         setApiNodes(flowNodes);
         setApiEdges(flowEdges);
-        console.log('[FlowDiagram] Initialized with', flowNodes.length, 'nodes and', flowEdges.length, 'edges from depends_on');
+        console.log('[FlowDiagram] Initialized with', flowNodes.length, 'nodes and', flowEdges.length, 'edges from API');
       } catch (err) {
         console.error('Failed to fetch project data:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch project data');
