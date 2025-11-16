@@ -472,8 +472,11 @@ with open(r'{full_path}', 'rb') as f:
 
                     # Get variable from kernel and save directly
                     kernel_var = self.km.get_variable(self.pm.project_id, node_id)
-                    if kernel_var is not None and isinstance(kernel_var, pd.DataFrame):
-                        kernel_var.to_parquet(str(save_path), index=False)
+                    if kernel_var is None:
+                        raise ValueError(f"Variable '{node_id}' not found in kernel after execution")
+                    if not isinstance(kernel_var, pd.DataFrame):
+                        raise TypeError(f"Variable '{node_id}' is not a DataFrame (got {type(kernel_var).__name__})")
+                    kernel_var.to_parquet(str(save_path), index=False)
                 elif result_format == 'json':
                     import json
                     parquets_dir = self.pm.parquets_path
