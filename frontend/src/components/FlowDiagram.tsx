@@ -120,7 +120,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         // 2. Frontend reloads project data via getProject()
         // 3. Backend reconstructs edges from the updated depends_on values
         // 4. Frontend receives the new edges and displays them dynamically
-        const flowEdges = projectData.edges || [];
+        const flowEdges = project.edges || [];
 
         setApiNodes(flowNodes);
         setApiEdges(flowEdges);
