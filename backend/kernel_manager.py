@@ -81,14 +81,16 @@ class KernelManager:
         self.max_kernels = max_kernels
         self.kernels: Dict[str, KernelInstance] = {}  # kernel_id -> KernelInstance
         self.project_kernels: Dict[str, str] = {}  # project_id -> kernel_id
+        self.project_cwd: Dict[str, str] = {}  # project_id -> working directory (新增)
         self.kernel_spec_manager = KernelSpecManager()
 
-    def get_or_create_kernel(self, project_id: str) -> KernelInstance:
+    def get_or_create_kernel(self, project_id: str, project_cwd: str = None) -> KernelInstance:
         """
         Get existing kernel for project or create a new one
 
         Args:
             project_id: Project identifier
+            project_cwd: Project working directory (where to run the kernel)
 
         Returns:
             KernelInstance for the project
@@ -115,16 +117,27 @@ class KernelManager:
         try:
             # Try to use uv-managed kernel first
             jupyter_km = JupyterKernelManager(kernel_name="uv-python")
-            jupyter_km.start_kernel()
+            # 问题修复: 设置工作目录到项目目录
+            if project_cwd:
+                jupyter_km.start_kernel(cwd=project_cwd)
+            else:
+                jupyter_km.start_kernel()
         except Exception as e:
             # Fall back to system python3 if uv-python kernel not available
             print(f"[Warning] uv-python kernel not available, falling back to python3: {e}")
             jupyter_km = JupyterKernelManager(kernel_name="python3")
-            jupyter_km.start_kernel()
+            # 问题修复: 设置工作目录到项目目录
+            if project_cwd:
+                jupyter_km.start_kernel(cwd=project_cwd)
+            else:
+                jupyter_km.start_kernel()
 
         kernel = KernelInstance(kernel_id, project_id, jupyter_km)
         self.kernels[kernel_id] = kernel
         self.project_kernels[project_id] = kernel_id
+        # 存储项目的工作目录
+        if project_cwd:
+            self.project_cwd[project_id] = project_cwd
 
         return kernel
 

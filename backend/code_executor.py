@@ -167,6 +167,21 @@ class CodeExecutor:
         self.km = kernel_manager
         self.nm = notebook_manager
 
+    def _ensure_kernel_with_cwd(self, project_id: str):
+        """
+        Ensure kernel is created with correct working directory.
+
+        Gets or creates kernel with project directory as working directory.
+        This ensures relative file paths in code work correctly.
+        """
+        # 只在第一次创建 kernel 时设置工作目录
+        if project_id not in self.km.project_kernels:
+            project_path = self.pm.project_path
+            if project_path:
+                self.km.get_or_create_kernel(project_id, str(project_path))
+            else:
+                self.km.get_or_create_kernel(project_id)
+
     def _check_same_named_variable_in_code(self, node_id: str, code: str) -> Tuple[bool, str]:
         """
         Pre-execution check: does code assign same-named variable?
@@ -329,6 +344,9 @@ print(f"✓ Saved pickle to {{save_path}}")"""
         }
 
         start_time = datetime.now()
+
+        # 问题修复: 确保 kernel 使用正确的工作目录
+        self._ensure_kernel_with_cwd(self.pm.project_id)
 
         try:
             # Get node info
