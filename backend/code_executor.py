@@ -424,8 +424,24 @@ with open(r'{full_path}', 'rb') as f:
             # Step 6: Execute current node code
             try:
                 output = self.km.execute_code(self.pm.project_id, code, timeout=30)
-                execution_successful = True
                 execution_output = output
+
+                # 问题4修复: 检查Kernel执行结果的状态字段
+                # execute_code() 返回字典，不抛出异常，需要检查 status 字段
+                if output.get("status") != "success":
+                    execution_successful = False
+                    error_msg = output.get("error", f"Execution failed with status: {output.get('status')}")
+                    # 如果是超时，保留原始错误信息
+                    if output.get("status") == "timeout":
+                        error_msg = output.get("error", "Execution timeout")
+                    result["error_message"] = f"Kernel execution error: {error_msg}"
+                    result["status"] = "pending_validation"
+                    node['execution_status'] = 'pending_validation'
+                    node['error_message'] = result["error_message"]
+                    self.pm._save_metadata()
+                    return result
+
+                execution_successful = True
             except Exception as e:
                 execution_successful = False
                 execution_output = str(e)
