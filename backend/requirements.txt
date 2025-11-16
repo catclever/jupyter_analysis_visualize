@@ -1,6 +1,8 @@
 jupyter-client
 jupyter
+ipykernel
 pandas
+scikit-learn
 pyarrow
 fastapi
 uvicorn

@@ -110,9 +110,17 @@ class KernelManager:
             raise RuntimeError(f"Maximum kernel limit ({self.max_kernels}) reached")
 
         # Create and register new kernel
+        # Use uv-managed kernel instead of system python3 for better dependency management
         kernel_id = f"kernel_{uuid.uuid4().hex[:8]}"
-        jupyter_km = JupyterKernelManager(kernel_name="python3")
-        jupyter_km.start_kernel()
+        try:
+            # Try to use uv-managed kernel first
+            jupyter_km = JupyterKernelManager(kernel_name="uv-python")
+            jupyter_km.start_kernel()
+        except Exception as e:
+            # Fall back to system python3 if uv-python kernel not available
+            print(f"[Warning] uv-python kernel not available, falling back to python3: {e}")
+            jupyter_km = JupyterKernelManager(kernel_name="python3")
+            jupyter_km.start_kernel()
 
         kernel = KernelInstance(kernel_id, project_id, jupyter_km)
         self.kernels[kernel_id] = kernel
