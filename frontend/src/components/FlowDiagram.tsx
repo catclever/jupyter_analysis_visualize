@@ -82,6 +82,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
               position: { x: 0, y: 0 },
               data: { label: node.label, type: node.type },
               className: `flow-node-${node.type}`,
+              selectable: true,
             };
           }
 
@@ -110,6 +111,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
               type: node.type,
             },
             className: `flow-node-${node.type}`,
+            selectable: true,
           };
         });
 
@@ -264,7 +266,10 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     return 'dimmed';
   };
 
-  const handleNodeClick = (_event: React.MouseEvent, node: Node) => {
+  const handleNodeClick = (_event: React.MouseEvent | any, node: Node) => {
+    console.log('[FlowDiagram] Node clicked:', node.id);
+    // 阻止事件冒泡，防止触发缩放
+    _event?.stopPropagation?.();
     onNodeClick(node.id);
   };
 
@@ -570,6 +575,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         connectionMode={ConnectionMode.Loose}
         fitView
         attributionPosition="bottom-left"
+        selectNodesOnDrag={false}
+        multiSelectionKeyCode={null}
+        deleteKeyCode={null}
       >
         <Background />
         <Controls />
