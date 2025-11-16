@@ -62,6 +62,11 @@ backend/*.parquet
 backend/.env
 backend/.env.local
 
+# Backup
+*.backup
+*.bakcup.*
+*.backup/
+
 # Jupyter
 .ipynb_checkpoints/
 # Tool scripts
