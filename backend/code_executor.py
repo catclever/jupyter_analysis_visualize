@@ -439,6 +439,15 @@ with open(r'{full_path}', 'rb') as f:
                     node['execution_status'] = 'pending_validation'
                     node['error_message'] = result["error_message"]
                     self.pm._save_metadata()
+
+                    # 同步到 notebook (失败时也要同步)
+                    try:
+                        self.nm.update_execution_status(node_id, 'pending_validation')
+                        self.nm.sync_metadata_comments()
+                        self.nm.save()
+                    except Exception as e:
+                        print(f"[Warning] Failed to sync notebook metadata on failure: {e}")
+
                     return result
 
                 execution_successful = True
@@ -453,6 +462,14 @@ with open(r'{full_path}', 'rb') as f:
                 node['error_message'] = result["error_message"]
                 self.pm._save_metadata()
 
+                # 同步到 notebook (失败时也要同步)
+                try:
+                    self.nm.update_execution_status(node_id, 'pending_validation')
+                    self.nm.sync_metadata_comments()
+                    self.nm.save()
+                except Exception as sync_e:
+                    print(f"[Warning] Failed to sync notebook metadata on failure: {sync_e}")
+
                 return result
 
             # Step 7: Post-check - verify same-named variable exists and has value
@@ -466,6 +483,15 @@ with open(r'{full_path}', 'rb') as f:
                     node['execution_status'] = 'pending_validation'
                     node['error_message'] = result["error_message"]
                     self.pm._save_metadata()
+
+                    # 同步到 notebook (失败时也要同步)
+                    try:
+                        self.nm.update_execution_status(node_id, 'pending_validation')
+                        self.nm.sync_metadata_comments()
+                        self.nm.save()
+                    except Exception as sync_e:
+                        print(f"[Warning] Failed to sync notebook metadata on failure: {sync_e}")
+
                     return result
             except Exception as e:
                 result["error_message"] = f"Could not verify execution: {e}"
@@ -473,6 +499,15 @@ with open(r'{full_path}', 'rb') as f:
                 node['execution_status'] = 'pending_validation'
                 node['error_message'] = result["error_message"]
                 self.pm._save_metadata()
+
+                # 同步到 notebook (失败时也要同步)
+                try:
+                    self.nm.update_execution_status(node_id, 'pending_validation')
+                    self.nm.sync_metadata_comments()
+                    self.nm.save()
+                except Exception as sync_e:
+                    print(f"[Warning] Failed to sync notebook metadata on failure: {sync_e}")
+
                 return result
 
             # Step 7.5: Save result to file after verification
@@ -525,6 +560,15 @@ with open(r'{full_path}', 'rb') as f:
                 node['error_message'] = result["error_message"]
                 node['depends_on'] = []  # 不更新依赖关系
                 self.pm._save_metadata()
+
+                # 同步到 notebook (失败时也要同步)
+                try:
+                    self.nm.update_execution_status(node_id, 'pending_validation')
+                    self.nm.sync_metadata_comments()
+                    self.nm.save()
+                except Exception as sync_e:
+                    print(f"[Warning] Failed to sync notebook metadata on failure: {sync_e}")
+
                 return result
 
             # Step 8: Generate/overwrite result cell
