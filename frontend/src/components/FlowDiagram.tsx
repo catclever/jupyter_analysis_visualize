@@ -498,8 +498,18 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       </ReactFlow>
         </div>
 
+        {/* Loading state overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/50 pointer-events-none z-50">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
+              <p className="text-muted-foreground text-sm mt-2">Loading project...</p>
+            </div>
+          </div>
+        )}
+
         {/* Empty state overlay - very light, non-intrusive */}
-        {currentNodes.length === 0 && (
+        {!isLoading && currentNodes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-center bg-background/80 rounded-lg p-6 border border-border">
               <p className="text-muted-foreground text-base mb-2">No nodes in this project</p>
