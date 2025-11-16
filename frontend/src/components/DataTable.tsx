@@ -3777,7 +3777,11 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           description: `Node executed successfully in ${result.execution_time?.toFixed(2)}s`,
         });
 
-        // Force reload from backend (bypass cache) to get updated execution status
+        // Force reload from backend (bypass cache) to get updated execution status and depends_on
+        // This enables the dynamic dependency discovery system:
+        // - Backend analyzed the code and updated node['depends_on']
+        // - Frontend reloads project.json to get the updated dependencies
+        // - FlowDiagram re-renders and displays new edges based on depends_on
         try {
           const updatedProject = await getProject(projectId);
           // Update cache with new project data
