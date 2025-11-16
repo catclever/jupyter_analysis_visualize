@@ -6,14 +6,10 @@ import {
   Background,
   Controls,
   MiniMap,
-  useNodesState,
-  useEdgesState,
   ConnectionMode,
   NodeProps,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { nodes as initialNodes, edges as initialEdges } from '@/data';
-import { getDatasetById } from '@/data/datasets';
 import { getProject, type ProjectNode, type ProjectEdge } from '@/services/api';
 import {
   getNodeColor,
@@ -52,6 +48,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
         // Use currentDatasetId directly - no mapping needed as we now load projects dynamically
         const project = await getProject(currentDatasetId);
+        console.log('[FlowDiagram] Loaded project:', project);
+        console.log('[FlowDiagram] Nodes count:', project.nodes.length);
+        console.log('[FlowDiagram] Sample node:', project.nodes[0]);
 
         // 转换 API 数据为 ReactFlow 格式，计算节点位置
         // 首先按类别分组节点
@@ -60,7 +59,11 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
         project.nodes.forEach((node: ProjectNode) => {
           const category = getNodeCategory(node.type);
-          if (!category) return;
+          console.log(`[FlowDiagram] Node ${node.id}: type=${node.type}, category=${category}`);
+          if (!category) {
+            console.warn(`[FlowDiagram] Node ${node.id} has no category!`);
+            return;
+          }
 
           if (!nodesByCategory.has(category)) {
             nodesByCategory.set(category, []);
@@ -135,27 +138,32 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   // 获取当前数据集的nodes和edges - 优先使用API数据
   const datasetData = React.useMemo(() => {
     if (apiNodes !== null && apiEdges !== null) {
+      console.log('[FlowDiagram] datasetData created with', apiNodes.length, 'nodes');
       return { nodes: apiNodes, edges: apiEdges };
     }
     // Don't fallback to hardcoded data - show empty state
+    console.log('[FlowDiagram] datasetData fallback to empty');
     return { nodes: [], edges: [] };
   }, [currentDatasetId, apiNodes, apiEdges]);
 
   const currentNodes = datasetData.nodes || [];
   const currentEdges = datasetData.edges || [];
+  console.log('[FlowDiagram] currentNodes length:', currentNodes.length);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(currentNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(currentEdges);
+  // Use local state for nodes and edges to avoid synchronization issues with useNodesState
+  const [nodes, setNodes] = React.useState<Node<FlowNodeData>[]>([]);
+  const [edges, setEdges] = React.useState<Edge[]>([]);
   const [localMinimapOpen, setLocalMinimapOpen] = React.useState(minimapOpen);
   const [nodeTypeFilter, setNodeTypeFilter] = React.useState<Set<NodeCategory | string>>(
     new Set(Object.values(NodeCategory))
   );
 
-  // 当数据集改变时，更新 nodes 和 edges
+  // When currentNodes or currentEdges change, update the local state
   React.useEffect(() => {
+    console.log('[FlowDiagram] useEffect updating nodes/edges, currentNodes length:', currentNodes.length);
     setNodes(currentNodes);
     setEdges(currentEdges);
-  }, [currentDatasetId, currentNodes, currentEdges, setNodes, setEdges]);
+  }, [currentDatasetId, currentNodes, currentEdges]);
 
   // 当 minimapOpen 属性改变时，同步到 localMinimapOpen
   React.useEffect(() => {
@@ -232,7 +240,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   };
 
   return (
-    <div className="h-full bg-card rounded-lg border border-border overflow-hidden flex flex-col">
+    <div className="h-full w-full bg-card rounded-lg border border-border overflow-hidden flex flex-col">
       {/* 筛选条 */}
       <div className="flex items-center justify-end gap-3 p-3 border-b border-border bg-muted/50">
         <div className="flex gap-3">
@@ -259,7 +267,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
       {/* Flow 区域 */}
       <div className="flex-1 overflow-hidden flex flex-col relative">
-        <div>
         <style>{`
         /* 基础样式 */
         [class*="flow-node-"] {
@@ -438,26 +445,38 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       
       <ReactFlow
         key={currentDatasetId}
-        nodes={nodes
-          .filter(node => {
-            const nodeData = node.data as FlowNodeData;
-            const category = getNodeCategory(nodeData.type);
-            return category && nodeTypeFilter.has(category);
-          })
-          .map(node => {
-            let classNames = node.className || '';
-            const nodeLevel = getNodeLevel(node.id);
+        nodes={(() => {
+          console.log('[FlowDiagram render] nodes state length:', nodes.length);
+          if (nodes.length > 0) {
+            console.log('[FlowDiagram render] first node:', nodes[0].id, 'position:', nodes[0].position, 'data:', nodes[0].data);
+          }
+          const filtered = nodes
+            .filter(node => {
+              const nodeData = node.data as FlowNodeData;
+              const category = getNodeCategory(nodeData.type);
+              const pass = category && nodeTypeFilter.has(category);
+              if (!pass) {
+                console.log(`[FlowDiagram] Node ${node.id} filtered out: category=${category}, type=${nodeData.type}`);
+              }
+              return pass;
+            })
+            .map(node => {
+              let classNames = node.className || '';
+              const nodeLevel = getNodeLevel(node.id);
 
-            if (selectedNodeId) {
-              // 根据节点等级添加相应的类名
-              classNames += ` ${nodeLevel}`;
-            }
+              if (selectedNodeId) {
+                // 根据节点等级添加相应的类名
+                classNames += ` ${nodeLevel}`;
+              }
 
-            return {
-              ...node,
-              className: classNames,
-            };
-          })}
+              return {
+                ...node,
+                className: classNames,
+              };
+            });
+          console.log('[FlowDiagram] ReactFlow rendering with', filtered.length, 'nodes out of', nodes.length, 'total nodeTypeFilter:', Array.from(nodeTypeFilter));
+          return filtered;
+        })()}
         edges={edges.filter(edge => {
           // 过滤筛选后的节点相关的边
           const sourceNode = nodes.find(n => n.id === edge.source);
@@ -476,8 +495,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                   nodeTypeFilter.has(targetCategory) &&
                   shouldShowEdge(edge));
         })}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
         connectionMode={ConnectionMode.Loose}
         fitView
@@ -496,7 +513,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           </button>
         </div>
       </ReactFlow>
-        </div>
 
         {/* Loading state overlay */}
         {isLoading && (

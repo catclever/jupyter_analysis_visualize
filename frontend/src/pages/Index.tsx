@@ -53,11 +53,11 @@ const Index = () => {
 
         <ResizableHandle withHandle />
 
-        <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 40 : 60} minSize={20}>
+        <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 45 : 75} minSize={20}>
           {selectedNodeId ? (
             <ResizablePanelGroup direction="vertical" className="h-full">
               <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 33.33 : 50} minSize={20}>
-                <div className="h-full overflow-auto p-6">
+                <div className="h-full w-full overflow-hidden">
                   <FlowDiagram
                     key={projectRefreshKey}
                     onNodeClick={setSelectedNodeId}
@@ -82,7 +82,7 @@ const Index = () => {
               </ResizablePanel>
             </ResizablePanelGroup>
           ) : (
-            <div className="h-full overflow-auto p-6">
+            <div className="h-full w-full overflow-hidden">
               <FlowDiagram
                 key={projectRefreshKey}
                 onNodeClick={setSelectedNodeId}

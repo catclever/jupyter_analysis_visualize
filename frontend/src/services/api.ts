@@ -21,10 +21,13 @@ export interface Project {
 export interface ProjectNode {
   id: string;
   label: string;
-  type: 'data' | 'compute' | 'chart';
+  type: 'data_source' | 'compute' | 'chart' | 'image' | 'tool' | 'data';
   execution_status: 'not_executed' | 'pending_validation' | 'validated';
   result_format?: string;
   result_path?: string;
+  output?: unknown;
+  error_message?: string | null;
+  last_execution_time?: string | null;
 }
 
 export interface ProjectEdge {
