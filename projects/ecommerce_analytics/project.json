@@ -20,9 +20,10 @@
       "node_type": "data_source",
       "name": "Load Customers Data",
       "depends_on": [],
-      "execution_status": "not_executed",
+      "execution_status": "pending_validation",
       "result_format": "parquet",
-      "result_path": null
+      "result_path": null,
+      "error_message": "Failed to save result: Variable 'load_customers_data' is not a DataFrame (got str)"
     },
     {
       "node_id": "load_products_data",
