@@ -158,6 +158,52 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     new Set(Object.values(NodeCategory))
   );
 
+  // Handle node changes (including drag operations)
+  const handleNodesChange = React.useCallback((changes: any) => {
+    setNodes((nds) => {
+      const updatedNodes = nds.slice();
+      changes.forEach((change: any) => {
+        const nodeIndex = updatedNodes.findIndex(n => n.id === change.id);
+        if (nodeIndex !== -1) {
+          if (change.type === 'position' && change.position) {
+            // Update position for drag operations
+            updatedNodes[nodeIndex] = {
+              ...updatedNodes[nodeIndex],
+              position: change.position,
+              positionAbsolute: change.positionAbsolute,
+            };
+          } else if (change.type === 'select') {
+            // Handle selection changes if needed
+            updatedNodes[nodeIndex] = {
+              ...updatedNodes[nodeIndex],
+              selected: change.selected,
+            };
+          }
+        }
+      });
+      return updatedNodes;
+    });
+  }, []);
+
+  // Handle edge changes
+  const handleEdgesChange = React.useCallback((changes: any) => {
+    setEdges((eds) => {
+      const updatedEdges = eds.slice();
+      changes.forEach((change: any) => {
+        const edgeIndex = updatedEdges.findIndex(e => e.id === change.id);
+        if (edgeIndex !== -1) {
+          if (change.type === 'select') {
+            updatedEdges[edgeIndex] = {
+              ...updatedEdges[edgeIndex],
+              selected: change.selected,
+            };
+          }
+        }
+      });
+      return updatedEdges;
+    });
+  }, []);
+
   // When currentNodes or currentEdges change, update the local state
   React.useEffect(() => {
     console.log('[FlowDiagram] useEffect updating nodes/edges, currentNodes length:', currentNodes.length);
@@ -495,6 +541,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                   nodeTypeFilter.has(targetCategory) &&
                   shouldShowEdge(edge));
         })}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
         onNodeClick={handleNodeClick}
         connectionMode={ConnectionMode.Loose}
         fitView
