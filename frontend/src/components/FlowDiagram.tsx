@@ -112,15 +112,13 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           };
         });
 
-        const flowEdges: Edge[] = project.edges.map((edge: ProjectEdge) => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          animated: edge.animated,
-        }));
+        // Initialize with empty edges - they will be added dynamically when nodes are executed
+        // This implements the dynamic dependency discovery system
+        const flowEdges: Edge[] = [];
 
         setApiNodes(flowNodes);
         setApiEdges(flowEdges);
+        console.log('[FlowDiagram] Initialized with', flowNodes.length, 'nodes and 0 edges (dynamic mode)');
       } catch (err) {
         console.error('Failed to fetch project data:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch project data');
@@ -284,6 +282,23 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     // 只要任一端点是置灰的，就隐藏这条边
     return sourceLevel !== 'dimmed' && targetLevel !== 'dimmed';
   };
+
+  // 动态添加边（在节点执行时调用）
+  // 这是实现动态依赖系统的关键方法
+  const addEdgesCallback = React.useCallback((newEdges: Edge[]) => {
+    setEdges((prevEdges) => {
+      // 避免重复添加边
+      const existingIds = new Set(prevEdges.map(e => e.id));
+      const uniqueNewEdges = newEdges.filter(e => !existingIds.has(e.id));
+
+      if (uniqueNewEdges.length > 0) {
+        console.log('[FlowDiagram] Adding', uniqueNewEdges.length, 'new edges');
+        return [...prevEdges, ...uniqueNewEdges];
+      }
+
+      return prevEdges;
+    });
+  }, []);
 
   return (
     <div className="h-full w-full bg-card rounded-lg border border-border overflow-hidden flex flex-col">

@@ -238,7 +238,59 @@ export async function updateNodeCode(
 }
 
 /**
- * Execute a node with dependency resolution
+ * Get dependency information for a node
+ */
+export async function getNodeDependencies(
+  projectId: string,
+  nodeId: string
+): Promise<{
+  node_id: string;
+  direct_dependencies: string[];
+  all_dependencies: string[];
+  execution_order: string[];
+  dependents: string[];
+  has_circular_dependency: boolean;
+}> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/dependencies`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to get dependencies: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get execution plan for a node
+ */
+export async function getExecutionPlan(
+  projectId: string,
+  nodeId: string,
+  alreadyExecuted: string[] = []
+): Promise<{
+  target_node: string;
+  execution_order: string[];
+  nodes_to_execute: string[];
+  already_executed: string[];
+  will_skip: number;
+  will_execute: number;
+}> {
+  const params = new URLSearchParams();
+  if (alreadyExecuted.length > 0) {
+    params.append('already_executed', alreadyExecuted.join(','));
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/execution-plan?${params}`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to get execution plan: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Execute a node with dependency resolution and dynamic edge discovery
  */
 export async function executeNode(
   projectId: string,
@@ -249,6 +301,16 @@ export async function executeNode(
   error_message: string | null;
   execution_time: number | null;
   result_cell_added: boolean;
+  // Dynamic dependency system additions
+  executed_nodes: string[];
+  new_edges: ProjectEdge[];
+  execution_plan: {
+    execution_order: string[];
+    nodes_to_execute: string[];
+    already_executed: string[];
+    will_execute: number;
+    will_skip: number;
+  };
 }> {
   const response = await fetch(
     `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/execute`,

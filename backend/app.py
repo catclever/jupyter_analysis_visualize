@@ -21,6 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from project_manager import ProjectManager
 from notebook_manager import NotebookManager
+from dependency_analyzer import DependencyAnalyzer
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -196,6 +197,104 @@ def get_project(project_id: str) -> Dict[str, Any]:
             "nodes": nodes,
             "edges": edges,
         }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/projects/{project_id}/nodes/{node_id}/dependencies")
+def get_node_dependencies(project_id: str, node_id: str) -> Dict[str, Any]:
+    """
+    Get dependency information for a node
+
+    This endpoint provides:
+    - Direct dependencies (immediate parents)
+    - All dependencies (transitive closure)
+    - Execution order (topological sort)
+    - Dependent nodes (who depends on this)
+
+    Used for:
+    - Showing execution preview before user confirms
+    - Understanding dependency chains
+    - Validating circular dependencies
+    """
+    try:
+        pm = get_project_manager(project_id)
+
+        if pm.metadata is None:
+            raise HTTPException(status_code=500, detail="Failed to load project metadata")
+
+        # Verify node exists
+        if node_id not in pm.metadata.nodes:
+            raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
+
+        # Create dependency analyzer
+        analyzer = DependencyAnalyzer(pm.metadata.nodes)
+
+        # Get dependency info
+        dep_info = analyzer.get_dependencies(node_id)
+
+        return {
+            "node_id": node_id,
+            "direct_dependencies": dep_info["direct_dependencies"],
+            "all_dependencies": dep_info["all_dependencies"],
+            "execution_order": dep_info["execution_order"],
+            "dependents": dep_info["dependents"],
+            "has_circular_dependency": dep_info["has_circular_dependency"],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/projects/{project_id}/nodes/{node_id}/execution-plan")
+def get_execution_plan(
+    project_id: str,
+    node_id: str,
+    already_executed: Optional[str] = Query(None, description="Comma-separated list of already-executed node IDs")
+) -> Dict[str, Any]:
+    """
+    Get execution plan for a node
+
+    Considers already-executed nodes to avoid re-execution.
+
+    Query parameters:
+    - already_executed: Comma-separated list of node IDs that have been executed
+                        (e.g., "load_orders_data,p1_category_sales")
+
+    Returns:
+    - execution_order: All nodes needed (in order)
+    - nodes_to_execute: Only nodes that haven't been executed yet
+    - already_executed: Nodes that will be skipped
+    - will_skip: Count of nodes to skip
+    - will_execute: Count of nodes to execute
+    """
+    try:
+        pm = get_project_manager(project_id)
+
+        if pm.metadata is None:
+            raise HTTPException(status_code=500, detail="Failed to load project metadata")
+
+        # Verify node exists
+        if node_id not in pm.metadata.nodes:
+            raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
+
+        # Parse already_executed parameter
+        already_executed_set = set()
+        if already_executed:
+            already_executed_set = set(already_executed.split(","))
+
+        # Create dependency analyzer
+        analyzer = DependencyAnalyzer(pm.metadata.nodes)
+
+        # Get execution plan
+        plan = analyzer.get_execution_plan(node_id, already_executed_set)
+
+        return plan
 
     except HTTPException:
         raise
@@ -742,6 +841,12 @@ def execute_node(project_id: str, node_id: str) -> Dict[str, Any]:
         if pm.notebook_manager is None:
             raise HTTPException(status_code=500, detail="Failed to load notebook")
 
+        # Get dependency analysis before execution
+        analyzer = DependencyAnalyzer(pm.metadata.nodes)
+        execution_plan = analyzer.get_execution_plan(node_id)
+        nodes_to_execute = execution_plan["nodes_to_execute"]
+        execution_order = execution_plan["execution_order"]
+
         # Initialize kernel manager and code executor
         km = KernelManager(max_idle_time=300)
         executor = CodeExecutor(pm, km, pm.notebook_manager)
@@ -749,13 +854,45 @@ def execute_node(project_id: str, node_id: str) -> Dict[str, Any]:
         # Execute the node
         result = executor.execute_node(node_id)
 
-        # Return execution result
+        # Build new edges from executed nodes
+        # An edge exists between each node and its direct dependencies
+        new_edges = []
+        executed_nodes = [node_id]  # At minimum, the requested node was executed
+
+        # Add edges for all executed nodes based on their dependencies
+        for exec_node_id in execution_order:
+            node_info = pm.metadata.nodes.get(exec_node_id, {})
+            depends_on = node_info.get("depends_on", [])
+
+            for dep in depends_on:
+                edge_id = f"e_{dep}_{exec_node_id}"
+                new_edges.append({
+                    "id": edge_id,
+                    "source": dep,
+                    "target": exec_node_id,
+                    "animated": False
+                })
+
+            if exec_node_id not in executed_nodes and exec_node_id in nodes_to_execute:
+                executed_nodes.append(exec_node_id)
+
+        # Return execution result with dependency information
         return {
             "node_id": node_id,
             "status": result.get("status", "error"),
             "error_message": result.get("error_message"),
             "execution_time": result.get("execution_time"),
-            "result_cell_added": result.get("result_cell_added", False)
+            "result_cell_added": result.get("result_cell_added", False),
+            # Dynamic dependency system additions
+            "executed_nodes": execution_order,  # All nodes that were executed
+            "new_edges": new_edges,  # All edges discovered during execution
+            "execution_plan": {
+                "execution_order": execution_order,
+                "nodes_to_execute": nodes_to_execute,
+                "already_executed": execution_plan["already_executed"],
+                "will_execute": execution_plan["will_execute"],
+                "will_skip": execution_plan["will_skip"]
+            }
         }
 
     except HTTPException:
