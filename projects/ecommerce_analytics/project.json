@@ -83,9 +83,7 @@
       "node_id": "p1_daily_sales",
       "node_type": "compute",
       "name": "Path 1: Daily Sales Trend",
-      "depends_on": [
-        "load_orders_data"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -94,9 +92,7 @@
       "node_id": "p1_category_sales",
       "node_type": "compute",
       "name": "Path 1: Category Sales Distribution",
-      "depends_on": [
-        "load_orders_data"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -105,9 +101,7 @@
       "node_id": "p1_weekly_trend",
       "node_type": "compute",
       "name": "Path 1: Weekly Sales Trend",
-      "depends_on": [
-        "load_orders_data"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -116,9 +110,7 @@
       "node_id": "p1_sales_chart",
       "node_type": "chart",
       "name": "Path 1: Sales by Category Chart",
-      "depends_on": [
-        "p1_category_sales"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "json",
       "result_path": null
@@ -127,10 +119,7 @@
       "node_id": "p2_customer_purchase",
       "node_type": "compute",
       "name": "Path 2: Customer Purchase Behavior",
-      "depends_on": [
-        "load_orders_data",
-        "load_customers_data"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -139,9 +128,7 @@
       "node_id": "p2_loyalty_analysis",
       "node_type": "compute",
       "name": "Path 2: Loyalty Level Analysis",
-      "depends_on": [
-        "p2_customer_purchase"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -150,9 +137,7 @@
       "node_id": "p2_regional_behavior",
       "node_type": "compute",
       "name": "Path 2: Regional Purchase Behavior",
-      "depends_on": [
-        "p2_customer_purchase"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -161,9 +146,7 @@
       "node_id": "p2_customer_chart",
       "node_type": "chart",
       "name": "Path 2: Loyalty Level Distribution Chart",
-      "depends_on": [
-        "p2_loyalty_analysis"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "json",
       "result_path": null
@@ -172,10 +155,7 @@
       "node_id": "p3_category_comparison",
       "node_type": "compute",
       "name": "Path 3: Category Performance Comparison",
-      "depends_on": [
-        "load_orders_data",
-        "load_products_data"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -184,9 +164,7 @@
       "node_id": "p3_category_market_share",
       "node_type": "compute",
       "name": "Path 3: Category Market Share",
-      "depends_on": [
-        "p3_category_comparison"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -195,10 +173,7 @@
       "node_id": "p3_top_products",
       "node_type": "compute",
       "name": "Path 3: Top Products by Revenue",
-      "depends_on": [
-        "load_orders_data",
-        "load_products_data"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -207,9 +182,7 @@
       "node_id": "p3_category_chart",
       "node_type": "chart",
       "name": "Path 3: Market Share Distribution",
-      "depends_on": [
-        "p3_category_market_share"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "json",
       "result_path": null
@@ -218,9 +191,7 @@
       "node_id": "p4_promo_effectiveness",
       "node_type": "compute",
       "name": "Path 4: Promotion Effectiveness",
-      "depends_on": [
-        "load_orders_data"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -229,9 +200,7 @@
       "node_id": "p4_category_promo_impact",
       "node_type": "compute",
       "name": "Path 4: Promotion Impact by Category",
-      "depends_on": [
-        "load_orders_data"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -240,9 +209,7 @@
       "node_id": "p4_payment_method_analysis",
       "node_type": "compute",
       "name": "Path 4: Payment Method Analysis",
-      "depends_on": [
-        "load_orders_data"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": null
@@ -251,9 +218,7 @@
       "node_id": "p4_promo_chart",
       "node_type": "chart",
       "name": "Path 4: Promotion Effectiveness Comparison",
-      "depends_on": [
-        "p4_promo_effectiveness"
-      ],
+      "depends_on": [],
       "execution_status": "not_executed",
       "result_format": "json",
       "result_path": null
