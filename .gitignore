@@ -62,6 +62,11 @@ backend/*.parquet
 backend/.env
 backend/.env.local
 
+# Projects - Generated Results (parquets, json, pkl are generated output)
+projects/*/parquets/
+projects/*/functions/
+projects/*/visualizations/
+
 # Backup
 *.init
 *.init.*

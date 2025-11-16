@@ -77,6 +77,109 @@ class CodeValidator:
         assigned = CodeValidator.extract_assigned_variables(code)
         return node_id in assigned
 
+    @staticmethod
+    def extract_function_definitions(code: str) -> Set[str]:
+        """
+        Extract function names that are defined in code.
+        Returns set of function names.
+        """
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            return set()
+
+        functions = set()
+
+        class FunctionVisitor(ast.NodeVisitor):
+            def visit_FunctionDef(self, node):
+                functions.add(node.name)
+                self.generic_visit(node)
+
+        visitor = FunctionVisitor()
+        visitor.visit(tree)
+        return functions
+
+    @staticmethod
+    def has_function_definition(code: str, func_name: str) -> bool:
+        """Check if code defines a function with the given name"""
+        functions = CodeValidator.extract_function_definitions(code)
+        return func_name in functions
+
+    @staticmethod
+    def infer_return_type(code: str, node_id: str) -> str:
+        """
+        Try to infer the return type of the last expression/assignment.
+        This is a static analysis - returns a guess based on code patterns.
+
+        Returns: 'dataframe', 'dict', 'figure', 'function', 'unknown'
+        """
+        # Look for indicators in the code
+        code_lower = code.lower()
+
+        # Check for DataFrame indicators
+        if 'dataframe' in code_lower or 'pd.dataframe' in code_lower or '.groupby(' in code_lower or '.merge(' in code_lower:
+            return 'dataframe'
+        if f'{node_id}.to_parquet' in code or f'{node_id}.to_csv' in code or f'{node_id}.to_json' in code:
+            return 'dataframe'
+        if f'pd.read_' in code_lower or f'{node_id} = load' in code.lower():
+            return 'dataframe'
+
+        # Check for dict indicators
+        if '{' in code and '}' in code and '=' in code:
+            # Could be dict
+            if 'json' in code_lower or 'dict' in code_lower:
+                return 'dict'
+
+        # Check for Figure/Chart indicators
+        if 'plotly' in code_lower or 'go.Figure' in code_lower or 'px.' in code_lower:
+            return 'figure'
+        if 'matplotlib' in code_lower or 'plt.' in code_lower:
+            return 'figure'
+        if 'echarts' in code_lower or 'echarts_config' in code_lower:
+            return 'figure'
+
+        # Check for function definition
+        if CodeValidator.has_function_definition(code, node_id):
+            return 'function'
+
+        return 'unknown'
+
+    @staticmethod
+    def validate_node_form(code: str, node_id: str, node_type: str) -> tuple:
+        """
+        Validate node code form:
+        1. Check if required variable/function is assigned
+        2. Check if the type matches the node type
+
+        Returns:
+            (is_valid, message, inferred_type)
+        """
+        # Step 1: Check if same-named variable/function exists
+        if node_type == 'tool':
+            has_result = CodeValidator.has_function_definition(code, node_id)
+            if not has_result:
+                return False, f"Tool node must define function '{node_id}'", 'unknown'
+        else:
+            has_result = CodeValidator.has_same_named_variable(code, node_id)
+            if not has_result:
+                return False, f"Code must assign variable '{node_id}'", 'unknown'
+
+        # Step 2: Infer type and validate against node_type
+        inferred_type = CodeValidator.infer_return_type(code, node_id)
+
+        # Type validation rules
+        if node_type in ['data_source', 'compute']:
+            if inferred_type not in ['dataframe', 'unknown']:
+                return False, f"Node '{node_id}' must return DataFrame, but code suggests {inferred_type}", inferred_type
+        elif node_type == 'chart':
+            if inferred_type not in ['figure', 'dict', 'unknown']:
+                return False, f"Node '{node_id}' must return Figure or dict, but code suggests {inferred_type}", inferred_type
+        elif node_type == 'tool':
+            if inferred_type not in ['function', 'unknown']:
+                return False, f"Tool node '{node_id}' must define function, but code suggests {inferred_type}", inferred_type
+
+        return True, "Form validation passed", inferred_type
+
 
 class ResultCellGenerator:
     """Generates code cells that load and display results"""
@@ -381,11 +484,29 @@ print(f"✓ Saved pickle to {{save_path}}")"""
             else:
                 code = source
 
-            # Step 2: Pre-check - does code have same-named variable?
-            has_var, check_msg = self._check_same_named_variable_in_code(node_id, code)
-
-            # Step 3: Auto-append save code to persist results
+            # Step 1: Form validation - check if code assigns correct variable/function with correct type
             node_type = node.get('type', 'compute')
+            is_valid, validation_msg, inferred_type = CodeValidator.validate_node_form(code, node_id, node_type)
+
+            if not is_valid:
+                # Form validation failed - abort execution
+                result["error_message"] = f"Form validation error: {validation_msg}"
+                result["status"] = "validation_error"
+                node['execution_status'] = 'validation_error'
+                node['error_message'] = result["error_message"]
+                self.pm._save_metadata()
+
+                # Sync to notebook
+                try:
+                    self.nm.update_execution_status(node_id, 'validation_error')
+                    self.nm.sync_metadata_comments()
+                    self.nm.save()
+                except Exception as e:
+                    print(f"[Warning] Failed to sync notebook metadata on validation error: {e}")
+
+                return result
+
+            # Step 2: Auto-append save code to persist results
             result_format = node.get('result_format', 'parquet')
 
             # Always append save code to ensure results are persisted for frontend display
@@ -528,66 +649,12 @@ with open(r'{full_path}', 'rb') as f:
 
                 return result
 
-            # Step 7.5: Save result to file after verification
-            # Try to directly save the variable to file
-            try:
-                result_format = node.get('result_format', 'parquet')
-
-                # Use a temporary variable to capture and save
-                if result_format == 'parquet':
-                    parquets_dir = self.pm.parquets_path
-                    parquets_dir.mkdir(parents=True, exist_ok=True)
-                    save_path = parquets_dir / f'{node_id}.parquet'
-
-                    # Get variable from kernel and save directly
-                    kernel_var = self.km.get_variable(self.pm.project_id, node_id)
-                    if kernel_var is None:
-                        raise ValueError(f"Variable '{node_id}' not found in kernel after execution")
-                    if not isinstance(kernel_var, pd.DataFrame):
-                        raise TypeError(f"Variable '{node_id}' is not a DataFrame (got {type(kernel_var).__name__})")
-                    kernel_var.to_parquet(str(save_path), index=False)
-                elif result_format == 'json':
-                    import json
-                    parquets_dir = self.pm.parquets_path
-                    parquets_dir.mkdir(parents=True, exist_ok=True)
-                    save_path = parquets_dir / f'{node_id}.json'
-
-                    kernel_var = self.km.get_variable(self.pm.project_id, node_id)
-                    if kernel_var is None:
-                        raise ValueError(f"Variable '{node_id}' not found in kernel after execution")
-                    if isinstance(kernel_var, pd.DataFrame):
-                        kernel_var.to_json(str(save_path), orient='records')
-                    else:
-                        with open(str(save_path), 'w', encoding='utf-8') as f:
-                            json.dump(kernel_var, f, indent=2)
-                elif result_format == 'pkl':
-                    functions_dir = self.pm.project_path / 'functions'
-                    functions_dir.mkdir(parents=True, exist_ok=True)
-                    save_path = functions_dir / f'{node_id}.pkl'
-
-                    kernel_var = self.km.get_variable(self.pm.project_id, node_id)
-                    if kernel_var is None:
-                        raise ValueError(f"Variable '{node_id}' not found in kernel after execution")
-                    with open(str(save_path), 'wb') as f:
-                        pickle.dump(kernel_var, f)
-            except Exception as e:
-                # Execution code ran but result saving failed - mark as pending_validation
-                result["error_message"] = f"Failed to save result: {str(e)}"
-                result["status"] = "pending_validation"
-                node['execution_status'] = 'pending_validation'
-                node['error_message'] = result["error_message"]
-                node['depends_on'] = []  # 不更新依赖关系
-                self.pm._save_metadata()
-
-                # 同步到 notebook (失败时也要同步)
-                try:
-                    self.nm.update_execution_status(node_id, 'pending_validation')
-                    self.nm.sync_metadata_comments()
-                    self.nm.save()
-                except Exception as sync_e:
-                    print(f"[Warning] Failed to sync notebook metadata on failure: {sync_e}")
-
-                return result
+            # Step 7.5: Skip post-check save (already saved by auto-append code in Step 3)
+            # 注意: 自动追加的 save 代码已经在 Step 3 中执行并保存了结果文件
+            # 这里不再进行二次保存以避免 get_variable() 方法的不可靠性问题
+            #
+            # 如果保存失败，自动追加的代码会在 Step 3 抛出异常，已被捕获
+            print(f"[Execution] ✓ Result already saved by auto-appended code during Kernel execution")
 
             # Step 8: Generate/overwrite result cell
             try:
@@ -649,12 +716,10 @@ with open(r'{full_path}', 'rb') as f:
                 self.pm._save_metadata()
                 return result
 
-            # Step 9: Update node status to validated and set result_path
-            node['execution_status'] = 'validated'
-            node['error_message'] = None
-            node['last_execution_time'] = datetime.now().isoformat()
+            # Step 9: Sync complete metadata (unified metadata sync)
+            # Update node status to validated and set result_path
+            execution_time = (datetime.now() - start_time).total_seconds()
 
-            # Set result_path based on result format
             result_format = node.get('result_format', 'parquet')
             is_visualization = node.get('type') in ['image', 'chart']
             target_dir = 'visualizations' if is_visualization else 'parquets'
@@ -671,21 +736,17 @@ with open(r'{full_path}', 'rb') as f:
             else:
                 file_ext = result_format
 
-            node['result_path'] = f"{target_dir}/{node_id}.{file_ext}"
+            result_path = f"{target_dir}/{node_id}.{file_ext}"
+
+            # Call unified metadata sync method
+            execution_result = {
+                'result_path': result_path,
+                'inferred_type': inferred_type  # from form validation
+            }
+            self._sync_complete_metadata(node_id, execution_result, execution_time)
 
             # Step 9.5: Analyze code and update depends_on (dynamic dependency discovery)
             self._analyze_and_update_dependencies(node_id, code)
-
-            self.pm._save_metadata()
-
-            # Step 9.6: Sync metadata to notebook (问题2修复 - 同步到notebook注释)
-            try:
-                self.nm.update_execution_status(node_id, 'validated')
-                self.nm.sync_metadata_comments()
-                self.nm.save()
-            except Exception as e:
-                # Log warning but don't fail - main execution succeeded
-                print(f"[Warning] Failed to sync notebook metadata: {e}")
 
             # Step 10: Generate/update markdown documentation for execution completion
             self._generate_execution_markdown(node_id, node, start_time)
@@ -741,6 +802,94 @@ with open(r'{full_path}', 'rb') as f:
         except Exception as e:
             # Don't fail execution if dependency analysis fails
             print(f"[Warning] Failed to analyze dependencies for {node_id}: {e}")
+
+    def _generate_execution_markdown(self, node_id: str, node: Dict[str, Any], start_time):
+        """
+        Generate markdown documentation for execution completion.
+        This is optional and helps with documentation.
+        """
+        try:
+            execution_time = (datetime.now() - start_time).total_seconds()
+            node_type = node.get('type', 'compute')
+            status = node.get('execution_status', 'unknown')
+
+            md_content = f"""## Execution Report - {node_id}
+
+**Status**: {status}
+**Type**: {node_type}
+**Execution Time**: {execution_time:.2f}s
+**Timestamp**: {datetime.now().isoformat()}
+
+---
+"""
+            # Optional: save to a markdown file if needed
+            # For now, just log it
+            print(f"[ExecutionMarkdown] ✓ Generated markdown for {node_id}")
+
+        except Exception as e:
+            print(f"[Warning] Failed to generate markdown for {node_id}: {e}")
+
+    def _sync_complete_metadata(self, node_id: str, execution_result: Dict[str, Any], execution_time: float):
+        """
+        After successful execution, sync all metadata:
+        1. project.json - status, error_message, result_path, execution_time
+        2. cell metadata and comments - @execution_status, @error_message, @result_path
+        3. markdown documentation (optional)
+
+        This is called after Step 3 (Execution) succeeds and before Step 4 (Dependency generation)
+        """
+        try:
+            node = self.pm.get_node(node_id)
+            if not node:
+                return
+
+            # Extract result path from execution_result
+            result_path = execution_result.get('result_path')
+
+            # Step 1: Update project.json with complete metadata
+            node['execution_status'] = 'validated'
+            node['error_message'] = None
+            if result_path:
+                node['result_path'] = result_path
+            node['execution_time'] = execution_time
+            node['last_execution_time'] = datetime.now().isoformat()
+
+            # Store inferred type if available
+            if 'inferred_type' in execution_result:
+                node['output_type'] = execution_result['inferred_type']
+
+            # Save project.json
+            self.pm._save_metadata()
+
+            # Step 2: Update cell metadata in notebook
+            # Find the cell and update its metadata
+            notebook = self.nm.notebook
+            if notebook:
+                for cell in notebook.get('cells', []):
+                    if cell.get('cell_type') == 'code':
+                        metadata = cell.get('metadata', {})
+                        if metadata.get('node_id') == node_id and not metadata.get('result_cell'):
+                            # Update cell metadata
+                            metadata['execution_status'] = 'validated'
+                            metadata['error_message'] = None
+                            metadata['execution_time'] = execution_time
+                            if result_path:
+                                metadata['result_path'] = result_path
+                            break
+
+            # Step 3: Sync metadata comments
+            # This updates the @execution_status, @error_message, @result_path in cell comments
+            self.nm.update_execution_status(node_id, 'validated')
+            self.nm.sync_metadata_comments()
+
+            # Step 4: Save notebook
+            self.nm.save()
+
+            print(f"[MetadataSync] ✓ Synced all metadata for {node_id}")
+
+        except Exception as e:
+            print(f"[Warning] Failed to sync complete metadata for {node_id}: {e}")
+            # Don't raise - continue with execution
 
     @staticmethod
     def _extract_variable_names(code: str) -> Set[str]:
