@@ -583,6 +583,10 @@ with open(r'{full_path}', 'rb') as f:
                 file_ext = result_format
 
             node['result_path'] = f"{target_dir}/{node_id}.{file_ext}"
+
+            # Step 9.5: Analyze code and update depends_on (dynamic dependency discovery)
+            self._analyze_and_update_dependencies(node_id, code)
+
             self.pm._save_metadata()
 
             # Step 10: Generate/update markdown documentation for execution completion
@@ -598,6 +602,94 @@ with open(r'{full_path}', 'rb') as f:
             result["status"] = "error"
             result["execution_time"] = (datetime.now() - start_time).total_seconds()
             return result
+
+    def _analyze_and_update_dependencies(self, node_id: str, code: str) -> None:
+        """
+        Analyze code to extract variable usage and update depends_on field.
+
+        This implements dynamic dependency discovery:
+        1. Extract all variable names used in the code
+        2. Check which of them are node IDs
+        3. Update the node's depends_on field
+        4. This allows the frontend to dynamically display edges based on depends_on
+
+        Args:
+            node_id: ID of the node being executed
+            code: Source code to analyze
+        """
+        try:
+            # Extract variables used in the code
+            used_variables = self._extract_variable_names(code)
+
+            # Get all node IDs to check against
+            all_node_ids = set(self.pm.metadata.nodes.keys())
+
+            # Find which used variables correspond to node IDs
+            discovered_dependencies = sorted([
+                var for var in used_variables
+                if var in all_node_ids and var != node_id  # Exclude self-reference
+            ])
+
+            # Update the node's depends_on field
+            node = self.pm.get_node(node_id)
+            if node:
+                old_deps = node.get('depends_on', [])
+                node['depends_on'] = discovered_dependencies
+
+                # Log if dependencies changed
+                if old_deps != discovered_dependencies:
+                    print(f"[DependencyAnalysis] {node_id}: {old_deps} → {discovered_dependencies}")
+
+        except Exception as e:
+            # Don't fail execution if dependency analysis fails
+            print(f"[Warning] Failed to analyze dependencies for {node_id}: {e}")
+
+    @staticmethod
+    def _extract_variable_names(code: str) -> Set[str]:
+        """
+        Extract variable names that are used (referenced) in code.
+
+        Returns a set of variable names that appear in Load context (being referenced).
+        Filters out built-in names and common library names.
+        """
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            # Fallback: use regex if code has syntax errors
+            names = set()
+            pattern = r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b'
+            for match in re.finditer(pattern, code):
+                names.add(match.group(1))
+            return names
+
+        # Collect all names that are loaded (referenced)
+        loaded_names = set()
+
+        class NameVisitor(ast.NodeVisitor):
+            def visit_Name(self, node):
+                # Load context means the variable is being referenced/used
+                if isinstance(node.ctx, ast.Load):
+                    loaded_names.add(node.id)
+                self.generic_visit(node)
+
+        visitor = NameVisitor()
+        visitor.visit(tree)
+
+        # Filter out built-in names and common pandas/numpy names
+        builtins = {
+            'print', 'len', 'range', 'sum', 'min', 'max', 'str', 'int', 'float',
+            'list', 'dict', 'set', 'tuple', 'enumerate', 'zip', 'map', 'filter',
+            'open', 'read', 'write', 'True', 'False', 'None', 'Exception',
+            'ValueError', 'TypeError', 'KeyError', 'IndexError', 'AttributeError',
+            'os', 'sys', 'json', 'pd', 'np', 'plt', 'sns', 'datetime', 'time',
+            'pandas', 'numpy', 'matplotlib', 'seaborn', 'display', 'sqrt', 'math',
+            'mean', 'std', 'var', 'pow', 'abs', 'round', 'sorted', 'reversed',
+            'any', 'all', 'iter', 'next', 'callable', 'hasattr', 'getattr',
+            'setattr', 'isinstance', 'issubclass', 'type', 'super', 'property',
+            'staticmethod', 'classmethod', 'object', 'self', 'cls'
+        }
+
+        return loaded_names - builtins
 
     def _generate_execution_markdown(self, node_id: str, node: Dict[str, Any], start_time: datetime) -> None:
         """
