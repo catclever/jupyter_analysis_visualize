@@ -31,9 +31,10 @@ interface FlowDiagramProps {
   selectedNodeId: string | null;
   minimapOpen?: boolean;
   currentDatasetId?: string;
+  onEdgesAdded?: (edges: any[]) => void;  // Callback when edges are dynamically added
 }
 
-export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, currentDatasetId = "ecommerce_analytics" }: FlowDiagramProps) {
+export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, currentDatasetId = "ecommerce_analytics", onEdgesAdded }: FlowDiagramProps) {
   const [apiNodes, setApiNodes] = useState<Node<FlowNodeData>[] | null>(null);
   const [apiEdges, setApiEdges] = useState<Edge[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -293,12 +294,14 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
       if (uniqueNewEdges.length > 0) {
         console.log('[FlowDiagram] Adding', uniqueNewEdges.length, 'new edges');
+        // 通知父组件有新边被添加
+        onEdgesAdded?.(uniqueNewEdges);
         return [...prevEdges, ...uniqueNewEdges];
       }
 
       return prevEdges;
     });
-  }, []);
+  }, [onEdgesAdded]);
 
   return (
     <div className="h-full w-full bg-card rounded-lg border border-border overflow-hidden flex flex-col">
