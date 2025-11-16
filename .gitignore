@@ -63,9 +63,13 @@ backend/.env
 backend/.env.local
 
 # Backup
+*.init
+*.init.*
+*[.-_]init/
 *.backup
 *.bakcup.*
-*.backup/
+*[.-_]backup/
+*[.-_]backup_*/
 
 # Jupyter
 .ipynb_checkpoints/
