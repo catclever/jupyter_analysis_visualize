@@ -481,24 +481,32 @@ with open(r'{full_path}', 'rb') as f:
                     save_path = parquets_dir / f'{node_id}.json'
 
                     kernel_var = self.km.get_variable(self.pm.project_id, node_id)
-                    if kernel_var is not None:
-                        if isinstance(kernel_var, pd.DataFrame):
-                            kernel_var.to_json(str(save_path), orient='records')
-                        else:
-                            with open(str(save_path), 'w', encoding='utf-8') as f:
-                                json.dump(kernel_var, f, indent=2)
+                    if kernel_var is None:
+                        raise ValueError(f"Variable '{node_id}' not found in kernel after execution")
+                    if isinstance(kernel_var, pd.DataFrame):
+                        kernel_var.to_json(str(save_path), orient='records')
+                    else:
+                        with open(str(save_path), 'w', encoding='utf-8') as f:
+                            json.dump(kernel_var, f, indent=2)
                 elif result_format == 'pkl':
                     functions_dir = self.pm.project_path / 'functions'
                     functions_dir.mkdir(parents=True, exist_ok=True)
                     save_path = functions_dir / f'{node_id}.pkl'
 
                     kernel_var = self.km.get_variable(self.pm.project_id, node_id)
-                    if kernel_var is not None:
-                        with open(str(save_path), 'wb') as f:
-                            pickle.dump(kernel_var, f)
+                    if kernel_var is None:
+                        raise ValueError(f"Variable '{node_id}' not found in kernel after execution")
+                    with open(str(save_path), 'wb') as f:
+                        pickle.dump(kernel_var, f)
             except Exception as e:
-                # Log but don't fail - execution succeeded, just couldn't save
-                pass
+                # Execution code ran but result saving failed - mark as pending_validation
+                result["error_message"] = f"Failed to save result: {str(e)}"
+                result["status"] = "pending_validation"
+                node['execution_status'] = 'pending_validation'
+                node['error_message'] = result["error_message"]
+                node['depends_on'] = []  # 不更新依赖关系
+                self.pm._save_metadata()
+                return result
 
             # Step 8: Generate/overwrite result cell
             try:
@@ -588,6 +596,15 @@ with open(r'{full_path}', 'rb') as f:
             self._analyze_and_update_dependencies(node_id, code)
 
             self.pm._save_metadata()
+
+            # Step 9.6: Sync metadata to notebook (问题2修复 - 同步到notebook注释)
+            try:
+                self.nm.update_execution_status(node_id, 'validated')
+                self.nm.sync_metadata_comments()
+                self.nm.save()
+            except Exception as e:
+                # Log warning but don't fail - main execution succeeded
+                print(f"[Warning] Failed to sync notebook metadata: {e}")
 
             # Step 10: Generate/update markdown documentation for execution completion
             self._generate_execution_markdown(node_id, node, start_time)

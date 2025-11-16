@@ -3799,11 +3799,21 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         if (displayedNodeId) {
           try {
             const data = await getNodeData(projectId, displayedNodeId, 1, 10);
+            // 问题1修复: 只有当数据成功加载且有效时，才切换到 table 视图
+            // 这确保了 setApiData 在 setNodeViewMode 之前完成
             setApiData(data);
-            // Auto-switch to result view on success
-            setNodeViewMode(displayedNodeId, 'table');
+
+            // 检查数据是否有效（不为 null，且有记录）
+            if (data && (data.total_records > 0 || data.columns?.length > 0)) {
+              // 数据有效，切换到 table 视图
+              setNodeViewMode(displayedNodeId, 'table');
+            } else {
+              // 数据为空，保留当前视图（默认是 code）
+              console.warn('[DataTable] No data returned for executed node');
+            }
           } catch (error) {
             console.error('Failed to load result data:', error);
+            // 数据加载失败，不切换视图，保持 code 视图
           }
         }
       } else if (result.status === 'pending_validation') {
