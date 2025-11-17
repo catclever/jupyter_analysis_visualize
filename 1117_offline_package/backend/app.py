@@ -46,11 +46,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get projects root directory
-PROJECTS_ROOT = Path(__file__).parent.parent / "projects"
+# Get projects root directory (with fallback for different execution contexts)
+# 确定项目根目录
+_cwd = Path.cwd()
+_file_parent = Path(__file__).parent.parent
+
+# 尝试多种方式查找 projects 目录
+if (_cwd / "projects").exists():
+    PROJECTS_ROOT = (_cwd / "projects").resolve()
+elif (_file_parent / "projects").exists():
+    PROJECTS_ROOT = (_file_parent / "projects").resolve()
+else:
+    # 如果都找不到，使用 __file__ 的相对路径（最后的备选）
+    PROJECTS_ROOT = (_file_parent / "projects").resolve()
+
+# 调试输出（可选，用于排查路径问题）
+print(f"[DEBUG] Current working directory: {_cwd}")
+print(f"[DEBUG] Backend directory: {Path(__file__).parent}")
+print(f"[DEBUG] Projects root: {PROJECTS_ROOT}")
+print(f"[DEBUG] Projects directory exists: {PROJECTS_ROOT.exists()}")
 
 # Mount frontend static files for serving the built React app
-FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+if (_cwd / "frontend" / "dist").exists():
+    FRONTEND_DIST = (_cwd / "frontend" / "dist").resolve()
+elif (_file_parent / "frontend" / "dist").exists():
+    FRONTEND_DIST = (_file_parent / "frontend" / "dist").resolve()
+else:
+    FRONTEND_DIST = (_file_parent / "frontend" / "dist").resolve()
 if FRONTEND_DIST.exists():
     # Mount static files at root path, with index.html as fallback for SPA routing
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="static")

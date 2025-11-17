@@ -47,12 +47,24 @@ app.add_middleware(
 )
 
 # Get projects root directory (with fallback for different execution contexts)
-# First try relative path from current working directory (for root directory execution)
-if Path("./projects").exists():
-    PROJECTS_ROOT = Path("./projects").resolve()
-# Fallback to path relative to this file (for module execution)
+# 确定项目根目录
+_cwd = Path.cwd()
+_file_parent = Path(__file__).parent.parent
+
+# 尝试多种方式查找 projects 目录
+if (_cwd / "projects").exists():
+    PROJECTS_ROOT = (_cwd / "projects").resolve()
+elif (_file_parent / "projects").exists():
+    PROJECTS_ROOT = (_file_parent / "projects").resolve()
 else:
-    PROJECTS_ROOT = (Path(__file__).parent.parent / "projects").resolve()
+    # 如果都找不到，使用 __file__ 的相对路径（最后的备选）
+    PROJECTS_ROOT = (_file_parent / "projects").resolve()
+
+# 调试输出（可选，用于排查路径问题）
+print(f"[DEBUG] Current working directory: {_cwd}")
+print(f"[DEBUG] Backend directory: {Path(__file__).parent}")
+print(f"[DEBUG] Projects root: {PROJECTS_ROOT}")
+print(f"[DEBUG] Projects directory exists: {PROJECTS_ROOT.exists()}")
 
 # Mount frontend static files for serving the built React app
 # Similarly try relative path first, then fallback
