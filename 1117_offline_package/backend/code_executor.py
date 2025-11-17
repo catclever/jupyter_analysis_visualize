@@ -154,30 +154,44 @@ class CodeValidator:
         Returns:
             (is_valid, message, inferred_type)
         """
+        print(f"\n[ValidateDebug] Validating node: {node_id}, type: {node_type}")
+
         # Step 1: Check if same-named variable/function exists
         if node_type == 'tool':
             has_result = CodeValidator.has_function_definition(code, node_id)
+            print(f"[ValidateDebug] Step 1 (tool): has_function_definition('{node_id}') = {has_result}")
             if not has_result:
+                print(f"[ValidateDebug] ✗ FAILED: Tool node must define function '{node_id}'")
                 return False, f"Tool node must define function '{node_id}'", 'unknown'
         else:
             has_result = CodeValidator.has_same_named_variable(code, node_id)
+            print(f"[ValidateDebug] Step 1 (non-tool): has_same_named_variable('{node_id}') = {has_result}")
             if not has_result:
+                print(f"[ValidateDebug] ✗ FAILED: Code must assign variable '{node_id}'")
                 return False, f"Code must assign variable '{node_id}'", 'unknown'
+
+        print(f"[ValidateDebug] Step 1 ✓ PASSED")
 
         # Step 2: Infer type and validate against node_type
         inferred_type = CodeValidator.infer_return_type(code, node_id)
+        print(f"[ValidateDebug] Step 2: infer_return_type('{node_id}') = '{inferred_type}'")
 
         # Type validation rules
         if node_type in ['data_source', 'compute']:
             if inferred_type not in ['dataframe', 'unknown']:
+                print(f"[ValidateDebug] ✗ FAILED: Node must return DataFrame, but got {inferred_type}")
                 return False, f"Node '{node_id}' must return DataFrame, but code suggests {inferred_type}", inferred_type
         elif node_type == 'chart':
             if inferred_type not in ['figure', 'dict', 'unknown']:
+                print(f"[ValidateDebug] ✗ FAILED: Node must return Figure/dict, but got {inferred_type}")
                 return False, f"Node '{node_id}' must return Figure or dict, but code suggests {inferred_type}", inferred_type
         elif node_type == 'tool':
             if inferred_type not in ['function', 'unknown']:
+                print(f"[ValidateDebug] ✗ FAILED: Tool node must return function, but got {inferred_type}")
                 return False, f"Tool node '{node_id}' must define function, but code suggests {inferred_type}", inferred_type
 
+        print(f"[ValidateDebug] Step 2 ✓ PASSED")
+        print(f"[ValidateDebug] ✓ ALL VALIDATIONS PASSED\n")
         return True, "Form validation passed", inferred_type
 
 
@@ -800,14 +814,23 @@ with open(r'{full_path}', 'rb') as f:
             cell_metadata = code_cell.get('metadata', {})
             node_type_from_notebook = cell_metadata.get('node_type')
 
+            # 调试输出：看节点类型在哪里被读取
+            print(f"\n[NodeTypeDebug] Node: {node_id}")
+            print(f"[NodeTypeDebug] Notebook metadata keys: {list(cell_metadata.keys())}")
+            print(f"[NodeTypeDebug] node_type from notebook: {node_type_from_notebook}")
+            print(f"[NodeTypeDebug] node_type from project.json: {node.get('type', 'compute')}")
+
             if node_type_from_notebook:
                 # 使用 notebook 元数据中的节点类型（最新的）
                 node_type = node_type_from_notebook
-                print(f"[Debug] Using node_type from notebook metadata: '{node_type}' for {node_id}")
+                print(f"[NodeTypeDebug] ✓ Using node_type from notebook metadata: '{node_type}'")
             else:
                 # 回退到 project.json 中的节点类型
                 node_type = node.get('type', 'compute')
-                print(f"[Debug] Using node_type from project.json: '{node_type}' for {node_id}")
+                print(f"[NodeTypeDebug] ✗ Using node_type from project.json: '{node_type}'")
+
+            print(f"[NodeTypeDebug] Final node_type for validation: '{node_type}'")
+            print(f"[NodeTypeDebug] Code preview: {code[:100]}...\n")
 
             is_valid, validation_msg, inferred_type = CodeValidator.validate_node_form(code, node_id, node_type)
 
