@@ -356,6 +356,13 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           padding: 12px 20px;
         }
 
+        /* Ensure status classes are applied to ReactFlow node wrapper */
+        /* ReactFlow applies the className to the node container */
+        .react-flow__node {
+          border: 2px solid transparent !important;
+          border-radius: 8px;
+        }
+
         [class*="flow-node-"] > div {
           font-weight: 500;
           font-size: 13px;
@@ -521,23 +528,20 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         }
 
         /* Execution status indicators - border colors */
-        /* Apply status borders with high specificity */
-        [class*="flow-node-"].status-validated,
-        [class*="flow-node-"].status-validated > div {
-          border-color: #22c55e !important;
-        }
-
-        [class*="flow-node-"].status-validated {
+        /* Target nodes by their status class - green for success */
+        [class*="status-validated"] {
           border: 2px solid #22c55e !important;  /* Green for validated */
           box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
 
-        [class*="flow-node-"].status-pending_validation {
+        /* Red for failure/error */
+        [class*="status-pending_validation"] {
           border: 2px solid #ef4444 !important;  /* Red for pending validation */
           box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
 
-        [class*="flow-node-"].status-not_executed {
+        /* Gray for not executed - using attribute selector for robustness */
+        [class*="status-not_executed"] {
           border: 2px solid #999999 !important;     /* Gray for not executed */
           box-shadow: 0 0 0 3px rgba(153, 153, 153, 0.1), 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
@@ -600,14 +604,29 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
               }
 
               // Add status as className for CSS selector
+              // This adds the status class to the inner div
               classNames += ` status-${status}`;
 
+              // IMPORTANT: Also store status in the node itself for ReactFlow to apply to parent
+              // ReactFlow will pass this through to the wrapper element via data attributes
               return {
                 ...node,
                 className: classNames,
+                // Store status for potential use in node rendering
+                data: {
+                  ...node.data,
+                  _executionStatus: status, // for CSS/styling reference
+                }
               };
             });
           console.log('[FlowDiagram] ReactFlow rendering with', filtered.length, 'nodes out of', nodes.length, 'total nodeTypeFilter:', Array.from(nodeTypeFilter));
+
+          // Debug: Log node classNames
+          if (filtered.length > 0) {
+            console.log('[FlowDiagram] First node className:', filtered[0].className);
+            console.log('[FlowDiagram] First node data:', filtered[0].data);
+          }
+
           return filtered;
         })()}
         edges={edges.filter(edge => {
