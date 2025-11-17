@@ -13,7 +13,10 @@ class ProjectBuilder:
     """
 
     def _infer_node_type(self, source_code: str) -> str:
-        """Infers the node type based on the cell's source code."""
+        """
+        Infers the node type based on the cell's source code.
+        Priority: chart > tool > data_source > compute
+        """
         if re.search(r"import\s+plotly|import\s+matplotlib|px\.|go\.", source_code):
             return "chart"
         if re.search(r"^\s*def\s+", source_code, re.MULTILINE):
@@ -23,7 +26,9 @@ class ProjectBuilder:
         return "compute"
 
     def _get_result_format(self, node_type: str) -> str | None:
-        """Gets the result format based on the node type."""
+        """
+        Gets the result format based on the node type.
+        """
         if node_type == "chart":
             return "json"
         if node_type in ["data_source", "compute"]:
@@ -31,7 +36,9 @@ class ProjectBuilder:
         return None
 
     def _slugify(self, text: str) -> str:
-        """Creates a simple, safe slug from a string."""
+        """
+        Creates a simple, safe slug from a string.
+        """
         text = re.sub(r'\s+', '_', text)
         text = re.sub(r'[^\w-]', '', text)
         return text.lower().strip('_')
@@ -39,6 +46,7 @@ class ProjectBuilder:
     def annotate_notebook(self, notebook_path: Path):
         """
         Reads a notebook, adds metadata comments to each code cell, and saves it in place.
+        This method ONLY adds comments to the source code, it does NOT update cell metadata.
 
         Args:
             notebook_path: Path to the project.ipynb file to be annotated.
@@ -58,6 +66,7 @@ class ProjectBuilder:
                 cell_count += 1
                 source_str = "".join(cell["source"])
 
+                # Check if metadata block is already present
                 if "# ===== System-managed metadata" in source_str:
                     print(f"  - Skipping already annotated cell {cell_count}")
                     continue
@@ -86,25 +95,19 @@ class ProjectBuilder:
                 original_source = cell["source"]
                 cell["source"] = [metadata_comment] + ["\n"] + original_source
                 
-                cell["metadata"].update({
-                    "node_id": node_id,
-                    "node_type": node_type,
-                    "name": name,
-                    "depends_on": [],
-                    "execution_status": "not_executed"
-                })
-                print(f"  - Annotated cell {cell_count} as node '{node_id}' (type: {node_type})")
+                print(f"  - Added annotation to cell {cell_count} as node '{node_id}' (type: {node_type})")
 
         if modified:
             with open(notebook_path, 'w', encoding='utf-8') as f:
                 json.dump(notebook, f, indent=2)
             print(f"Successfully saved annotated notebook: {notebook_path}")
         else:
-            print("No cells needed annotation.")
+            print("No new annotations added.")
 
     def generate_project_json(self, notebook_path: Path, project_json_path: Path):
         """
         Generates a project.json file and updates notebook metadata in place.
+        This method reads annotations from source, updates cell metadata, and then generates project.json.
 
         Args:
             notebook_path: Path to the annotated project.ipynb file.
@@ -129,13 +132,15 @@ class ProjectBuilder:
             "created_at": current_time,
             "updated_at": current_time,
             "notebook_path": notebook_path.name,
-            "nodes": [],
+            "nodes": [], 
             "dag_metadata": {},
             "analysis_paths": []
         }
 
         nodes_list = []
         node_types_count = {}
+        notebook_modified_for_metadata = False
+
         for cell in notebook.get("cells", []):
             if cell.get("cell_type") == "code" and cell.get("source"):
                 source_str = "".join(cell["source"])
@@ -153,22 +158,28 @@ class ProjectBuilder:
                         "node_id": node_id,
                         "node_type": node_type,
                         "name": name,
-                        "depends_on": [],
+                        "depends_on": [], 
                         "execution_status": "not_executed",
                         "result_format": self._get_result_format(node_type),
                         "result_path": None
                     }
                     nodes_list.append(node_obj)
                     node_types_count[node_type] = node_types_count.get(node_type, 0) + 1
-                    print(f"  - Found node '{node_id}' (type: {node_type})")
+                    print(f"  - Processed node '{node_id}' (type: {node_type}) for project.json")
 
-                    cell["metadata"].update({
+                    # Update cell metadata in the notebook object if it's different or missing
+                    current_metadata = cell.get("metadata", {})
+                    expected_metadata = {
                         "node_id": node_id,
                         "node_type": node_type,
                         "name": name,
                         "depends_on": [],
                         "execution_status": "not_executed"
-                    })
+                    }
+                    if not all(current_metadata.get(k) == v for k, v in expected_metadata.items()):
+                        cell["metadata"].update(expected_metadata)
+                        notebook_modified_for_metadata = True
+                        print(f"  - Updated metadata for cell '{node_id}' in notebook.")
 
         project_data["nodes"] = nodes_list
         project_data["dag_metadata"] = {
@@ -178,9 +189,12 @@ class ProjectBuilder:
             "has_cycles": False
         }
 
-        with open(notebook_path, 'w', encoding='utf-8') as f:
-            json.dump(notebook, f, indent=2)
-        print(f"Successfully updated notebook metadata in: {notebook_path}")
+        if notebook_modified_for_metadata:
+            with open(notebook_path, 'w', encoding='utf-8') as f:
+                json.dump(notebook, f, indent=2)
+            print(f"Successfully updated notebook metadata in: {notebook_path}")
+        else:
+            print(f"Notebook metadata already up-to-date for: {notebook_path}")
 
         with open(project_json_path, 'w', encoding='utf-8') as f:
             json.dump(project_data, f, indent=2)
@@ -206,9 +220,12 @@ def setup_project_paths(input_notebook: str) -> Tuple[Path, Path]:
         project_dir.mkdir(exist_ok=True)
         notebook_path = project_dir / "project.ipynb"
         
+        # Only copy if the target project.ipynb doesn't exist or is not the same file as input
         if not notebook_path.exists() or not input_path.samefile(notebook_path):
             shutil.copy2(input_path, notebook_path)
             print(f"Copied '{input_path.name}' to '{notebook_path}'")
+        else:
+            print(f"Using existing project.ipynb at '{notebook_path}'")
 
     json_path = project_dir / "project.json"
     return notebook_path, json_path
@@ -220,10 +237,10 @@ def main():
     parser_create = subparsers.add_parser("create", help="Create a full project from a raw notebook.")
     parser_create.add_argument("input_notebook", type=str, help="Path to the raw .ipynb file.")
 
-    parser_annotate = subparsers.add_parser("annotate", help="Annotate a notebook with metadata.")
+    parser_annotate = subparsers.add_parser("annotate", help="Annotate a notebook with metadata comments.")
     parser_annotate.add_argument("input_notebook", type=str, help="Path to the raw or project .ipynb file.")
 
-    parser_generate = subparsers.add_parser("generate", help="Generate project.json from an annotated notebook.")
+    parser_generate = subparsers.add_parser("generate", help="Generate project.json and update notebook metadata from annotations.")
     parser_generate.add_argument("input_notebook", type=str, help="Path to the annotated .ipynb file.")
 
     args = parser.parse_args()
@@ -245,7 +262,7 @@ def main():
 
         elif args.command == "generate":
             builder.generate_project_json(notebook_path, json_path)
-            print("\nProject JSON generation complete.")
+            print("\nProject JSON generation and notebook metadata update complete.")
 
     except FileNotFoundError as e:
         print(f"Error: {e}")
