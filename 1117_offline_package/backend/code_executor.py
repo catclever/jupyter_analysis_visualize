@@ -795,7 +795,20 @@ with open(r'{full_path}', 'rb') as f:
                 code = source
 
             # Step 1: Form validation - check if code assigns correct variable/function with correct type
-            node_type = node.get('type', 'compute')
+            # 关键修复: 优先从 notebook 元数据注释里读取节点类型，而不是从 project.json
+            # 这样确保前端修改的节点类型能被立即识别，即使 project.json 还没更新
+            cell_metadata = code_cell.get('metadata', {})
+            node_type_from_notebook = cell_metadata.get('node_type')
+
+            if node_type_from_notebook:
+                # 使用 notebook 元数据中的节点类型（最新的）
+                node_type = node_type_from_notebook
+                print(f"[Debug] Using node_type from notebook metadata: '{node_type}' for {node_id}")
+            else:
+                # 回退到 project.json 中的节点类型
+                node_type = node.get('type', 'compute')
+                print(f"[Debug] Using node_type from project.json: '{node_type}' for {node_id}")
+
             is_valid, validation_msg, inferred_type = CodeValidator.validate_node_form(code, node_id, node_type)
 
             if not is_valid:
