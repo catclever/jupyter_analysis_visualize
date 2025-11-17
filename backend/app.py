@@ -794,6 +794,7 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any] = Body(
             raise HTTPException(status_code=500, detail="Failed to load notebook")
 
         code_content = body.get('code', '')
+        print(f"DEBUG: code_content length={len(code_content)}, content preview: {code_content[:100] if code_content else 'EMPTY'}", flush=True)
 
         # Step 1: Extract variable names used in the code
         used_variables = extract_variable_names(code_content)

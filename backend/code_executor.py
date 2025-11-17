@@ -290,14 +290,102 @@ class CodeExecutor:
 
         Gets or creates kernel with project directory as working directory.
         This ensures relative file paths in code work correctly.
+
+        On new kernel creation, automatically loads validated nodes' results
+        from files into the kernel namespace.
         """
         # 只在第一次创建 kernel 时设置工作目录
-        if project_id not in self.km.project_kernels:
+        is_new_kernel = project_id not in self.km.project_kernels
+
+        if is_new_kernel:
             project_path = self.pm.project_path
             if project_path:
                 self.km.get_or_create_kernel(project_id, str(project_path))
             else:
                 self.km.get_or_create_kernel(project_id)
+
+            # Auto-load validated nodes into kernel
+            print(f"\n[KernelInit] New kernel created for project '{project_id}'")
+            self._load_validated_nodes_on_kernel_init(project_id)
+
+    def _load_validated_nodes_on_kernel_init(self, project_id: str) -> None:
+        """
+        Load validated nodes' results from files into kernel namespace on kernel init.
+
+        When a new kernel is created, this automatically loads all nodes with
+        execution_status == 'validated' from their saved result files into the kernel.
+
+        If a file load fails, the node's status is changed to 'pending_validation'.
+
+        Args:
+            project_id: Project identifier
+        """
+        print(f"[KernelInit] Loading validated nodes into kernel...")
+
+        # Get all validated nodes
+        nodes = self.pm.list_nodes()
+        validated_nodes = [n for n in nodes if n.get('execution_status') == 'validated']
+
+        print(f"[KernelInit] Found {len(validated_nodes)} validated nodes")
+
+        if not validated_nodes:
+            print(f"[KernelInit] No validated nodes to load")
+            return
+
+        loaded_count = 0
+        failed_nodes = []
+
+        for node in validated_nodes:
+            node_id = node['node_id']
+            node_type = node.get('type', 'compute')
+            result_format = node.get('result_format', 'pkl' if node_type == 'tool' else 'parquet')
+
+            try:
+                # Get result path
+                if node_type == 'tool':
+                    # Tool nodes are saved as pickles
+                    result_path = str(self.pm.project_path / 'functions' / f'{node_id}.pkl')
+                else:
+                    # Data and compute nodes are saved as parquets
+                    result_path = str(self.pm.parquets_path / f'{node_id}.parquet')
+
+                # Load from file into kernel
+                success = self._load_variable_from_file(
+                    node_id,
+                    result_path,
+                    result_format
+                )
+
+                if success:
+                    print(f"[KernelInit] ✓ Loaded validated node '{node_id}'")
+                    loaded_count += 1
+                else:
+                    print(f"[KernelInit] ✗ Failed to load node '{node_id}'")
+                    failed_nodes.append(node_id)
+
+            except Exception as e:
+                print(f"[KernelInit] ✗ Error loading node '{node_id}': {e}")
+                failed_nodes.append(node_id)
+
+        # Update status for failed nodes
+        if failed_nodes:
+            print(f"[KernelInit] Updating {len(failed_nodes)} failed nodes to 'pending_validation'")
+            for node_id in failed_nodes:
+                node = self.pm.get_node(node_id)
+                if node:
+                    node['execution_status'] = 'pending_validation'
+                    node['error_message'] = 'Failed to load from file on kernel restart'
+                    self.pm._save_metadata()
+
+                    # Also update notebook
+                    try:
+                        self.nm.update_execution_status(node_id, 'pending_validation')
+                        self.nm.sync_metadata_comments()
+                        self.nm.save()
+                    except Exception as e:
+                        print(f"[KernelInit] Warning: Failed to update notebook for {node_id}: {e}")
+
+        print(f"[KernelInit] ✓ Kernel initialization complete: {loaded_count}/{len(validated_nodes)} nodes loaded")
 
     def _check_same_named_variable_in_code(self, node_id: str, code: str) -> Tuple[bool, str]:
         """
@@ -808,6 +896,12 @@ with open(r'{full_path}', 'rb') as f:
             else:
                 code = source
 
+            # DEBUG: Log code preview
+            print(f"\n[CodeDebug] Node {node_id}, type {node_type}:")
+            print(f"[CodeDebug] Code length: {len(code)}")
+            print(f"[CodeDebug] Code preview (first 200 chars):\n{code[:200]}")
+            print(f"[CodeDebug] Code ends with: ...{code[-100:] if len(code) > 100 else code}")
+
             # Step 1: Form validation - check if code assigns correct variable/function with correct type
             # 关键修复: 优先从 notebook 元数据注释里读取节点类型，而不是从 project.json
             # 这样确保前端修改的节点类型能被立即识别，即使 project.json 还没更新
@@ -883,7 +977,13 @@ with open(r'{full_path}', 'rb') as f:
                 print(f"[Execution] Step 4: No missing dependencies (analyzed_deps={analyzed_deps}), skipping recursive execution")
 
             # Step 5: Auto-append save code to persist results
-            result_format = node.get('result_format', 'parquet')
+            # Default result_format depends on node type:
+            # - tool nodes default to 'pkl' (for function serialization)
+            # - other nodes default to 'parquet' (for dataframe serialization)
+            if node_type == 'tool':
+                result_format = node.get('result_format', 'pkl')
+            else:
+                result_format = node.get('result_format', 'parquet')
 
             # Always append save code to ensure results are persisted for frontend display
             code = self._auto_append_save_code(code, node_id, result_format)
@@ -1004,10 +1104,10 @@ with open(r'{full_path}', 'rb') as f:
                         metadata = cell.get('metadata', {})
                         if metadata.get('node_id') == node_id and metadata.get('result_cell'):
                             # Overwrite existing result cell
-                            cell['source'] = result_cell_code.split('\n')
-                            # Add newlines except for last line
-                            cell['source'] = [line + '\n' if i < len(cell['source'])-1
-                                            else line for i, line in enumerate(cell['source'])]
+                            source_lines = result_cell_code.split('\n')
+                            # Add newlines to all lines except the last
+                            cell['source'] = [line + '\n' if i < len(source_lines)-1
+                                            else line for i, line in enumerate(source_lines)]
                             result_cell_found = True
                             result["result_cell_added"] = True
                             break
