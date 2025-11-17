@@ -55,6 +55,8 @@ echo "应用地址: http://localhost:8000/"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-"$VENV_PYTHON" backend/app.py
+# 从根目录启动，确保路径解析正确
+cd "$(dirname "$0")"
+"$VENV_PYTHON" -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload false
 
 read -p "按 Enter 退出..."

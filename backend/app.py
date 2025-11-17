@@ -40,11 +40,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Get projects root directory
-PROJECTS_ROOT = Path(__file__).parent.parent / "projects"
+# Get projects root directory (with fallback for different execution contexts)
+# First try relative path from current working directory (for root directory execution)
+if Path("./projects").exists():
+    PROJECTS_ROOT = Path("./projects").resolve()
+# Fallback to path relative to this file (for module execution)
+else:
+    PROJECTS_ROOT = (Path(__file__).parent.parent / "projects").resolve()
 
 # Mount frontend static files for serving the built React app
-FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+# Similarly try relative path first, then fallback
+if Path("./frontend/dist").exists():
+    FRONTEND_DIST = Path("./frontend/dist").resolve()
+else:
+    FRONTEND_DIST = (Path(__file__).parent.parent / "frontend" / "dist").resolve()
 if FRONTEND_DIST.exists():
     # Mount static files at root path, with index.html as fallback for SPA routing
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="static")

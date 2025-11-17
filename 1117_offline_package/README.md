@@ -84,7 +84,7 @@ set VENV_PIP=venv\Scripts\pip.exe
 
 **5. 启动服务**
 ```batch
-%VENV_PYTHON% backend/app.py
+%VENV_PYTHON% -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload false
 ```
 
 **6. 访问应用**
@@ -114,7 +114,7 @@ pip install --no-index --find-links backend/whls/whls -r backend/requirements.tx
 
 **5. 启动服务**
 ```bash
-python backend/app.py
+python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload false
 ```
 
 **6. 访问应用**
