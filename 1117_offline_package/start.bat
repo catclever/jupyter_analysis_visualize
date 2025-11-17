@@ -60,6 +60,6 @@ echo.
 
 REM 从根目录启动，确保路径解析正确
 cd /d "%~dp0"
-%VENV_PYTHON% -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload false
+%VENV_PYTHON% -m uvicorn backend.app:app --host 0.0.0.0 --port 8000
 
 pause
