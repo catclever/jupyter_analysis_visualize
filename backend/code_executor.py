@@ -573,14 +573,27 @@ with open(r'{full_path}', 'rb') as f:
             # var_name should correspond to a node_id
             node = self.pm.get_node(var_name)
             if not node:
-                print(f"[RecursiveExec] ✗ Node '{var_name}' not found in project")
+                error_msg = f"Node '{var_name}' not found in project"
+                print(f"[RecursiveExec] ✗ {error_msg}")
+                # Store detailed error for later reporting
+                self._last_dependency_error = {
+                    'node_id': var_name,
+                    'error': error_msg,
+                    'type': 'not_found'
+                }
                 return False
 
             node_id = var_name
 
             # Circular dependency detection
             if node_id in execution_stack:
-                print(f"[RecursiveExec] ✗ Circular dependency detected: {' → '.join(execution_stack + [node_id])}")
+                error_msg = f"Circular dependency detected: {' → '.join(execution_stack + [node_id])}"
+                print(f"[RecursiveExec] ✗ {error_msg}")
+                self._last_dependency_error = {
+                    'node_id': node_id,
+                    'error': error_msg,
+                    'type': 'circular'
+                }
                 return False
 
             # Get node state
@@ -594,7 +607,13 @@ with open(r'{full_path}', 'rb') as f:
             if status == 'validated' and result_path:
                 print(f"[RecursiveExec] Loading validated node '{node_id}' from cache")
                 if not self._load_variable_from_file(node_id, result_path, result_format):
-                    print(f"[RecursiveExec] ✗ Failed to load '{node_id}' from file")
+                    error_msg = f"Failed to load '{node_id}' from file {result_path}"
+                    print(f"[RecursiveExec] ✗ {error_msg}")
+                    self._last_dependency_error = {
+                        'node_id': node_id,
+                        'error': error_msg,
+                        'type': 'load_failed'
+                    }
                     return False
                 print(f"[RecursiveExec] ✓ Successfully loaded '{node_id}' from cache")
             else:
@@ -607,6 +626,11 @@ with open(r'{full_path}', 'rb') as f:
                 if result.get('status') != 'success':
                     error_msg = result.get('error_message', 'Unknown error')
                     print(f"[RecursiveExec] ✗ Failed to execute '{node_id}': {error_msg}")
+                    self._last_dependency_error = {
+                        'node_id': node_id,
+                        'error': error_msg,
+                        'type': 'execution_failed'
+                    }
                     return False
 
                 print(f"[RecursiveExec] ✓ Successfully executed '{node_id}'")
@@ -736,14 +760,22 @@ with open(r'{full_path}', 'rb') as f:
 
             # Step 4: Recursively execute missing dependencies
             if missing_vars:
-                print(f"[Execution] Step 4: Recursively executing {len(missing_vars)} missing dependencies...")
+                print(f"[Execution] Step 4: Recursively executing {len(missing_vars)} missing dependencies: {missing_vars}")
                 if not self._execute_missing_dependencies_recursively(missing_vars, execution_stack):
-                    result["error_message"] = f"Failed to execute dependencies for '{node_id}'"
+                    # Get detailed error from the recursive execution
+                    dep_error = getattr(self, '_last_dependency_error', {})
+                    if dep_error:
+                        error_node = dep_error.get('node_id', 'unknown')
+                        error_detail = dep_error.get('error', 'Unknown error')
+                        error_type = dep_error.get('type', 'unknown')
+                        result["error_message"] = f"Dependency execution failed: node '{error_node}' ({error_type}): {error_detail}"
+                    else:
+                        result["error_message"] = f"Failed to execute dependencies for '{node_id}': {missing_vars}"
                     result["status"] = "pending_validation"
                     return result
                 print(f"[Execution] ✓ All dependencies resolved")
             else:
-                print(f"[Execution] Step 4: No missing dependencies, skipping recursive execution")
+                print(f"[Execution] Step 4: No missing dependencies (analyzed_deps={analyzed_deps}), skipping recursive execution")
 
             # Step 5: Auto-append save code to persist results
             result_format = node.get('result_format', 'parquet')
