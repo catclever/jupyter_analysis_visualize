@@ -801,14 +801,14 @@ with open(r'{full_path}', 'rb') as f:
             if not is_valid:
                 # Form validation failed - abort execution
                 result["error_message"] = f"Form validation error: {validation_msg}"
-                result["status"] = "validation_error"
-                node['execution_status'] = 'validation_error'
+                result["status"] = "pending_validation"
+                node['execution_status'] = 'pending_validation'
                 node['error_message'] = result["error_message"]
                 self.pm._save_metadata()
 
                 # Sync to notebook
                 try:
-                    self.nm.update_execution_status(node_id, 'validation_error')
+                    self.nm.update_execution_status(node_id, 'pending_validation')
                     self.nm.sync_metadata_comments()
                     self.nm.save()
                 except Exception as e:

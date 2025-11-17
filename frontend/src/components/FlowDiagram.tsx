@@ -616,8 +616,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         }
 
         /* Red for failure/error */
-        [class*="status-pending_validation"] {
-          border: 2px solid #ef4444 !important;  /* Red for pending validation */
+        [class*="status-pending_validation"],
+        [class*="status-validation_error"] {
+          border: 2px solid #ef4444 !important;  /* Red for pending validation or validation error */
           box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
 
@@ -647,7 +648,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           color: #22c55e;
         }
 
-        .flow-node-status-badge.pending_validation {
+        .flow-node-status-badge.pending_validation,
+        .flow-node-status-badge.validation_error {
           color: #ef4444;
         }
 
