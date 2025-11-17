@@ -348,7 +348,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         <style>{`
         /* 基础样式 */
         [class*="flow-node-"] {
-          border: none !important;
+          border: 2px solid transparent;
           border-radius: 8px;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
           width: auto !important;
@@ -521,19 +521,25 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         }
 
         /* Execution status indicators - border colors */
+        /* Apply status borders with high specificity */
+        [class*="flow-node-"].status-validated,
+        [class*="flow-node-"].status-validated > div {
+          border-color: #22c55e !important;
+        }
+
         [class*="flow-node-"].status-validated {
           border: 2px solid #22c55e !important;  /* Green for validated */
-          box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2) !important;
+          box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
 
         [class*="flow-node-"].status-pending_validation {
           border: 2px solid #ef4444 !important;  /* Red for pending validation */
-          box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2) !important;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
 
         [class*="flow-node-"].status-not_executed {
-          border: 2px solid #999 !important;     /* Gray for not executed */
-          box-shadow: 0 2px 8px rgba(153, 153, 153, 0.1) !important;
+          border: 2px solid #999999 !important;     /* Gray for not executed */
+          box-shadow: 0 0 0 3px rgba(153, 153, 153, 0.1), 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
 
         /* Status badge styling for showing indicator icon */
