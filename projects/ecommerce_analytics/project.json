@@ -124,7 +124,7 @@
       "depends_on": [
         "p1_category_sales"
       ],
-      "execution_status": "not_executed",
+      "execution_status": "pending_validation",
       "result_format": "json",
       "result_path": null,
       "error_message": "Form validation error: Node 'p1_sales_chart' must return DataFrame, but code suggests figure"
