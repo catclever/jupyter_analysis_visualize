@@ -1,0 +1,28 @@
+{
+  "project_id": "dict_result_test",
+  "name": "Dict of DataFrames Test",
+  "description": "Test project for dict of DataFrames result format",
+  "version": "1.0.0",
+  "created_date": "2025-11-17T11:35:57.303567",
+  "last_modified": "2025-11-17T11:35:57.303577",
+  "notebook_path": "project.ipynb",
+  "nodes": {
+    "create_summaries": {
+      "node_id": "create_summaries",
+      "node_type": "compute",
+      "name": "Create Multiple Summaries",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null
+    }
+  },
+  "dag_metadata": {
+    "total_nodes": 1,
+    "node_types": {
+      "compute": 1
+    },
+    "max_depth": 0,
+    "has_cycles": false
+  }
+}
