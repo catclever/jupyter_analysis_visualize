@@ -42,6 +42,16 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Track node click with position and time-based detection
+  // Includes timestamp to invalidate stale references from previous interactions
+  const nodeClickStartRef = React.useRef<{
+    nodeId: string;
+    x: number;
+    y: number;
+    timestamp: number;
+    isActive: boolean;
+  } | null>(null);
+
   // 从 API 获取项目数据
   useEffect(() => {
     const fetchProjectData = async () => {
@@ -270,19 +280,63 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     return 'dimmed';
   };
 
+  const handleNodeMouseDown = (_event: React.MouseEvent | any, node: Node) => {
+    // Record mouse position when user starts interacting with a node
+    const clientX = _event?.clientX ?? (_event?.touches?.[0]?.clientX);
+    const clientY = _event?.clientY ?? (_event?.touches?.[0]?.clientY);
+
+    if (clientX !== undefined && clientY !== undefined) {
+      nodeClickStartRef.current = {
+        nodeId: node.id,
+        x: clientX,
+        y: clientY,
+        timestamp: Date.now(),
+        isActive: true
+      };
+    }
+  };
+
   const handleNodeClick = (_event: React.MouseEvent | any, node: Node) => {
-    console.log('[FlowDiagram] ✓ Node click registered:', node.id, '- Opening DataTable');
+    // Prevent default behaviors
+    _event?.stopPropagation?.();
+    _event?.preventDefault?.();
 
-    // Prevent both propagation and default behavior to block pan/zoom
-    if (_event?.stopPropagation) {
-      _event.stopPropagation();
-    }
-    if (_event?.preventDefault) {
-      _event.preventDefault();
+    if (_event?.nativeEvent) {
+      _event.nativeEvent.stopImmediatePropagation?.();
     }
 
-    // Call the parent component's handler
-    onNodeClick(node.id);
+    // Get current position
+    const clientX = _event?.clientX ?? (_event?.touches?.[0]?.clientX);
+    const clientY = _event?.clientY ?? (_event?.touches?.[0]?.clientY);
+
+    const startInfo = nodeClickStartRef.current;
+    let shouldSelect = false;
+
+    // Simple distance-based check: if mouse moved < 20px, treat as click
+    if (startInfo && startInfo.nodeId === node.id && clientX !== undefined && clientY !== undefined) {
+      const distanceMoved = Math.hypot(clientX - startInfo.x, clientY - startInfo.y);
+
+      if (distanceMoved < 20) {
+        shouldSelect = true;
+        console.log('[FlowDiagram] Node clicked:', node.id, `distance: ${distanceMoved.toFixed(1)}px`);
+      } else {
+        console.log('[FlowDiagram] Drag detected:', node.id, `distance: ${distanceMoved.toFixed(1)}px`);
+      }
+    } else {
+      // Fallback: always select if we can't track the interaction
+      // This ensures clicks from edges or other sources still work
+      shouldSelect = true;
+      console.log('[FlowDiagram] Node clicked (fallback):', node.id);
+    }
+
+    if (shouldSelect) {
+      onNodeClick(node.id);
+    }
+
+    // Clean up
+    if (nodeClickStartRef.current) {
+      nodeClickStartRef.current.isActive = false;
+    }
   };
 
   const toggleNodeTypeFilter = (type: 'data' | 'compute' | 'chart') => {
@@ -535,14 +589,23 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           background: hsl(var(--muted));
         }
 
-        /* Ensure nodes capture pointer events properly */
+        /* Ensure nodes capture pointer events properly and uniformly */
         .react-flow__node {
           pointer-events: auto;
           cursor: pointer;
         }
 
         .react-flow__node > div {
+          pointer-events: auto; /* Inner div also captures clicks */
+        }
+
+        /* Node content should capture clicks and let them bubble */
+        [class*="flow-node-"] {
           pointer-events: auto;
+        }
+
+        [class*="flow-node-"] > div {
+          pointer-events: auto; /* Inner text captures and bubbles clicks */
         }
 
         /* Execution status indicators - border colors */
@@ -667,6 +730,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         })}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
+        onNodeMouseDown={handleNodeMouseDown}
         onNodeClick={handleNodeClick}
         connectionMode={ConnectionMode.Loose}
         fitView
@@ -674,8 +738,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         selectNodesOnDrag={false}
         multiSelectionKeyCode={null}
         deleteKeyCode={null}
-        nodesDraggable={false}
-        nodesConnectable={false}
       >
         <Background />
         <Controls />
