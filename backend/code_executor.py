@@ -318,16 +318,43 @@ class CodeExecutor:
 
 # Auto-appended: Save result to parquet
 import os
+import pandas as pd
 from pathlib import Path
 parquets_dir = Path(r'{parquets_dir}')
 parquets_dir.mkdir(parents=True, exist_ok=True)
-save_path = parquets_dir / '{node_id}.parquet'
-try:
-    {node_id}.to_parquet(str(save_path), index=False)
-    print(f"✓ Saved parquet: {{save_path}}")
-except Exception as e:
-    print(f"ERROR saving parquet: {{e}}")
-    raise"""
+
+# Support both single DataFrame and dict of DataFrames
+if isinstance({node_id}, dict):
+    # Dict of DataFrames - save each one separately with a metadata file
+    print(f"Detected dict result with keys: {{{node_id}.keys()}}")
+    node_dir = parquets_dir / '{node_id}'
+    node_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save metadata about the dict structure
+    import json
+    metadata = {{'type': 'dict_of_dataframes', 'keys': list({node_id}.keys())}}
+    with open(str(node_dir / '_metadata.json'), 'w') as f:
+        json.dump(metadata, f)
+
+    # Save each DataFrame
+    for key, df in {node_id}.items():
+        if isinstance(df, pd.DataFrame):
+            df_path = node_dir / f'{{key}}.parquet'
+            df.to_parquet(str(df_path), index=False)
+            print(f"  ✓ Saved {{key}}: {{df_path}}")
+        else:
+            print(f"  ⚠ Skipped {{key}}: not a DataFrame (type={{type(df).__name__}})")
+
+    print(f"✓ Saved dict result to: {{node_dir}}")
+else:
+    # Single DataFrame - save directly
+    save_path = parquets_dir / '{node_id}.parquet'
+    try:
+        {node_id}.to_parquet(str(save_path), index=False)
+        print(f"✓ Saved parquet: {{save_path}}")
+    except Exception as e:
+        print(f"ERROR saving parquet: {{e}}")
+        raise"""
 
         elif result_format == "json":
             save_code = f"""
@@ -526,7 +553,34 @@ print(f"✓ Saved pickle to {{save_path}}")"""
 
         try:
             if result_format == 'parquet':
-                load_code = f"""
+                # Check if it's a directory (dict of DataFrames) or file (single DataFrame)
+                from pathlib import Path
+                full_path_obj = Path(full_path)
+
+                if full_path_obj.is_dir():
+                    # Dict of DataFrames - load from directory
+                    load_code = f"""
+import pandas as pd
+import json
+from pathlib import Path
+
+# Load dict of DataFrames from directory
+node_dir = Path(r'{full_path}')
+
+# Read metadata
+with open(str(node_dir / '_metadata.json'), 'r') as f:
+    metadata = json.load(f)
+
+# Reconstruct dict from individual parquet files
+{var_name} = {{}}
+for key in metadata['keys']:
+    df_path = node_dir / f'{{key}}.parquet'
+    {var_name}[key] = pd.read_parquet(str(df_path))
+    print(f"  Loaded {{key}}: {{df_path.stat().st_size}} bytes")
+"""
+                else:
+                    # Single DataFrame - load directly
+                    load_code = f"""
 import pandas as pd
 {var_name} = pd.read_parquet(r'{full_path}')
 """
