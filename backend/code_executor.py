@@ -431,6 +431,8 @@ print(f"✓ Saved pickle to {{save_path}}")"""
         Important: This method does NOT modify node['depends_on'] field.
         It only returns the analyzed dependencies for verification.
 
+        Only variables that are ALSO in the project's node list are considered dependencies.
+
         Args:
             node_id: Node to analyze
 
@@ -444,15 +446,22 @@ print(f"✓ Saved pickle to {{save_path}}")"""
         # Extract variable names from code
         extracted_vars = self._extract_variable_names(code)
 
-        # Get all node IDs
+        # Get all node IDs in the project
         all_node_ids = {node['node_id'] for node in self.pm.list_nodes()}
 
-        # Find intersection: variables that are also node IDs
+        # Find intersection: variables that are ALSO node IDs
+        # This ensures only valid node references are treated as dependencies
         analyzed_deps = list(extracted_vars & all_node_ids)
 
-        print(f"[DependencyAnalysis] {node_id}: extracted {len(extracted_vars)} vars, found {len(analyzed_deps)} deps")
-        if analyzed_deps:
-            print(f"[DependencyAnalysis] Dependencies: {analyzed_deps}")
+        # Variables that were extracted but are NOT nodes (regular variables)
+        non_node_vars = extracted_vars - all_node_ids
+
+        print(f"[DependencyAnalysis] {node_id}:")
+        print(f"  Extracted variables: {extracted_vars}")
+        print(f"  All project nodes: {sorted(all_node_ids)}")
+        print(f"  Variables that are nodes (dependencies): {sorted(analyzed_deps)}")
+        if non_node_vars:
+            print(f"  Variables that are NOT nodes (regular vars): {sorted(non_node_vars)}")
 
         return analyzed_deps
 
