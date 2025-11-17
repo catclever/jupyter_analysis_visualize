@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from project_manager import ProjectManager
 from notebook_manager import NotebookManager
@@ -41,6 +42,15 @@ app.add_middleware(
 
 # Get projects root directory
 PROJECTS_ROOT = Path(__file__).parent.parent / "projects"
+
+# Mount frontend static files for serving the built React app
+FRONTEND_DIST = Path(__file__).parent.parent / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    # Mount static files at root path, with index.html as fallback for SPA routing
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="static")
+else:
+    print(f"⚠️  Warning: Frontend dist directory not found at {FRONTEND_DIST}")
+    print("   Make sure to build the frontend: cd frontend && npm run build")
 
 
 def get_project_manager(project_id: str) -> ProjectManager:
