@@ -3,9 +3,10 @@ import os
 import re
 import argparse
 import shutil
+import ast
 from pathlib import Path
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, Optional
 
 class ProjectBuilder:
     """
@@ -35,21 +36,49 @@ class ProjectBuilder:
             return "parquet"
         return None
 
-    def _slugify(self, text: str) -> str:
+    def _extract_node_info(self, source_code: str, cell_index: int, node_type: str) -> Tuple[str, str]:
         """
-        Creates a simple, safe slug from a string.
+        Extracts node_id and name from the cell source code using AST parsing.
+        It uses the last assigned variable name as the node_id.
         """
-        text = re.sub(r'\s+', '_', text)
-        text = re.sub(r'[^\w-]', '', text)
-        return text.lower().strip('_')
+        last_assignment = None
+        try:
+            tree = ast.parse(source_code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Assign):
+                    # We only care about simple variable assignments, e.g., `x = ...`
+                    if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                        last_assignment = node.targets[0].id
+        except SyntaxError:
+            # If code is not valid Python, fall back to default naming
+            pass
+
+        if last_assignment:
+            node_id = last_assignment
+            # Create a "pretty" name from the variable name
+            name = node_id.replace('_', ' ').strip()
+            name = re.sub(' +', ' ', name) # Replace multiple spaces with one
+            name = name.title()
+            return node_id, name
+
+        # Fallback logic if no assignment is found
+        first_line = source_code.splitlines()[0].strip() if source_code.splitlines() else ""
+        if first_line.startswith("#"):
+            name = first_line.lstrip('# ').strip()
+            node_id = name.replace(' ', '_').lower()
+        else:
+            name = f"Cell {cell_index}: {node_type.capitalize()}"
+            node_id = f"cell_{cell_index}_{node_type.lower()}"
+        
+        # Clean up the generated node_id
+        node_id = re.sub(r'[^\w-]', '', node_id)
+        return node_id, name
+
 
     def annotate_notebook(self, notebook_path: Path):
         """
         Reads a notebook, adds metadata comments to each code cell, and saves it in place.
         This method ONLY adds comments to the source code, it does NOT update cell metadata.
-
-        Args:
-            notebook_path: Path to the project.ipynb file to be annotated.
         """
         print(f"Annotating notebook: {notebook_path}")
         try:
@@ -66,21 +95,13 @@ class ProjectBuilder:
                 cell_count += 1
                 source_str = "".join(cell["source"])
 
-                # Check if metadata block is already present
                 if "# ===== System-managed metadata" in source_str:
                     print(f"  - Skipping already annotated cell {cell_count}")
                     continue
 
                 modified = True
                 node_type = self._infer_node_type(source_str)
-                
-                first_line = source_str.splitlines()[0].strip() if source_str.splitlines() else ""
-                if first_line.startswith("#"):
-                    name = first_line.lstrip('# ').strip()
-                else:
-                    name = f"Cell {cell_count}: {node_type.capitalize()}"
-
-                node_id = self._slugify(name) or f"node_{cell_count}"
+                node_id, name = self._extract_node_info(source_str, cell_count, node_type)
 
                 metadata_comment = (
                     "# ===== System-managed metadata (auto-generated, understand to edit) =====\n"
@@ -95,7 +116,7 @@ class ProjectBuilder:
                 original_source = cell["source"]
                 cell["source"] = [metadata_comment] + ["\n"] + original_source
                 
-                print(f"  - Added annotation to cell {cell_count} as node '{node_id}' (type: {node_type})")
+                print(f"  - Added annotation to cell {cell_count} as node '{node_id}'")
 
         if modified:
             with open(notebook_path, 'w', encoding='utf-8') as f:
@@ -107,11 +128,6 @@ class ProjectBuilder:
     def generate_project_json(self, notebook_path: Path, project_json_path: Path):
         """
         Generates a project.json file and updates notebook metadata in place.
-        This method reads annotations from source, updates cell metadata, and then generates project.json.
-
-        Args:
-            notebook_path: Path to the annotated project.ipynb file.
-            project_json_path: Path to save the project.json file.
         """
         print(f"Generating project.json from: {notebook_path}")
         try:
@@ -165,9 +181,8 @@ class ProjectBuilder:
                     }
                     nodes_list.append(node_obj)
                     node_types_count[node_type] = node_types_count.get(node_type, 0) + 1
-                    print(f"  - Processed node '{node_id}' (type: {node_type}) for project.json")
+                    print(f"  - Processed node '{node_id}' for project.json")
 
-                    # Update cell metadata in the notebook object if it's different or missing
                     current_metadata = cell.get("metadata", {})
                     expected_metadata = {
                         "node_id": node_id,
@@ -203,8 +218,6 @@ class ProjectBuilder:
 def setup_project_paths(input_notebook: str) -> Tuple[Path, Path]:
     """
     Determines project paths based on the input notebook.
-    If it's a standalone notebook, creates a project directory.
-    Returns the final paths for the project notebook and project.json.
     """
     input_path = Path(input_notebook).resolve()
     if not input_path.exists():
@@ -220,7 +233,6 @@ def setup_project_paths(input_notebook: str) -> Tuple[Path, Path]:
         project_dir.mkdir(exist_ok=True)
         notebook_path = project_dir / "project.ipynb"
         
-        # Only copy if the target project.ipynb doesn't exist or is not the same file as input
         if not notebook_path.exists() or not input_path.samefile(notebook_path):
             shutil.copy2(input_path, notebook_path)
             print(f"Copied '{input_path.name}' to '{notebook_path}'")

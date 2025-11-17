@@ -11,18 +11,26 @@
       "node_type": "data_source",
       "name": "Load Orders Data",
       "depends_on": [],
-      "execution_status": "not_executed",
+      "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": null
+      "result_path": "parquets/load_orders_data.parquet",
+      "error_message": null,
+      "execution_time": 0.023885,
+      "last_execution_time": "2025-11-17T11:02:06.754702",
+      "output_type": "dataframe"
     },
     {
       "node_id": "load_customers_data",
       "node_type": "data_source",
       "name": "Load Customers Data",
       "depends_on": [],
-      "execution_status": "not_executed",
+      "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": null
+      "result_path": "parquets/load_customers_data.parquet",
+      "error_message": null,
+      "execution_time": 0.356636,
+      "last_execution_time": "2025-11-17T11:02:06.727738",
+      "output_type": "dataframe"
     },
     {
       "node_id": "load_products_data",
@@ -38,9 +46,13 @@
       "node_type": "data_source",
       "name": "Load Promotions Data",
       "depends_on": [],
-      "execution_status": "not_executed",
+      "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": null
+      "result_path": "parquets/load_promotions_data.parquet",
+      "error_message": null,
+      "execution_time": 1.188193,
+      "last_execution_time": "2025-11-17T11:01:57.415849",
+      "output_type": "dataframe"
     },
     {
       "node_id": "tool_time_aggregation",
@@ -119,19 +131,32 @@
       "node_id": "p2_customer_purchase",
       "node_type": "compute",
       "name": "Path 2: Customer Purchase Behavior",
-      "depends_on": [],
-      "execution_status": "not_executed",
+      "depends_on": [
+        "load_customers_data",
+        "load_orders_data"
+      ],
+      "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": null
+      "result_path": "parquets/p2_customer_purchase.parquet",
+      "error_message": null,
+      "execution_time": 0.420394,
+      "last_execution_time": "2025-11-17T11:02:06.781945",
+      "output_type": "dataframe"
     },
     {
       "node_id": "p2_loyalty_analysis",
       "node_type": "compute",
       "name": "Path 2: Loyalty Level Analysis",
-      "depends_on": [],
-      "execution_status": "not_executed",
+      "depends_on": [
+        "p2_customer_purchase"
+      ],
+      "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": null
+      "result_path": "parquets/p2_loyalty_analysis.parquet",
+      "error_message": null,
+      "execution_time": 0.90551,
+      "last_execution_time": "2025-11-17T11:02:06.801958",
+      "output_type": "dataframe"
     },
     {
       "node_id": "p2_regional_behavior",
