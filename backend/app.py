@@ -11,9 +11,15 @@ import json
 import os
 import ast
 import re
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 from fastapi.responses import FileResponse
+
+# 确保 backend 目录在 Python 路径中，以便导入模块
+backend_dir = Path(__file__).parent
+if str(backend_dir) not in sys.path:
+    sys.path.insert(0, str(backend_dir))
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Body
