@@ -13,11 +13,34 @@ const Index = () => {
   const [isAnalysisSidebarOpen, setIsAnalysisSidebarOpen] = useState(true);
   const [minimapOpen, setMinimapOpen] = useState(false); // 默认关闭 minimap
   const [shouldCloseMinimap, setShouldCloseMinimap] = useState(false); // 用于追踪数据面板打开状态变化
-  const [currentDatasetId, setCurrentDatasetId] = useState<string>("ecommerce_analytics");
+  const [currentDatasetId, setCurrentDatasetId] = useState<string>("");
   const [projectRefreshKey, setProjectRefreshKey] = useState(0); // Trigger project reload when code is saved
+  const [isLoadingProjects, setIsLoadingProjects] = useState(true);
 
   // Use project cache hook for efficient data loading
   const { loadProject } = useProjectCache();
+
+  // 初始化时加载项目列表，选择第一个项目
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const response = await fetch('/api/projects');
+        const data = await response.json();
+        if (data.projects && data.projects.length > 0) {
+          // 选择第一个项目作为默认项目
+          setCurrentDatasetId(data.projects[0].id);
+        } else {
+          console.warn('No projects available');
+        }
+      } catch (err) {
+        console.error('Failed to load projects:', err);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+
+    loadProjects();
+  }, []);
 
   // 当打开数据面板时，关闭 minimap；当关闭时，打开 minimap
   useEffect(() => {
@@ -38,6 +61,18 @@ const Index = () => {
       console.error('Failed to load project:', err);
     });
   }, [currentDatasetId, loadProject]);
+
+  // 如果还在加载项目，显示加载状态
+  if (isLoadingProjects || !currentDatasetId) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">加载项目中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen w-full relative">
