@@ -442,7 +442,7 @@ print(f"✓ Saved pickle to {{save_path}}")"""
             return []
 
         # Extract variable names from code
-        extracted_vars = CodeValidator._extract_variable_names(code)
+        extracted_vars = self._extract_variable_names(code)
 
         # Get all node IDs
         all_node_ids = {node['node_id'] for node in self.pm.list_nodes()}

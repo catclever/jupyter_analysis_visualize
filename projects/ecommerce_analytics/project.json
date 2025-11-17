@@ -3,11 +3,10 @@
   "name": "E-Commerce Analytics Platform",
   "description": "Comprehensive e-commerce data analysis with multiple analysis pathways: Sales Trends, Customer Behavior, Category Competition, and Marketing Effectiveness",
   "version": "1.0.0",
-  "created_date": "2025-11-15T15:29:11.513054",
-  "last_modified": "2025-11-15T15:29:11.513059",
-  "notebook_path": "project.ipynb",
-  "nodes": {
-    "load_orders_data": {
+  "created_at": "2025-11-17T10:41:22.212017",
+  "updated_at": "2025-11-17T10:41:22.212023",
+  "nodes": [
+    {
       "node_id": "load_orders_data",
       "node_type": "data_source",
       "name": "Load Orders Data",
@@ -16,7 +15,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "load_customers_data": {
+    {
       "node_id": "load_customers_data",
       "node_type": "data_source",
       "name": "Load Customers Data",
@@ -25,7 +24,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "load_products_data": {
+    {
       "node_id": "load_products_data",
       "node_type": "data_source",
       "name": "Load Products Data",
@@ -34,7 +33,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "load_promotions_data": {
+    {
       "node_id": "load_promotions_data",
       "node_type": "data_source",
       "name": "Load Promotions Data",
@@ -43,7 +42,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "tool_time_aggregation": {
+    {
       "node_id": "tool_time_aggregation",
       "node_type": "tool",
       "name": "Tool: Time Aggregation Functions",
@@ -52,7 +51,7 @@
       "result_format": null,
       "result_path": null
     },
-    "tool_cohort_analysis": {
+    {
       "node_id": "tool_cohort_analysis",
       "node_type": "tool",
       "name": "Tool: Cohort Analysis",
@@ -61,7 +60,7 @@
       "result_format": null,
       "result_path": null
     },
-    "tool_category_metrics": {
+    {
       "node_id": "tool_category_metrics",
       "node_type": "tool",
       "name": "Tool: Category Metrics",
@@ -70,7 +69,7 @@
       "result_format": null,
       "result_path": null
     },
-    "tool_promo_impact": {
+    {
       "node_id": "tool_promo_impact",
       "node_type": "tool",
       "name": "Tool: Promotion Impact Analysis",
@@ -79,7 +78,7 @@
       "result_format": null,
       "result_path": null
     },
-    "p1_daily_sales": {
+    {
       "node_id": "p1_daily_sales",
       "node_type": "compute",
       "name": "Path 1: Daily Sales Trend",
@@ -88,7 +87,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p1_category_sales": {
+    {
       "node_id": "p1_category_sales",
       "node_type": "compute",
       "name": "Path 1: Category Sales Distribution",
@@ -97,7 +96,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p1_weekly_trend": {
+    {
       "node_id": "p1_weekly_trend",
       "node_type": "compute",
       "name": "Path 1: Weekly Sales Trend",
@@ -106,16 +105,17 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p1_sales_chart": {
+    {
       "node_id": "p1_sales_chart",
       "node_type": "chart",
       "name": "Path 1: Sales by Category Chart",
       "depends_on": [],
-      "execution_status": "not_executed",
+      "execution_status": "validation_error",
       "result_format": "json",
-      "result_path": null
+      "result_path": null,
+      "error_message": "Form validation error: Node 'p1_sales_chart' must return DataFrame, but code suggests figure"
     },
-    "p2_customer_purchase": {
+    {
       "node_id": "p2_customer_purchase",
       "node_type": "compute",
       "name": "Path 2: Customer Purchase Behavior",
@@ -124,7 +124,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p2_loyalty_analysis": {
+    {
       "node_id": "p2_loyalty_analysis",
       "node_type": "compute",
       "name": "Path 2: Loyalty Level Analysis",
@@ -133,7 +133,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p2_regional_behavior": {
+    {
       "node_id": "p2_regional_behavior",
       "node_type": "compute",
       "name": "Path 2: Regional Purchase Behavior",
@@ -142,7 +142,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p2_customer_chart": {
+    {
       "node_id": "p2_customer_chart",
       "node_type": "chart",
       "name": "Path 2: Loyalty Level Distribution Chart",
@@ -151,7 +151,7 @@
       "result_format": "json",
       "result_path": null
     },
-    "p3_category_comparison": {
+    {
       "node_id": "p3_category_comparison",
       "node_type": "compute",
       "name": "Path 3: Category Performance Comparison",
@@ -160,7 +160,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p3_category_market_share": {
+    {
       "node_id": "p3_category_market_share",
       "node_type": "compute",
       "name": "Path 3: Category Market Share",
@@ -169,7 +169,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p3_top_products": {
+    {
       "node_id": "p3_top_products",
       "node_type": "compute",
       "name": "Path 3: Top Products by Revenue",
@@ -178,7 +178,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p3_category_chart": {
+    {
       "node_id": "p3_category_chart",
       "node_type": "chart",
       "name": "Path 3: Market Share Distribution",
@@ -187,7 +187,7 @@
       "result_format": "json",
       "result_path": null
     },
-    "p4_promo_effectiveness": {
+    {
       "node_id": "p4_promo_effectiveness",
       "node_type": "compute",
       "name": "Path 4: Promotion Effectiveness",
@@ -196,7 +196,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p4_category_promo_impact": {
+    {
       "node_id": "p4_category_promo_impact",
       "node_type": "compute",
       "name": "Path 4: Promotion Impact by Category",
@@ -205,7 +205,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p4_payment_method_analysis": {
+    {
       "node_id": "p4_payment_method_analysis",
       "node_type": "compute",
       "name": "Path 4: Payment Method Analysis",
@@ -214,7 +214,7 @@
       "result_format": "parquet",
       "result_path": null
     },
-    "p4_promo_chart": {
+    {
       "node_id": "p4_promo_chart",
       "node_type": "chart",
       "name": "Path 4: Promotion Effectiveness Comparison",
@@ -222,65 +222,6 @@
       "execution_status": "not_executed",
       "result_format": "json",
       "result_path": null
-    }
-  },
-  "dag_metadata": {
-    "total_nodes": 24,
-    "node_types": {
-      "data_source": 4,
-      "compute": 12,
-      "chart": 4,
-      "tool": 4
-    },
-    "max_depth": 0,
-    "has_cycles": false
-  },
-  "analysis_paths": [
-    {
-      "name": "Sales Trend Analysis",
-      "description": "Analyze daily, weekly, and category-level sales patterns",
-      "nodes": [
-        "load_orders_data",
-        "p1_daily_sales",
-        "p1_category_sales",
-        "p1_weekly_trend",
-        "p1_sales_chart"
-      ]
-    },
-    {
-      "name": "Customer Behavior Analysis",
-      "description": "Understand customer purchase patterns, loyalty, and regional behavior",
-      "nodes": [
-        "load_orders_data",
-        "load_customers_data",
-        "p2_customer_purchase",
-        "p2_loyalty_analysis",
-        "p2_regional_behavior",
-        "p2_customer_chart"
-      ]
-    },
-    {
-      "name": "Category Competition Analysis",
-      "description": "Compare category performance and identify top products",
-      "nodes": [
-        "load_orders_data",
-        "load_products_data",
-        "p3_category_comparison",
-        "p3_category_market_share",
-        "p3_top_products",
-        "p3_category_chart"
-      ]
-    },
-    {
-      "name": "Marketing Effectiveness Assessment",
-      "description": "Evaluate promotion impact and payment method preferences",
-      "nodes": [
-        "load_orders_data",
-        "p4_promo_effectiveness",
-        "p4_category_promo_impact",
-        "p4_payment_method_analysis",
-        "p4_promo_chart"
-      ]
     }
   ]
 }
