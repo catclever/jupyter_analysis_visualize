@@ -24,6 +24,8 @@ interface FlowNodeData extends Record<string, unknown> {
   label: string;
   type: string;
   phase?: string;
+  executionStatus?: string;  // 'validated' | 'pending_validation' | 'not_executed'
+  errorMessage?: string;     // Error message if status is pending_validation
 }
 
 interface FlowDiagramProps {
@@ -109,6 +111,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
             data: {
               label: node.label,
               type: node.type,
+              executionStatus: node.execution_status || 'not_executed',
+              errorMessage: node.error_message || undefined,
             },
             className: `flow-node-${node.type}`,
             selectable: true,
@@ -515,6 +519,50 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         .react-flow__minimap {
           background: hsl(var(--muted));
         }
+
+        /* Execution status indicators - border colors */
+        [class*="flow-node-"].status-validated {
+          border: 2px solid #22c55e !important;  /* Green for validated */
+          box-shadow: 0 2px 8px rgba(34, 197, 94, 0.2) !important;
+        }
+
+        [class*="flow-node-"].status-pending_validation {
+          border: 2px solid #ef4444 !important;  /* Red for pending validation */
+          box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2) !important;
+        }
+
+        [class*="flow-node-"].status-not_executed {
+          border: 2px solid #999 !important;     /* Gray for not executed */
+          box-shadow: 0 2px 8px rgba(153, 153, 153, 0.1) !important;
+        }
+
+        /* Status badge styling for showing indicator icon */
+        .flow-node-status-badge {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 14px;
+          background: white;
+          border: 2px solid currentColor;
+        }
+
+        .flow-node-status-badge.validated {
+          color: #22c55e;
+        }
+
+        .flow-node-status-badge.pending_validation {
+          color: #ef4444;
+        }
+
+        .flow-node-status-badge.not_executed {
+          color: #999;
+        }
       `}</style>
       
       <ReactFlow
@@ -537,11 +585,16 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
             .map(node => {
               let classNames = node.className || '';
               const nodeLevel = getNodeLevel(node.id);
+              const nodeData = node.data as FlowNodeData;
+              const status = nodeData.executionStatus || 'not_executed';
 
               if (selectedNodeId) {
                 // 根据节点等级添加相应的类名
                 classNames += ` ${nodeLevel}`;
               }
+
+              // Add status as className for CSS selector
+              classNames += ` status-${status}`;
 
               return {
                 ...node,

@@ -425,17 +425,234 @@ print(f"✓ Saved pickle to {{save_path}}")"""
 
         return result
 
-    def execute_node(self, node_id: str) -> Dict[str, Any]:
+    def _analyze_dependencies_pre_execution(self, node_id: str) -> List[str]:
         """
-        Execute a node with full workflow:
-        1. Pre-check: same-named variable in code
-        2. Auto-append save code if needed
-        3. Build execution order (dependencies)
-        4. Execute each parent node (if needed)
-        5. Execute current node
-        6. Post-check: same-named variable exists
-        7. Generate result cell
+        Analyze dependencies needed by a node BEFORE execution.
+        Important: This method does NOT modify node['depends_on'] field.
+        It only returns the analyzed dependencies for verification.
 
+        Args:
+            node_id: Node to analyze
+
+        Returns:
+            List of dependency node IDs (empty if no dependencies found)
+        """
+        code = self._get_node_code(node_id)
+        if not code:
+            return []
+
+        # Extract variable names from code
+        extracted_vars = CodeValidator._extract_variable_names(code)
+
+        # Get all node IDs
+        all_node_ids = {node['node_id'] for node in self.pm.list_nodes()}
+
+        # Find intersection: variables that are also node IDs
+        analyzed_deps = list(extracted_vars & all_node_ids)
+
+        print(f"[DependencyAnalysis] {node_id}: extracted {len(extracted_vars)} vars, found {len(analyzed_deps)} deps")
+        if analyzed_deps:
+            print(f"[DependencyAnalysis] Dependencies: {analyzed_deps}")
+
+        return analyzed_deps
+
+    def _check_kernel_variables(self, analyzed_deps: List[str]) -> tuple:
+        """
+        Check which analyzed dependencies exist in kernel namespace.
+
+        Args:
+            analyzed_deps: List of dependency node IDs to check
+
+        Returns:
+            Tuple of (existing_vars, missing_vars)
+            - existing_vars: Variables that already exist in kernel
+            - missing_vars: Variables that need to be loaded or executed
+        """
+        existing_vars = []
+        missing_vars = []
+
+        for var_name in analyzed_deps:
+            try:
+                exists = self.km.variable_exists(self.pm.project_id, var_name)
+                if exists:
+                    existing_vars.append(var_name)
+                    print(f"[KernelCheck] ✓ Variable '{var_name}' exists in kernel")
+                else:
+                    missing_vars.append(var_name)
+                    print(f"[KernelCheck] ✗ Variable '{var_name}' missing in kernel")
+            except Exception as e:
+                # If check fails, assume variable is missing (safe approach)
+                missing_vars.append(var_name)
+                print(f"[KernelCheck] Error checking '{var_name}': {e}, assuming missing")
+
+        return existing_vars, missing_vars
+
+    def _load_variable_from_file(
+        self,
+        var_name: str,
+        result_path: str,
+        result_format: str
+    ) -> bool:
+        """
+        Load a variable from saved file into kernel namespace.
+
+        Args:
+            var_name: Variable name to load
+            result_path: Relative path to saved file (from project root)
+            result_format: Format of file ('parquet', 'json', 'pkl')
+
+        Returns:
+            True if successful, False otherwise
+        """
+        full_path = self.pm.project_path / result_path
+        if not full_path.exists():
+            print(f"[FileLoad] ✗ File not found: {full_path}")
+            return False
+
+        try:
+            if result_format == 'parquet':
+                load_code = f"""
+import pandas as pd
+{var_name} = pd.read_parquet(r'{full_path}')
+"""
+            elif result_format == 'json':
+                load_code = f"""
+import json
+with open(r'{full_path}', 'r', encoding='utf-8') as f:
+    {var_name} = json.load(f)
+"""
+            elif result_format == 'pkl':
+                load_code = f"""
+import pickle
+with open(r'{full_path}', 'rb') as f:
+    {var_name} = pickle.load(f)
+"""
+            else:
+                print(f"[FileLoad] ✗ Unknown format: {result_format}")
+                return False
+
+            # Execute load code in kernel
+            output = self.km.execute_code(self.pm.project_id, load_code, timeout=30)
+
+            if output.get("status") == "success":
+                print(f"[FileLoad] ✓ Loaded '{var_name}' from {result_path}")
+                return True
+            else:
+                print(f"[FileLoad] ✗ Failed to load '{var_name}': {output.get('error')}")
+                return False
+
+        except Exception as e:
+            print(f"[FileLoad] ✗ Exception loading '{var_name}': {e}")
+            return False
+
+    def _execute_missing_dependencies_recursively(
+        self,
+        missing_var_names: List[str],
+        execution_stack: List[str] = None
+    ) -> bool:
+        """
+        Recursively execute missing dependencies.
+
+        This method ensures all required dependencies are loaded into the kernel
+        before the main node execution. It intelligently loads already-validated
+        nodes from files and recursively executes other nodes.
+
+        Args:
+            missing_var_names: List of variable names that need to be available
+            execution_stack: Stack of currently executing nodes (for cycle detection)
+
+        Returns:
+            True if all dependencies are successfully available, False if any fail
+        """
+        if execution_stack is None:
+            execution_stack = []
+
+        print(f"[RecursiveExec] Processing {len(missing_var_names)} missing dependencies")
+
+        for var_name in missing_var_names:
+            # var_name should correspond to a node_id
+            node = self.pm.get_node(var_name)
+            if not node:
+                print(f"[RecursiveExec] ✗ Node '{var_name}' not found in project")
+                return False
+
+            node_id = var_name
+
+            # Circular dependency detection
+            if node_id in execution_stack:
+                print(f"[RecursiveExec] ✗ Circular dependency detected: {' → '.join(execution_stack + [node_id])}")
+                return False
+
+            # Get node state
+            status = node.get('execution_status', 'not_executed')
+            result_path = node.get('result_path')
+            result_format = node.get('result_format', 'parquet')
+
+            print(f"[RecursiveExec] Processing dependency: {node_id} (status: {status})")
+
+            # If node is already validated and file exists, load from file
+            if status == 'validated' and result_path:
+                print(f"[RecursiveExec] Loading validated node '{node_id}' from cache")
+                if not self._load_variable_from_file(node_id, result_path, result_format):
+                    print(f"[RecursiveExec] ✗ Failed to load '{node_id}' from file")
+                    return False
+                print(f"[RecursiveExec] ✓ Successfully loaded '{node_id}' from cache")
+            else:
+                # Node not validated or file missing, need to execute it
+                print(f"[RecursiveExec] Executing dependency node: {node_id}")
+
+                # Recursively execute with updated stack
+                result = self.execute_node(node_id, execution_stack + [node_id])
+
+                if result.get('status') != 'success':
+                    error_msg = result.get('error_message', 'Unknown error')
+                    print(f"[RecursiveExec] ✗ Failed to execute '{node_id}': {error_msg}")
+                    return False
+
+                print(f"[RecursiveExec] ✓ Successfully executed '{node_id}'")
+
+        print(f"[RecursiveExec] ✓ All missing dependencies resolved")
+        return True
+
+    def _get_node_code(self, node_id: str) -> str:
+        """
+        Get the source code for a node from the notebook.
+
+        Args:
+            node_id: Node identifier
+
+        Returns:
+            Source code string, or empty string if not found
+        """
+        notebook = self.nm.notebook
+        if not notebook:
+            return ""
+
+        for cell in notebook.get('cells', []):
+            if cell.get('cell_type') == 'code':
+                metadata = cell.get('metadata', {})
+                if metadata.get('node_id') == node_id and not metadata.get('result_cell'):
+                    source = cell.get('source', '')
+                    if isinstance(source, list):
+                        return ''.join(source)
+                    return source
+
+        return ""
+
+    def execute_node(self, node_id: str, execution_stack: List[str] = None) -> Dict[str, Any]:
+        """
+        Execute a node with new 9-step recursive dependency workflow:
+        
+        Step 1: Form validation - check code assigns correct variable/function with correct type
+        Step 2: Analyze dependencies - extract required vars (do NOT write to depends_on yet)
+        Step 3: Check Kernel variables - which dependencies are already loaded?
+        Step 4: Recursively execute missing dependencies - load from cache or execute
+        Step 5: Auto-append save code - prepare code with result saving
+        Step 6: Execute current node code - run in Kernel
+        Step 7: Verify execution - check expected variable exists
+        Step 8: Update node status - mark as validated, set result_path
+        Step 9: Update dependencies - NOW write the analyzed deps to depends_on
+        
         Returns execution result with status, error message, etc.
         """
         result = {
@@ -506,59 +723,33 @@ print(f"✓ Saved pickle to {{save_path}}")"""
 
                 return result
 
-            # Step 2: Auto-append save code to persist results
+            # Step 2: Analyze dependencies (WITHOUT writing to depends_on yet)
+            print(f"\n[Execution] Step 2: Analyzing dependencies for '{node_id}'...")
+            analyzed_deps = self._analyze_dependencies_pre_execution(node_id)
+            print(f"[Execution] Analyzed dependencies: {analyzed_deps}")
+
+            # Step 3: Check which dependencies exist in Kernel
+            print(f"[Execution] Step 3: Checking Kernel variables...")
+            existing_vars, missing_vars = self._check_kernel_variables(analyzed_deps)
+            print(f"[Execution] Existing in Kernel: {existing_vars}")
+            print(f"[Execution] Missing (need to load/execute): {missing_vars}")
+
+            # Step 4: Recursively execute missing dependencies
+            if missing_vars:
+                print(f"[Execution] Step 4: Recursively executing {len(missing_vars)} missing dependencies...")
+                if not self._execute_missing_dependencies_recursively(missing_vars, execution_stack):
+                    result["error_message"] = f"Failed to execute dependencies for '{node_id}'"
+                    result["status"] = "pending_validation"
+                    return result
+                print(f"[Execution] ✓ All dependencies resolved")
+            else:
+                print(f"[Execution] Step 4: No missing dependencies, skipping recursive execution")
+
+            # Step 5: Auto-append save code to persist results
             result_format = node.get('result_format', 'parquet')
 
             # Always append save code to ensure results are persisted for frontend display
             code = self._auto_append_save_code(code, node_id, result_format)
-
-            # Step 4-5: Build execution order and execute parents
-            execution_order = self._build_execution_order(node_id)
-
-            for exec_node_id in execution_order:
-                if exec_node_id == node_id:
-                    break  # Don't execute parents that come after
-
-                # Check if this parent is already validated and in kernel
-                parent_node = self.pm.get_node(exec_node_id)
-                parent_status = parent_node.get('execution_status', 'not_executed')
-
-                # Execute parent if needed - load from result file if exists
-                parent_result_format = parent_node.get('result_format', 'parquet')
-                parent_result_path = parent_node.get('result_path')
-
-                if parent_result_path:
-                    # Try to load the result from file
-                    full_path = self.pm.project_path / parent_result_path
-                    if full_path.exists():
-                        # Load parent result into kernel
-                        if parent_result_format == 'parquet':
-                            load_code = f"""
-import pandas as pd
-{exec_node_id} = pd.read_parquet(r'{full_path}')
-"""
-                        elif parent_result_format == 'json':
-                            load_code = f"""
-import json
-with open(r'{full_path}', 'r', encoding='utf-8') as f:
-    {exec_node_id} = json.load(f)
-"""
-                        elif parent_result_format == 'pkl':
-                            load_code = f"""
-import pickle
-with open(r'{full_path}', 'rb') as f:
-    {exec_node_id} = pickle.load(f)
-"""
-                        else:
-                            continue
-
-                        # Execute load code in kernel
-                        try:
-                            self.km.execute_code(self.pm.project_id, load_code, timeout=30)
-                        except Exception as e:
-                            result["error_message"] = f"Failed to load parent {exec_node_id}: {str(e)}"
-                            result["status"] = "pending_validation"
-                            return result
 
             # Step 6: Execute current node code
             try:
@@ -611,8 +802,7 @@ with open(r'{full_path}', 'rb') as f:
 
                 return result
 
-            # Step 7: Post-check - verify same-named variable exists and has value
-            # Try to get the variable from kernel namespace
+            # Step 7: Verify execution - check if expected variable exists in kernel
             try:
                 # Check if variable exists in kernel
                 var_value = self.km.get_variable(self.pm.project_id, node_id)
@@ -649,14 +839,11 @@ with open(r'{full_path}', 'rb') as f:
 
                 return result
 
-            # Step 7.5: Skip post-check save (already saved by auto-append code in Step 3)
-            # 注意: 自动追加的 save 代码已经在 Step 3 中执行并保存了结果文件
-            # 这里不再进行二次保存以避免 get_variable() 方法的不可靠性问题
-            #
-            # 如果保存失败，自动追加的代码会在 Step 3 抛出异常，已被捕获
+            # Note: Save was already done by auto-appended code in Step 5
+            # We don't do a second save here to avoid unreliable get_variable() issues
             print(f"[Execution] ✓ Result already saved by auto-appended code during Kernel execution")
 
-            # Step 8: Generate/overwrite result cell
+            # Step 8.5: Generate/overwrite result cell
             try:
                 result_cell_code = ResultCellGenerator.generate_result_cell_code(
                     node_id,
@@ -738,17 +925,29 @@ with open(r'{full_path}', 'rb') as f:
 
             result_path = f"{target_dir}/{node_id}.{file_ext}"
 
-            # Call unified metadata sync method
+            # Call unified metadata sync method (Step 8: Update node status)
+            print(f"[Execution] Step 8: Updating node status...")
             execution_result = {
                 'result_path': result_path,
                 'inferred_type': inferred_type  # from form validation
             }
             self._sync_complete_metadata(node_id, execution_result, execution_time)
 
-            # Step 9.5: Analyze code and update depends_on (dynamic dependency discovery)
-            self._analyze_and_update_dependencies(node_id, code)
+            # Step 9: NOW update depends_on with the analyzed dependencies
+            # Important: We only write depends_on after ALL dependencies are successfully executed
+            print(f"[Execution] Step 9: Updating depends_on with analyzed dependencies: {analyzed_deps}")
+            node = self.pm.get_node(node_id)
+            node['depends_on'] = sorted(list(set(analyzed_deps)))  # Remove duplicates and sort
+            self.pm._save_metadata()
 
-            # Step 10: Generate/update markdown documentation for execution completion
+            # Also sync to notebook
+            try:
+                self.nm.sync_metadata_comments()
+                self.nm.save()
+            except Exception as e:
+                print(f"[Warning] Failed to sync notebook after updating depends_on: {e}")
+
+            # Final: Generate markdown documentation for execution completion
             self._generate_execution_markdown(node_id, node, start_time)
 
             result["status"] = "success"

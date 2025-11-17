@@ -379,6 +379,43 @@ class KernelManager:
         except Exception as e:
             raise RuntimeError(f"Error listing variables: {e}")
 
+    def variable_exists(self, project_id: str, var_name: str) -> bool:
+        """
+        Check if a variable exists in kernel namespace.
+
+        This is a lightweight check that doesn't retrieve the variable value,
+        unlike get_variable() which can be unreliable with complex objects.
+
+        Args:
+            project_id: Project identifier
+            var_name: Variable name to check
+
+        Returns:
+            True if variable exists in kernel, False otherwise
+
+        Raises:
+            RuntimeError: If kernel not found
+        """
+        kernel = self.get_kernel(project_id)
+        if kernel is None:
+            raise RuntimeError(f"No kernel found for project {project_id}")
+
+        try:
+            # Use a simple check that returns a boolean
+            code = f"print('{var_name}' in dir())"
+            result = self.execute_code(project_id, code, timeout=5)
+
+            if result["status"] != "success":
+                return False
+
+            # Parse the output
+            output = result["output"].strip().lower()
+            return output == "true"
+
+        except Exception as e:
+            print(f"[Warning] Error checking variable existence: {e}")
+            return False
+
     def shutdown_kernel(self, project_id: str) -> None:
         """
         Shutdown kernel for a project
