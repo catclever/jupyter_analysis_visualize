@@ -3989,11 +3989,11 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           {/* Code toggle button - hidden for formats like pkl that don't have result tables */}
           {shouldShowCodePanel(effectiveNodeResultFormat) && (
             <Button
-              variant={effectiveNodeExecutionStatus === 'not_executed' ? 'default' : (currentNodeViewMode === 'code' ? 'default' : 'ghost')}
+              variant={effectiveNodeExecutionStatus === 'not_executed' || effectiveNodeExecutionStatus === 'pending_validation' ? 'default' : (currentNodeViewMode === 'code' ? 'default' : 'ghost')}
               size="icon"
-              className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' || effectiveNodeExecutionStatus === 'pending_validation' ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={() => {
-                if (effectiveNodeExecutionStatus === 'not_executed') {
+                if (effectiveNodeExecutionStatus === 'not_executed' || effectiveNodeExecutionStatus === 'pending_validation') {
                   toast({
                     description: 'Please execute the code first',
                   });
@@ -4001,8 +4001,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                   setNodeViewMode(displayedNodeId, currentNodeViewMode === 'code' ? 'table' : 'code');
                 }
               }}
-              disabled={effectiveNodeExecutionStatus !== 'not_executed' && !currentData.code}
-              title={effectiveNodeExecutionStatus === 'not_executed' ? 'Run the code first to view results' : ''}
+              disabled={effectiveNodeExecutionStatus !== 'not_executed' && effectiveNodeExecutionStatus !== 'pending_validation' && !currentData.code}
+              title={effectiveNodeExecutionStatus === 'not_executed' || effectiveNodeExecutionStatus === 'pending_validation' ? 'Run the code first to view results' : ''}
             >
               <Code className="h-4 w-4" />
             </Button>
@@ -4012,9 +4012,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           <Button
             variant={nodeShowsConclusion ? 'default' : 'ghost'}
             size="icon"
-            className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`h-8 w-8 ${effectiveNodeExecutionStatus === 'not_executed' || effectiveNodeExecutionStatus === 'pending_validation' ? 'opacity-50 cursor-not-allowed' : ''}`}
             onClick={() => {
-              if (effectiveNodeExecutionStatus === 'not_executed') {
+              if (effectiveNodeExecutionStatus === 'not_executed' || effectiveNodeExecutionStatus === 'pending_validation') {
                 toast({
                   description: 'Please execute the code first',
                 });
@@ -4024,14 +4024,14 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 setNodeConclusionState(displayedNodeId, true);
               }
             }}
-            disabled={!hasConclusion && effectiveNodeExecutionStatus !== 'not_executed'}
+            disabled={!hasConclusion && (effectiveNodeExecutionStatus === 'not_executed' || effectiveNodeExecutionStatus === 'pending_validation')}
           >
             <FileText className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {effectiveNodeExecutionStatus === 'not_executed' ? (
+      {effectiveNodeExecutionStatus === 'not_executed' || effectiveNodeExecutionStatus === 'pending_validation' ? (
         <div className="h-full flex flex-col">
           <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
             <Button
