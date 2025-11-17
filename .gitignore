@@ -95,8 +95,8 @@ backend/test/temp/
 backend/test/*.pkl
 backend/test/generate_*
 
-# offline_packages
-*offline_package/
+# # offline_packages
+# *offline_package/
 
 # Editor directories and files
 .vscode/*
