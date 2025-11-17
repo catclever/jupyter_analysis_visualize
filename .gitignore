@@ -61,6 +61,10 @@ backend/*.pkl
 backend/*.parquet
 backend/.env
 backend/.env.local
+backend/whls/
+
+# Offline Package - Runtime artifacts
+1117_offline_package/backend/whls/
 
 # Projects - Generated Results (parquets, json, pkl are generated output)
 projects/*/parquets/
