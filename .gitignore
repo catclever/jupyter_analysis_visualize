@@ -63,6 +63,8 @@ backend/*.pkl
 backend/*.parquet
 backend/.env
 backend/.env.local
+# Backend - Wheel packages (offline deployment, not tracked in git)
+backend/whls/
 
 # Projects - Generated Results (parquets, json, pkl are generated output)
 projects/*/parquets/
