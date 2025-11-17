@@ -60,6 +60,13 @@ echo.
 
 REM 从根目录启动，确保路径解析正确
 cd /d "%~dp0"
+
+REM 清理 Python 缓存
+if exist backend\__pycache__ (
+    echo 清理 Python 缓存...
+    rmdir /s /q backend\__pycache__
+)
+
 %VENV_PYTHON% backend/app.py
 
 pause

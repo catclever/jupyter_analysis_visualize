@@ -66,18 +66,11 @@ print(f"[DEBUG] Backend directory: {Path(__file__).parent}")
 print(f"[DEBUG] Projects root: {PROJECTS_ROOT}")
 print(f"[DEBUG] Projects directory exists: {PROJECTS_ROOT.exists()}")
 
-# Mount frontend static files for serving the built React app
-# Similarly try relative path first, then fallback
+# Frontend static files configuration (will be mounted at the end, after all API routes)
 if Path("./frontend/dist").exists():
     FRONTEND_DIST = Path("./frontend/dist").resolve()
 else:
     FRONTEND_DIST = (Path(__file__).parent.parent / "frontend" / "dist").resolve()
-if FRONTEND_DIST.exists():
-    # Mount static files at root path, with index.html as fallback for SPA routing
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="static")
-else:
-    print(f"⚠️  Warning: Frontend dist directory not found at {FRONTEND_DIST}")
-    print("   Make sure to build the frontend: cd frontend && npm run build")
 
 
 def get_project_manager(project_id: str) -> ProjectManager:
@@ -138,6 +131,17 @@ def extract_variable_names(code: str) -> Set[str]:
     return loaded_names - builtins
 
 
+
+@app.get("/api/health/debug")
+def health_debug() -> Dict[str, Any]:
+    """Debug endpoint to check backend status"""
+    return {
+        "status": "ok",
+        "projects_root": str(PROJECTS_ROOT),
+        "projects_root_exists": PROJECTS_ROOT.exists(),
+        "projects_root_is_dir": PROJECTS_ROOT.is_dir() if PROJECTS_ROOT.exists() else False,
+        "projects_list": [d.name for d in PROJECTS_ROOT.iterdir() if d.is_dir()] if PROJECTS_ROOT.exists() else [],
+    }
 
 @app.get("/api/projects")
 def list_projects() -> Dict[str, Any]:
@@ -1032,6 +1036,15 @@ def execute_node(project_id: str, node_id: str) -> Dict[str, Any]:
 def health_check() -> Dict[str, str]:
     """Health check endpoint"""
     return {"status": "ok"}
+
+
+# Mount frontend static files at the very end (after all API routes)
+# This ensures API routes take priority over static files
+if FRONTEND_DIST.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="static")
+else:
+    print(f"⚠️  Warning: Frontend dist directory not found at {FRONTEND_DIST}")
+    print("   Make sure to build the frontend: cd frontend && npm run build")
 
 
 if __name__ == "__main__":
