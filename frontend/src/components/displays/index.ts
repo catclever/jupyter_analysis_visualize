@@ -9,3 +9,4 @@ export { ImageDisplay } from "./ImageDisplay";
 export { JsonDisplay } from "./JsonDisplay";
 export { EmptyDisplay } from "./EmptyDisplay";
 export { FunctionInfoDisplay } from "./FunctionInfoDisplay";
+export { DictResultDisplay } from "./DictResultDisplay";

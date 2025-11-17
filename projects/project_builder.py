@@ -13,6 +13,27 @@ class ProjectBuilder:
     A tool to convert a standard Jupyter Notebook into a structured data analysis project.
     """
 
+    def _is_tool_node(self, source_code: str) -> bool:
+        """
+        Determines if a cell is a 'tool' node by checking its top-level statements.
+        A cell is a tool if it ONLY contains imports, functions, and class definitions.
+        """
+        try:
+            tree = ast.parse(source_code)
+            has_definitions = False
+            for node in tree.body:
+                if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                    has_definitions = True
+                elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                    pass  # Imports are allowed
+                elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+                    pass  # Allow module-level docstrings
+                else:
+                    return False  # Found other executable code
+            return has_definitions
+        except SyntaxError:
+            return False
+
     def _infer_node_type(self, source_code: str) -> str:
         """
         Infers the node type based on the cell's source code.
@@ -20,7 +41,7 @@ class ProjectBuilder:
         """
         if re.search(r"import\s+plotly|import\s+matplotlib|px\.|go\.", source_code):
             return "chart"
-        if re.search(r"^\s*def\s+", source_code, re.MULTILINE):
+        if self._is_tool_node(source_code):
             return "tool"
         if re.search(r"pd\.read_csv|pd\.read_excel|pd\.read_sql", source_code):
             return "data_source"
@@ -39,46 +60,51 @@ class ProjectBuilder:
     def _extract_node_info(self, source_code: str, cell_index: int, node_type: str) -> Tuple[str, str]:
         """
         Extracts node_id and name from the cell source code using AST parsing.
-        It uses the last assigned variable name as the node_id.
+        - For 'tool' nodes, it uses the last function/class name.
+        - For other nodes, it uses the last TOP-LEVEL assigned variable name.
         """
-        last_assignment = None
+        node_id, name = None, None
         try:
             tree = ast.parse(source_code)
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Assign):
-                    # We only care about simple variable assignments, e.g., `x = ...`
-                    if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
-                        last_assignment = node.targets[0].id
+            if node_type == 'tool':
+                last_def_name = None
+                for node in tree.body:
+                    if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                        last_def_name = node.name
+                if last_def_name:
+                    node_id = last_def_name
+            else: # For compute, chart, data_source
+                last_assignment = None
+                # Iterate over top-level statements only, not the whole tree
+                for node in tree.body:
+                    if isinstance(node, ast.Assign):
+                        if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                            last_assignment = node.targets[0].id
+                if last_assignment:
+                    node_id = last_assignment
+            
+            if node_id:
+                name = node_id.replace('_', ' ').strip().title()
+
         except SyntaxError:
-            # If code is not valid Python, fall back to default naming
             pass
 
-        if last_assignment:
-            node_id = last_assignment
-            # Create a "pretty" name from the variable name
-            name = node_id.replace('_', ' ').strip()
-            name = re.sub(' +', ' ', name) # Replace multiple spaces with one
-            name = name.title()
-            return node_id, name
+        # Fallback logic if AST parsing fails or no suitable name is found
+        if not node_id:
+            first_line = source_code.splitlines()[0].strip() if source_code.splitlines() else ""
+            if first_line.startswith("#"):
+                name = first_line.lstrip('# ').strip()
+                node_id = name.replace(' ', '_').lower()
+            else:
+                name = f"Cell {cell_index}: {node_type.capitalize()}"
+                node_id = f"cell_{cell_index}_{node_type.lower()}"
+            node_id = re.sub(r'[^\w-]', '', node_id)
 
-        # Fallback logic if no assignment is found
-        first_line = source_code.splitlines()[0].strip() if source_code.splitlines() else ""
-        if first_line.startswith("#"):
-            name = first_line.lstrip('# ').strip()
-            node_id = name.replace(' ', '_').lower()
-        else:
-            name = f"Cell {cell_index}: {node_type.capitalize()}"
-            node_id = f"cell_{cell_index}_{node_type.lower()}"
-        
-        # Clean up the generated node_id
-        node_id = re.sub(r'[^\w-]', '', node_id)
         return node_id, name
-
 
     def annotate_notebook(self, notebook_path: Path):
         """
         Reads a notebook, adds metadata comments to each code cell, and saves it in place.
-        This method ONLY adds comments to the source code, it does NOT update cell metadata.
         """
         print(f"Annotating notebook: {notebook_path}")
         try:

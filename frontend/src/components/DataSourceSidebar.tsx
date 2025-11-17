@@ -49,6 +49,8 @@ export function DataSourceSidebar({
         setIsLoadingProjects(true);
         const projectList = await listProjects();
         setProjects(projectList);
+
+
         // 当项目列表加载完成后，如果当前dataset不在列表中，选择第一个项目
         if (projectList.length > 0) {
           const currentProjectExists = projectList.some(p => p.id === currentDatasetId);
@@ -217,6 +219,10 @@ export function DataSourceSidebar({
                       }}
                       onClick={() => {
                         // 点击结论：选中对应节点，同时高亮这个结论
+                        // DEBUG: For dict_result_test, show node selection
+                        if (currentDatasetId === "dict_result_test") {
+                          alert(`[DEBUG] Selecting node: ${item.nodeId}`);
+                        }
                         onNodeSelect(item.nodeId);
                         setSelectedConclusionId(item.id);
                       }}

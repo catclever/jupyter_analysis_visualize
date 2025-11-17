@@ -166,13 +166,24 @@ def get_project(project_id: str) -> Dict[str, Any]:
             if node_type == "data":
                 node_type = "data_source"
 
+            # Check if result is dict of DataFrames (directory) or single DataFrame (file)
+            result_path = node_info.get("result_path")
+            # Use is_dict_result from metadata if available, otherwise detect from path
+            result_is_dict = node_info.get("is_dict_result", False)
+            if not result_is_dict and result_path and node_info.get("execution_status") == "validated":
+                from pathlib import Path
+                full_result_path = Path(pm.project_path) / result_path
+                if full_result_path.is_dir():
+                    result_is_dict = True
+
             nodes.append({
                 "id": node_info["node_id"],
                 "label": node_info["name"],
                 "type": node_type,  # Pass through backend type directly
                 "execution_status": node_info.get("execution_status", "not_executed"),
                 "result_format": node_info.get("result_format"),
-                "result_path": node_info.get("result_path"),
+                "result_path": result_path,
+                "result_is_dict": result_is_dict,  # NEW: Indicates if result is dict of DataFrames
                 "output": node_info.get("output"),  # Include output metadata for frontend display rules
                 "error_message": node_info.get("error_message"),  # Error message if execution failed
                 "last_execution_time": node_info.get("last_execution_time"),  # ISO timestamp of last execution
@@ -196,6 +207,82 @@ def get_project(project_id: str) -> Dict[str, Any]:
             "updated_at": project_data["updated_at"],
             "nodes": nodes,
             "edges": edges,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/projects/{project_id}/nodes/{node_id}/dict-result")
+def get_dict_result(project_id: str, node_id: str) -> Dict[str, Any]:
+    """
+    Get dict of DataFrames result for a node.
+
+    Returns:
+    {
+        "keys": ["key1", "key2", "key3"],
+        "tables": {
+            "key1": [{"col1": val, "col2": val}, ...],
+            "key2": [...],
+            ...
+        }
+    }
+    """
+    try:
+        pm = get_project_manager(project_id)
+        import pandas as pd
+        import json
+        from pathlib import Path
+
+        if pm.metadata is None:
+            raise HTTPException(status_code=500, detail="Failed to load project metadata")
+
+        # Find node info
+        node_info = None
+        for node in pm.metadata.nodes.values():
+            if node["node_id"] == node_id:
+                node_info = node
+                break
+
+        if node_info is None:
+            raise HTTPException(status_code=404, detail="Node not found")
+
+        result_path = node_info.get("result_path")
+        if not result_path:
+            raise HTTPException(status_code=404, detail="Node has no result")
+
+        full_result_path = Path(pm.project_path) / result_path
+
+        # Check if it's a dict result (directory)
+        if not full_result_path.is_dir():
+            raise HTTPException(status_code=400, detail="Result is not a dict of DataFrames")
+
+        # Read metadata
+        metadata_path = full_result_path / "_metadata.json"
+        if not metadata_path.exists():
+            raise HTTPException(status_code=400, detail="Dict result is missing metadata")
+
+        with open(str(metadata_path), 'r') as f:
+            metadata = json.load(f)
+
+        keys = metadata.get("keys", [])
+
+        # Load each DataFrame and convert to JSON-serializable format
+        tables = {}
+        for key in keys:
+            parquet_path = full_result_path / f"{key}.parquet"
+            if not parquet_path.exists():
+                raise HTTPException(status_code=500, detail=f"DataFrame '{key}' not found")
+
+            df = pd.read_parquet(str(parquet_path))
+            # Convert to list of dicts for frontend consumption
+            tables[key] = df.to_dict('records')
+
+        return {
+            "keys": keys,
+            "tables": tables
         }
 
     except HTTPException:

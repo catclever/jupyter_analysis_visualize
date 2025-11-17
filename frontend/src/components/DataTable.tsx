@@ -35,12 +35,13 @@ import { highlight, languages } from "prismjs";
 import "prismjs/components/prism-python";
 import "prismjs/themes/prism-tomorrow.css";
 import remarkGfm from "remark-gfm";
-import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, executeNode, getImageUrl, getProject, type PaginatedData } from "@/services/api";
+import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, executeNode, getImageUrl, getProject, getDictResult, type PaginatedData } from "@/services/api";
 import { useProjectCache } from "@/hooks/useProjectCache";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
 import { useToast } from "@/hooks/use-toast";
 import { shouldLoadResultData, getDefaultPanel, shouldShowCodePanel } from "@/config/displayRegistry";
+import { DictResultDisplay } from "@/components/displays/DictResultDisplay";
 
 interface DataRow {
   [key: string]: string | number;
@@ -3378,6 +3379,7 @@ function renderChart(chartType: string | undefined, data: DataRow[]) {
 
 export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'ecommerce_analytics', onProjectUpdate }: DataTableProps) {
   const [apiData, setApiData] = useState<PaginatedData<any> | null>(null);
+  const [dictResult, setDictResult] = useState<any | null>(null);
   const [apiCode, setApiCode] = useState<string>('');
   const [apiCodeWithMetadata, setApiCodeWithMetadata] = useState<string>('');
   const [apiMarkdown, setApiMarkdown] = useState<string>('');
@@ -3402,6 +3404,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const { projectCache, loadProject, updateProjectCache } = useProjectCache();
   const markdownChanges = useUnsavedChanges();
   const codeChanges = useUnsavedChanges();
+
   const { toast } = useToast();
 
   // Get per-node conclusion state, or use default if not set
@@ -3517,22 +3520,42 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           }
         }
 
-        // 根据结果格式决定是否加载数据
-        // 某些格式（如pkl）不需要通过API加载数据
-        if (shouldLoadResultData(nodeResultFormat)) {
+        // 检查是否是dict结果
+        const projectData = await getProject(projectId);
+        const currentNode = projectData.nodes.find((n: any) => n.id === displayedNodeId);
+
+
+        if (currentNode?.result_is_dict) {
+          // 加载dict结果
           try {
-            const data = await getNodeData(projectId, displayedNodeId, 1, 10);
-            if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization' || data.format === 'pkl') {
-              setApiData(data);
-            }
-          } catch (err) {
-            // 未执行节点没有数据，这是正常的
-            console.log('No data available for node (may not be executed)', displayedNodeId);
+            const dictData = await getDictResult(projectId, displayedNodeId);
+            setDictResult(dictData);
             setApiData(null);
+            // Ensure view mode is set to 'table' for dict results
+            setNodeViewMode(displayedNodeId, 'table');
+          } catch (err) {
+            console.error('[DataTable] Failed to load dict result:', err);
+            setDictResult(null);
           }
         } else {
-          // 某些格式（如pkl）不需要加载结果数据
-          setApiData(null);
+          // 根据结果格式决定是否加载数据
+          // 某些格式（如pkl）不需要通过API加载数据
+          setDictResult(null);
+          if (shouldLoadResultData(nodeResultFormat)) {
+            try {
+              const data = await getNodeData(projectId, displayedNodeId, 1, 10);
+              if (data.format === 'parquet' || data.format === 'image' || data.format === 'visualization' || data.format === 'pkl') {
+                setApiData(data);
+              }
+            } catch (err) {
+              // 未执行节点没有数据，这是正常的
+              console.log('No data available for node (may not be executed)', displayedNodeId);
+              setApiData(null);
+            }
+          } else {
+            // 某些格式（如pkl）不需要加载结果数据
+            setApiData(null);
+          }
         }
 
         // 加载代码
@@ -3624,6 +3647,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   // 对于image节点，自动显示markdown面板（即使用户未显式打开）
   const isImageNode = effectiveNodeResultFormat === 'image' || effectiveNodeResultFormat === 'visualization';
   const nodeShowsConclusion = getNodeConclusionState(displayedNodeId);
+  // For dict results, only force show conclusion if it was explicitly opened, otherwise use user's preference
   const effectiveShowConclusion = nodeShowsConclusion || isImageNode;
 
   // Get current node's viewMode
@@ -4071,6 +4095,14 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             }}
           />
         </div>
+      ) : dictResult && !effectiveShowConclusion ? (
+        // Display dict result without markdown panel if markdown is not explicitly opened
+        <div className="h-full overflow-auto">
+          <DictResultDisplay
+            keys={dictResult.keys}
+            tables={dictResult.tables}
+          />
+        </div>
       ) : effectiveShowConclusion ? (
         <ResizablePanelGroup direction="horizontal" className="flex-1">
           <ResizablePanel defaultSize={60} minSize={30}>
@@ -4099,36 +4131,43 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 )}
               </div>
             ) : currentNodeViewMode === 'table' ? (
-              <div className="overflow-x-auto h-full">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-table-header hover:bg-table-header">
-                      {currentData.headers.map((header, index) => (
-                        <TableHead key={index} className="font-semibold whitespace-nowrap">
-                          {header}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {currentData.data.map((row, rowIndex) => (
-                      <TableRow
-                        key={rowIndex}
-                        className="hover:bg-table-hover transition-colors"
-                      >
-                        {currentData.headers.map((header, colIndex) => (
-                          <TableCell
-                            key={colIndex}
-                            className={colIndex === 0 ? "font-medium whitespace-nowrap" : "whitespace-nowrap"}
-                          >
-                            {row[header]}
-                          </TableCell>
+              dictResult ? (
+                <DictResultDisplay
+                  keys={dictResult.keys}
+                  tables={dictResult.tables}
+                />
+              ) : (
+                <div className="overflow-x-auto h-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-table-header hover:bg-table-header">
+                        {currentData.headers.map((header, index) => (
+                          <TableHead key={index} className="font-semibold whitespace-nowrap">
+                            {header}
+                          </TableHead>
                         ))}
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {currentData.data.map((row, rowIndex) => (
+                        <TableRow
+                          key={rowIndex}
+                          className="hover:bg-table-hover transition-colors"
+                        >
+                          {currentData.headers.map((header, colIndex) => (
+                            <TableCell
+                              key={colIndex}
+                              className={colIndex === 0 ? "font-medium whitespace-nowrap" : "whitespace-nowrap"}
+                            >
+                              {row[header]}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
             ) : isEditingCode ? (
               <div className="h-full flex flex-col">
                 <div className="flex items-center gap-2 px-4 py-2 border-b border-border">

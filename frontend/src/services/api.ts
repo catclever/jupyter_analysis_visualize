@@ -25,6 +25,7 @@ export interface ProjectNode {
   execution_status: 'not_executed' | 'pending_validation' | 'validated';
   result_format?: string;
   result_path?: string;
+  result_is_dict?: boolean;
   output?: unknown;
   error_message?: string | null;
   last_execution_time?: string | null;
@@ -123,6 +124,27 @@ export async function getNodeData<T = unknown>(
   );
   if (!response.ok) {
     throw new Error(`Failed to fetch node data: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get dict of DataFrames result for a node
+ */
+export interface DictResult {
+  keys: string[];
+  tables: Record<string, Array<Record<string, unknown>>>;
+}
+
+export async function getDictResult(
+  projectId: string,
+  nodeId: string
+): Promise<DictResult> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/dict-result`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch dict result: ${response.statusText}`);
   }
   return response.json();
 }

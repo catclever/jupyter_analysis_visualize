@@ -904,6 +904,7 @@ with open(r'{full_path}', 'rb') as f:
                 return result
 
             # Step 7: Verify execution - check if expected variable exists in kernel
+            var_value = None
             try:
                 # Check if variable exists in kernel
                 var_value = self.km.get_variable(self.pm.project_id, node_id)
@@ -1012,25 +1013,43 @@ with open(r'{full_path}', 'rb') as f:
             is_visualization = node.get('type') in ['image', 'chart']
             target_dir = 'visualizations' if is_visualization else 'parquets'
 
-            # Determine file extension based on format
+            # Check if result is a dict of DataFrames (for parquet format)
+            # by checking if the auto-appended code saved it as a directory
+            is_dict_result = False
             if result_format == 'parquet':
-                file_ext = 'parquet'
-            elif result_format == 'json':
-                file_ext = 'json'
-            elif result_format in ['image', 'visualization']:
-                file_ext = 'png'
-            elif result_format == 'pkl':
-                file_ext = 'pkl'
-            else:
-                file_ext = result_format
+                from pathlib import Path
+                # Check if a directory was created (dict of DataFrames) or a single file
+                parquets_path = Path(self.pm.parquets_path)
+                node_dir = parquets_path / node_id
+                node_file = parquets_path / f"{node_id}.parquet"
 
-            result_path = f"{target_dir}/{node_id}.{file_ext}"
+                if node_dir.is_dir() and (node_dir / '_metadata.json').exists():
+                    # Dict of DataFrames - saved as directory with metadata
+                    is_dict_result = True
+                    result_path = f"{target_dir}/{node_id}"
+                    print(f"[Execution] Detected dict of DataFrames result - saved as directory")
+                else:
+                    # Single DataFrame - saved as file
+                    result_path = f"{target_dir}/{node_id}.parquet"
+            else:
+                # Determine file extension based on format
+                if result_format == 'json':
+                    file_ext = 'json'
+                elif result_format in ['image', 'visualization']:
+                    file_ext = 'png'
+                elif result_format == 'pkl':
+                    file_ext = 'pkl'
+                else:
+                    file_ext = result_format
+
+                result_path = f"{target_dir}/{node_id}.{file_ext}"
 
             # Call unified metadata sync method (Step 8: Update node status)
             print(f"[Execution] Step 8: Updating node status...")
             execution_result = {
                 'result_path': result_path,
-                'inferred_type': inferred_type  # from form validation
+                'inferred_type': inferred_type,  # from form validation
+                'is_dict_result': is_dict_result
             }
             self._sync_complete_metadata(node_id, execution_result, execution_time)
 
@@ -1157,6 +1176,10 @@ with open(r'{full_path}', 'rb') as f:
             # Store inferred type if available
             if 'inferred_type' in execution_result:
                 node['output_type'] = execution_result['inferred_type']
+
+            # Store is_dict_result flag if available
+            if 'is_dict_result' in execution_result:
+                node['is_dict_result'] = execution_result['is_dict_result']
 
             # Save project.json
             self.pm._save_metadata()

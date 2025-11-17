@@ -271,9 +271,17 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   };
 
   const handleNodeClick = (_event: React.MouseEvent | any, node: Node) => {
-    console.log('[FlowDiagram] Node clicked:', node.id);
-    // 阻止事件冒泡，防止触发缩放
-    _event?.stopPropagation?.();
+    console.log('[FlowDiagram] ✓ Node click registered:', node.id, '- Opening DataTable');
+
+    // Prevent both propagation and default behavior to block pan/zoom
+    if (_event?.stopPropagation) {
+      _event.stopPropagation();
+    }
+    if (_event?.preventDefault) {
+      _event.preventDefault();
+    }
+
+    // Call the parent component's handler
     onNodeClick(node.id);
   };
 
@@ -527,6 +535,16 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           background: hsl(var(--muted));
         }
 
+        /* Ensure nodes capture pointer events properly */
+        .react-flow__node {
+          pointer-events: auto;
+          cursor: pointer;
+        }
+
+        .react-flow__node > div {
+          pointer-events: auto;
+        }
+
         /* Execution status indicators - border colors */
         /* Target nodes by their status class - green for success */
         [class*="status-validated"] {
@@ -656,6 +674,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         selectNodesOnDrag={false}
         multiSelectionKeyCode={null}
         deleteKeyCode={null}
+        nodesDraggable={false}
+        nodesConnectable={false}
       >
         <Background />
         <Controls />

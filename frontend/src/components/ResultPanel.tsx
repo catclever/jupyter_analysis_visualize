@@ -18,8 +18,9 @@ import {
   ImageDisplay,
   JsonDisplay,
   EmptyDisplay,
+  DictResultDisplay,
 } from "@/components/displays";
-import { getNodeData, getProject, type ProjectNode } from "@/services/api";
+import { getNodeData, getDictResult, getProject, type ProjectNode, type DictResult } from "@/services/api";
 import { AlertCircle, Loader2 } from "lucide-react";
 
 interface ResultPanelProps {
@@ -46,6 +47,7 @@ export function ResultPanel({
   const [tableData, setTableData] = useState<TableData | null>(null);
   const [jsonData, setJsonData] = useState<unknown>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [dictResult, setDictResult] = useState<DictResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -53,6 +55,24 @@ export function ResultPanel({
 
   // Use currentDatasetId directly - no mapping needed as we now load projects dynamically
   const projectId = currentDatasetId;
+
+  // DEBUG: For dict_result_test project, show alert immediately
+  useEffect(() => {
+    if (projectId === "dict_result_test") {
+      const fetchDebugInfo = async () => {
+        try {
+          const project = await getProject(projectId);
+          const debugInfo = project.nodes.map((n: any) =>
+            `${n.id}: result_is_dict=${n.result_is_dict}, path=${n.result_path}`
+          ).join("\n");
+          alert("[DEBUG dict_result_test]\n" + debugInfo);
+        } catch (e) {
+          alert("Error loading debug info: " + String(e));
+        }
+      };
+      fetchDebugInfo();
+    }
+  }, [projectId]);
 
   // Fetch node data
   useEffect(() => {
@@ -62,6 +82,7 @@ export function ResultPanel({
       setTableData(null);
       setJsonData(null);
       setImageUrl(null);
+      setDictResult(null);
       return;
     }
 
@@ -73,14 +94,29 @@ export function ResultPanel({
 
         // Get project info to find node details
         const project = await getProject(projectId);
+        console.log("[DEBUG] Full project loaded:", project);
+
         const node = project.nodes.find((n) => n.id === selectedNodeId);
+        console.log("[DEBUG] Selected node:", node);
 
         if (!node) {
           setError(`Node ${selectedNodeId} not found in project`);
           return;
         }
 
+        // DEBUG: Show alert with node info
+        const debugMsg = `Node: ${node.id}\nresult_is_dict: ${node.result_is_dict}\nresult_path: ${node.result_path}\nexecution_status: ${node.execution_status}`;
+        alert("[DEBUG]\n" + debugMsg);
+
         setNodeInfo(node);
+
+        // DEBUG: Log node info
+        console.log("[ResultPanel] Node loaded:", {
+          id: node.id,
+          result_is_dict: node.result_is_dict,
+          result_path: node.result_path,
+          execution_status: node.execution_status
+        });
 
         // Determine display type from node output configuration
         let inferredDisplayType: DisplayType = DisplayType.NONE;
@@ -98,39 +134,59 @@ export function ResultPanel({
 
         setDisplayType(inferredDisplayType);
 
-        // Fetch result data based on result_format
-        const data = await getNodeData(projectId, selectedNodeId, 1, pageSize);
-
-        // Load data based on format
-        if (data.format === "parquet") {
-          setTableData({
-            columns: data.columns || [],
-            rows: (Array.isArray(data.data) ? data.data : [data.data]) as Array<
-              Record<string, unknown>
-            >,
-            totalRecords: data.total_records,
-            currentPage: data.page,
-            totalPages: data.total_pages,
-          });
-          setJsonData(null);
-          setImageUrl(null);
-        } else if (data.format === "json") {
-          setJsonData(
-            Array.isArray(data.data) ? data.data[0] || data.data : data.data
-          );
-          setTableData(null);
-          setImageUrl(null);
-        } else if (data.format === "image") {
-          if (data.url) {
-            setImageUrl(data.url);
+        // Check if this is a dict result
+        console.log("[ResultPanel] Checking if dict result:", node.result_is_dict);
+        if (node.result_is_dict) {
+          try {
+            const dictData = await getDictResult(projectId, selectedNodeId);
+            setDictResult(dictData);
+            setTableData(null);
+            setJsonData(null);
+            setImageUrl(null);
+          } catch (err) {
+            console.error("Failed to fetch dict result:", err);
+            setError(err instanceof Error ? err.message : "Failed to fetch dict result");
+            setDictResult(null);
           }
-          setTableData(null);
-          setJsonData(null);
         } else {
-          // Unknown format - try to display as JSON
-          setJsonData(data);
-          setTableData(null);
-          setImageUrl(null);
+          // Fetch result data based on result_format
+          const data = await getNodeData(projectId, selectedNodeId, 1, pageSize);
+
+          // Load data based on format
+          if (data.format === "parquet") {
+            setTableData({
+              columns: data.columns || [],
+              rows: (Array.isArray(data.data) ? data.data : [data.data]) as Array<
+                Record<string, unknown>
+              >,
+              totalRecords: data.total_records,
+              currentPage: data.page,
+              totalPages: data.total_pages,
+            });
+            setJsonData(null);
+            setImageUrl(null);
+            setDictResult(null);
+          } else if (data.format === "json") {
+            setJsonData(
+              Array.isArray(data.data) ? data.data[0] || data.data : data.data
+            );
+            setTableData(null);
+            setImageUrl(null);
+            setDictResult(null);
+          } else if (data.format === "image") {
+            if (data.url) {
+              setImageUrl(data.url);
+            }
+            setTableData(null);
+            setJsonData(null);
+            setDictResult(null);
+          } else {
+            // Unknown format - try to display as JSON
+            setJsonData(data);
+            setTableData(null);
+            setImageUrl(null);
+            setDictResult(null);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch node data:", err);
@@ -138,6 +194,7 @@ export function ResultPanel({
         setTableData(null);
         setJsonData(null);
         setImageUrl(null);
+        setDictResult(null);
       } finally {
         setIsLoading(false);
       }
@@ -223,8 +280,24 @@ export function ResultPanel({
           </div>
         )}
 
+        {/* DEBUG: Show what we're rendering */}
+        {!isLoading && !error && (
+          <div className="text-xs text-muted-foreground p-2 bg-muted/50">
+            [DEBUG] result_is_dict={nodeInfo?.result_is_dict ? "true" : "false"},
+            dictResult={dictResult ? "loaded" : "null"},
+            tableData={tableData ? "loaded" : "null"}
+          </div>
+        )}
+
         {!isLoading && !error && (
           <>
+            {dictResult && (
+              <DictResultDisplay
+                keys={dictResult.keys}
+                tables={dictResult.tables}
+              />
+            )}
+
             {displayType === DisplayType.TABLE && tableData && (
               <TableDisplay
                 columns={tableData.columns}
@@ -266,7 +339,7 @@ export function ResultPanel({
               </div>
             )}
 
-            {displayType === DisplayType.NONE && (
+            {displayType === DisplayType.NONE && !dictResult && (
               <EmptyDisplay
                 message="No result to display"
                 details="This node type does not produce a displayable result."
