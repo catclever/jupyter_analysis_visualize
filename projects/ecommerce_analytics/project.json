@@ -121,8 +121,10 @@
       "node_id": "p1_sales_chart",
       "node_type": "chart",
       "name": "Path 1: Sales by Category Chart",
-      "depends_on": [],
-      "execution_status": "validation_error",
+      "depends_on": [
+        "p1_category_sales"
+      ],
+      "execution_status": "not_executed",
       "result_format": "json",
       "result_path": null,
       "error_message": "Form validation error: Node 'p1_sales_chart' must return DataFrame, but code suggests figure"

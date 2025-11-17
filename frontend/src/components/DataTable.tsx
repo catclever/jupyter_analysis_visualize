@@ -4188,6 +4188,25 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                   >
                     Cancel
                   </Button>
+                  <div className="flex-1" />
+                  <Button
+                    size="sm"
+                    onClick={handleExecuteNode}
+                    disabled={isExecuting}
+                    className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700"
+                  >
+                    {isExecuting ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Executing...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-3 w-3 mr-1" />
+                        Execute
+                      </>
+                    )}
+                  </Button>
                 </div>
                 <CodeEditor
                   value={editingCode}
@@ -4324,6 +4343,25 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               >
                 Cancel
               </Button>
+              <div className="flex-1" />
+              <Button
+                size="sm"
+                onClick={handleExecuteNode}
+                disabled={isExecuting}
+                className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700"
+              >
+                {isExecuting ? (
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Executing...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3 w-3 mr-1" />
+                    Execute
+                  </>
+                )}
+              </Button>
             </div>
             <CodeEditor value={editingCode} onChange={handleCodeChange} />
           </div>
@@ -4401,6 +4439,25 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 className="h-7 px-2 text-xs"
               >
                 Cancel
+              </Button>
+              <div className="flex-1" />
+              <Button
+                size="sm"
+                onClick={handleExecuteNode}
+                disabled={isExecuting}
+                className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700"
+              >
+                {isExecuting ? (
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Executing...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3 w-3 mr-1" />
+                    Execute
+                  </>
+                )}
               </Button>
             </div>
             <CodeEditor value={editingCode} onChange={handleCodeChange} />
