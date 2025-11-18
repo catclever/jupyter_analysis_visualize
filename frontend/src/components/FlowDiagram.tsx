@@ -42,9 +42,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Debug state - track click information
-  const [debugInfo, setDebugInfo] = useState<string>('Waiting for click...');
-  const [showDebug, setShowDebug] = useState(true);
 
   // 从 API 获取项目数据
   useEffect(() => {
@@ -181,8 +178,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         if (nodeIndex !== -1) {
           if (change.type === 'position' && change.position) {
             // Update position for drag operations
-            console.log('📍 Node dragged:', change.id, 'to', change.position);
-            setDebugInfo(`📍 Dragging: ${change.id}`);
             updatedNodes[nodeIndex] = {
               ...updatedNodes[nodeIndex],
               position: change.position,
@@ -277,25 +272,10 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   };
 
   const handleNodeClick = (_event: React.MouseEvent | any, node: Node) => {
-    console.log('✅ handleNodeClick FIRED for node:', node.id);
-
-    const debugMsg = `✅ SELECTED: ${node.id}`;
-    setDebugInfo(debugMsg);
-
     // 调用点击回调让父组件更新选择状态
     onNodeClick(node.id);
   };
 
-  // 处理画布点击（当点击不在节点上时）
-  const handlePaneClick = (_event: React.MouseEvent | any) => {
-    console.log('🖱️ Pane clicked (not on node)');
-    const debugMsg = `🖱️ Canvas clicked - deselecting`;
-    setDebugInfo(debugMsg);
-
-    // 注意: onNodeClick 期望一个 string nodeId，不能传 null
-    // 所以我们只更新本地选择，但不调用回调
-    // 实际上应该由父组件处理背景点击的取消选择逻辑
-  };
 
   const toggleNodeTypeFilter = (type: 'data' | 'compute' | 'chart') => {
     const newFilter = new Set(nodeTypeFilter);
@@ -370,24 +350,25 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         [class*="flow-node-"] {
           border: 2px solid transparent;
           border-radius: 8px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-          width: auto !important;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          width: auto;
           min-width: 140px;
           padding: 12px 20px;
         }
 
-        /* Ensure status classes are applied to ReactFlow node wrapper */
-        /* ReactFlow applies the className to the node container */
+        /* ReactFlow node基础样式 */
         .react-flow__node {
-          border: 2px solid transparent !important;
+          border: 2px solid transparent;
           border-radius: 8px;
+          pointer-events: auto;
+          cursor: pointer;
         }
 
         [class*="flow-node-"] > div {
           font-weight: 500;
           font-size: 13px;
           text-align: center;
-          cursor: pointer;
+          pointer-events: auto;
         }
 
         /* 数据源节点 (data_source) - 莫兰迪蓝 */
@@ -400,14 +381,14 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         }
 
         .flow-node-data_source.selected {
-          background: #a8c5da !important;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 197, 218, 0.8) !important;
+          background: #a8c5da;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 197, 218, 0.8);
         }
 
         .flow-node-data_source.parent {
-          background: #a8c5da !important;
+          background: #a8c5da;
           opacity: 1;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .flow-node-data_source.ancestor {
@@ -614,6 +595,16 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         .flow-node-status-badge.not_executed {
           color: #999;
         }
+
+        /* 确保节点层级高于pane_draggable，这样点击节点优先被识别 */
+        .react-flow__node {
+          z-index: 10 !important;
+        }
+
+        /* pane_draggable层级要低于节点，但要允许拖拽 */
+        .react-flow__pane {
+          z-index: 1 !important;
+        }
       `}</style>
       
       <ReactFlow
@@ -692,13 +683,13 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onNodeClick={handleNodeClick}
-        onPaneClick={handlePaneClick}
         connectionMode={ConnectionMode.Loose}
         fitView
         attributionPosition="bottom-left"
         selectNodesOnDrag={true}
         multiSelectionKeyCode={null}
         deleteKeyCode={null}
+        zoomOnDoubleClick={false}
       >
         <Background />
         <Controls />
@@ -724,21 +715,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           </div>
         )}
 
-        {/* Debug Panel */}
-        {showDebug && (
-          <div className="absolute bottom-4 left-4 bg-slate-900 text-white p-3 rounded border border-slate-700 text-sm font-mono z-40 max-w-xs">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-bold">🐛 Debug Info</span>
-              <button
-                onClick={() => setShowDebug(false)}
-                className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded"
-              >
-                Hide
-              </button>
-            </div>
-            <div className="text-green-400">{debugInfo}</div>
-          </div>
-        )}
 
         {/* Empty state overlay - very light, non-intrusive */}
         {!isLoading && currentNodes.length === 0 && (
