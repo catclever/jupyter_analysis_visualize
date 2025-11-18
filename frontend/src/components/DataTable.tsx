@@ -3842,6 +3842,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // Update local node execution status immediately for UI refresh
         setNodeExecutionStatus('validated');
 
+        onProjectUpdate?.();
+
         // Also reload the node's result data immediately
         if (displayedNodeId) {
           try {
@@ -3884,6 +3886,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         } catch (error) {
           console.error('Failed to refresh project data:', error);
         }
+
+        onProjectUpdate?.();
       } else {
         toast({
           variant: 'destructive',
