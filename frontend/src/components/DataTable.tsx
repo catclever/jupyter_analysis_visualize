@@ -3866,7 +3866,16 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         });
         // Update local node execution status to reflect pending validation
         setNodeExecutionStatus('pending_validation');
-        // Force reload from backend to see pending_validation status
+
+        // IMPORTANT: Do NOT refresh DataTable on execution failure!
+        // Reason:
+        // - Code changes were already saved to backend before execution
+        // - User needs to see and edit their code to fix the error
+        // - Reloading code would revert to the "saved" version, losing the editing context
+        // - User must fix the code and retry execution
+        //
+        // ONLY refresh flow diagram to show the updated error status
+        // Force reload from backend to update node status to pending_validation
         try {
           const updatedProject = await getProject(projectId);
           if (projectCache && updatedProject) {
@@ -3875,19 +3884,20 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         } catch (error) {
           console.error('Failed to refresh project data:', error);
         }
-        // Refresh flow diagram to show updated status
+        // Refresh flow diagram to show updated error status
         onProjectUpdate?.();
-        // Also refresh DataTable to show updated status
-        setNodeRefreshKey(prev => prev + 1);
+
+        // ❌ REMOVED: setNodeRefreshKey(prev => prev + 1);
+        // This would trigger the useEffect to reload code from backend,
+        // which would erase the user's edited code and revert to the saved version.
       } else {
         toast({
           variant: 'destructive',
           description: result.error_message || 'Execution error',
         });
-        // Refresh flow diagram on error
+        // Only refresh flow diagram to show updated status
+        // Do NOT refresh DataTable - user's code should be preserved for fixing
         onProjectUpdate?.();
-        // Also refresh DataTable on error
-        setNodeRefreshKey(prev => prev + 1);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Execution failed';
@@ -3899,10 +3909,9 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         variant: 'destructive',
         description: message,
       });
-      // Refresh flow diagram on error
+      // Only refresh flow diagram on error
+      // Do NOT refresh DataTable - user's code should be preserved for fixing
       onProjectUpdate?.();
-      // Also refresh DataTable on unexpected error
-      setNodeRefreshKey(prev => prev + 1);
     } finally {
       setIsExecuting(false);
     }
