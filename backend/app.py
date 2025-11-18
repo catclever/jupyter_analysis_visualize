@@ -898,8 +898,8 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any] = Body(
                         name=node_name
                     )
 
-                    # Combine header with code content
-                    full_code = header + '\n\n' + code_content
+                    # Combine header with code content (ensure single newline after header)
+                    full_code = header + '\n' + code_content
 
                     # Update the cell source
                     # Convert to list format (Jupyter format)

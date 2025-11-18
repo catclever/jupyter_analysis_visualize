@@ -759,9 +759,8 @@ else:
                 name=metadata.get("name")
             )
 
-            # Combine new header with actual code
-            # actual_code already includes leading newline from extraction
-            new_source = new_header + actual_code
+            # Combine new header with actual code ensuring exactly one newline after header
+            new_source = new_header + '\n' + actual_code.lstrip('\n')
 
             # Check if header needs to be updated (only compare header, ignore code changes)
             current_header_match = re.match(
@@ -771,7 +770,7 @@ else:
             )
             current_header = current_header_match.group(1) if current_header_match else ""
 
-            needs_update = current_header != new_header
+            needs_update = current_header != new_header.rstrip('\n')
 
             if needs_update:
                 cells_updated += 1
@@ -855,7 +854,7 @@ else:
 
         lines.append("# ===== End of system-managed metadata =====")
 
-        return '\n'.join(lines)
+        return '\n'.join(lines) + '\n'
 
 
 # Example usage (for testing)
