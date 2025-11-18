@@ -42,9 +42,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Debug state - track click information
-  const [debugInfo, setDebugInfo] = useState<string>('Waiting for click...');
-  const [showDebug, setShowDebug] = useState(true);
 
   // 从 API 获取项目数据
   useEffect(() => {
@@ -181,8 +178,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         if (nodeIndex !== -1) {
           if (change.type === 'position' && change.position) {
             // Update position for drag operations
-            console.log('📍 Node dragged:', change.id, 'to', change.position);
-            setDebugInfo(`📍 Dragging: ${change.id}`);
             updatedNodes[nodeIndex] = {
               ...updatedNodes[nodeIndex],
               position: change.position,
@@ -719,21 +714,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           </div>
         )}
 
-        {/* Debug Panel */}
-        {showDebug && (
-          <div className="absolute bottom-4 left-4 bg-slate-900 text-white p-3 rounded border border-slate-700 text-sm font-mono z-40 max-w-xs">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-bold">🐛 Debug Info</span>
-              <button
-                onClick={() => setShowDebug(false)}
-                className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded"
-              >
-                Hide
-              </button>
-            </div>
-            <div className="text-green-400">{debugInfo}</div>
-          </div>
-        )}
 
         {/* Empty state overlay - very light, non-intrusive */}
         {!isLoading && currentNodes.length === 0 && (
