@@ -291,14 +291,25 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   React.useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const isNodeClick = target.className &&
-        (typeof target.className === 'string' &&
-         (target.className.includes('flow-node-') ||
-          target.className.includes('react-flow__node')));
+      const tagName = target.tagName;
+      const className = target.className || '';
+
+      // 检查是否点击了节点相关元素
+      const isNodeClick = className &&
+        (typeof className === 'string' &&
+         (className.includes('flow-node-') ||
+          className.includes('react-flow__node')));
+
+      // 记录所有点击信息
+      const clickInfo = `${tagName} (${className.substring(0, 30)})`;
 
       if (isNodeClick) {
-        console.log('🌐 Global: Click on node element (class:', target.className, ')');
-        setDebugInfo(`🌐 Global click detected on: ${target.className}`);
+        console.log('🌐 Global: Click on node element:', clickInfo);
+        setDebugInfo(`🌐 Node: ${clickInfo}`);
+      } else {
+        // 记录非节点点击，用于诊断
+        console.log('📍 Click on:', clickInfo);
+        setDebugInfo(`📍 Click on: ${clickInfo}`);
       }
     };
 
