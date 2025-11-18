@@ -608,19 +608,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           color: #999;
         }
 
-        /* 禁用画布点击事件 - 覆盖XYFlow的点击处理 */
-        .react-flow__pane {
-          pointer-events: none !important;
-        }
-
-        /* 但保留节点的点击事件 */
-        .react-flow__node {
-          pointer-events: auto !important;
-        }
-
-        .react-flow__edge {
-          pointer-events: auto !important;
-        }
       `}</style>
       
       <ReactFlow
@@ -707,12 +694,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         multiSelectionKeyCode={null}
         deleteKeyCode={null}
         zoomOnDoubleClick={false}
-        zoomOnPinch={false}
-        panOnScroll={false}
-        panOnDrag={true}
       >
         <Background />
-        {/* <Controls /> */}  {/* 禁用控制条，以免有额外的点击操作 */}
+        <Controls />
         {localMinimapOpen && <MiniMap />}
         <div className="absolute bottom-4 right-4 z-40">
           <button
