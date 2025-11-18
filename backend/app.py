@@ -233,6 +233,7 @@ def get_project(project_id: str, response: Response) -> Dict[str, Any]:
                 "output": node_info.get("output"),  # Include output metadata for frontend display rules
                 "error_message": node_info.get("error_message"),  # Error message if execution failed
                 "last_execution_time": node_info.get("last_execution_time"),  # ISO timestamp of last execution
+                "position": node_info.get("position"),  # Node position in flow diagram {x, y}
             })
 
             # Build edges from dependencies
@@ -877,6 +878,38 @@ def update_node_markdown(project_id: str, node_id: str, body: Dict[str, Any] = B
                     }
 
         raise HTTPException(status_code=404, detail=f"Markdown not found for node {node_id}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/projects/{project_id}/nodes/{node_id}/position")
+def update_node_position(project_id: str, node_id: str, body: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+    """
+    Update the position of a node in the flow diagram
+
+    Updates the position coordinates (x, y) for a node and persists it to project.json
+    """
+    try:
+        pm = get_project_manager(project_id)
+
+        if pm.metadata is None:
+            raise HTTPException(status_code=500, detail="Failed to load project metadata")
+
+        position = body.get('position')
+        if not position or 'x' not in position or 'y' not in position:
+            raise HTTPException(status_code=400, detail="Invalid position format. Expected {x: float, y: float}")
+
+        # Update position in metadata
+        pm.update_node_position(node_id, position)
+
+        return {
+            "node_id": node_id,
+            "position": position,
+            "status": "success"
+        }
 
     except HTTPException:
         raise

@@ -484,8 +484,16 @@ except ImportError:
             raise RuntimeError(f"No kernel found for project {project_id}")
 
         try:
-            # Use a simple check that returns a boolean
-            code = f"print('{var_name}' in dir())"
+            code = (
+                "\n".join([
+                    "try:",
+                    "    ip = get_ipython()",
+                    "    ns = set(ip.user_ns.keys()) if ip else set(globals().keys())",
+                    "except NameError:",
+                    "    ns = set(globals().keys())",
+                    f"print('{var_name}' in ns)",
+                ])
+            )
             result = self.execute_code(project_id, code, timeout=5)
 
             if result["status"] != "success":

@@ -287,6 +287,7 @@ class CodeExecutor:
         self.pm = project_manager
         self.km = kernel_manager
         self.nm = notebook_manager
+        self.optimistic_mode = True
 
     def _ensure_kernel_with_cwd(self, project_id: str):
         """

@@ -29,6 +29,7 @@ export interface ProjectNode {
   output?: unknown;
   error_message?: string | null;
   last_execution_time?: string | null;
+  position?: { x: number; y: number } | null;
 }
 
 export interface ProjectEdge {
@@ -241,6 +242,30 @@ export async function updateNodeMarkdown(
   );
   if (!response.ok) {
     throw new Error(`Failed to update node markdown: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Update node position in flow diagram
+ */
+export async function updateNodePosition(
+  projectId: string,
+  nodeId: string,
+  position: { x: number; y: number }
+): Promise<{ node_id: string; position: { x: number; y: number }; status: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/position`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ position }),
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to update node position: ${response.statusText}`);
   }
   return response.json();
 }

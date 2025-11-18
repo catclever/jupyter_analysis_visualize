@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   ReactFlow,
   Node,
@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Eye, EyeOff } from 'lucide-react';
-import { getProject, type ProjectNode, type ProjectEdge } from '@/services/api';
+import { getProject, updateNodePosition, type ProjectNode, type ProjectEdge } from '@/services/api';
 import {
   getNodeColor,
   getNodeCategory,
@@ -90,6 +90,18 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Store debounce timeouts for node position updates (per node)
+  const positionUpdateTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Cleanup timeouts on component unmount
+  useEffect(() => {
+    const timeoutsRef = positionUpdateTimeoutsRef.current;
+    return () => {
+      Object.values(timeoutsRef).forEach(timeoutId => {
+        clearTimeout(timeoutId);
+      });
+    };
+  }, []);
 
   // 从 API 获取项目数据
   useEffect(() => {
@@ -142,26 +154,36 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
             };
           }
 
-          const layout = CATEGORY_LAYOUTS[category];
-          const categoryNodes = nodesByCategory.get(category) || [];
-          const nodeIndexInCategory = categoryNodes.findIndex(n => n.id === node.id);
+          // 如果节点有保存的位置，使用保存的位置；否则根据布局规则计算
+          let position: { x: number; y: number };
+          if (node.position && node.position.x !== undefined && node.position.y !== undefined) {
+            position = node.position;
+            console.log(`[FlowDiagram] Node ${node.id} using saved position:`, position);
+          } else {
+            const layout = CATEGORY_LAYOUTS[category];
+            const categoryNodes = nodesByCategory.get(category) || [];
+            const nodeIndexInCategory = categoryNodes.findIndex(n => n.id === node.id);
 
-          // 计算位置
-          let x = layout.x;
-          let y = nodeIndexInCategory * layout.spacing;
+            // 计算位置
+            let x = layout.x;
+            let y = nodeIndexInCategory * layout.spacing;
 
-          // 如果有列数限制，则使用网格布局
-          if (layout.columnCount) {
-            const row = Math.floor(nodeIndexInCategory / layout.columnCount);
-            const col = nodeIndexInCategory % layout.columnCount;
-            x = layout.x + (col * layout.spacing);
-            y = row * 250;  // 行间距为250
+            // 如果有列数限制，则使用网格布局
+            if (layout.columnCount) {
+              const row = Math.floor(nodeIndexInCategory / layout.columnCount);
+              const col = nodeIndexInCategory % layout.columnCount;
+              x = layout.x + (col * layout.spacing);
+              y = row * 250;  // 行间距为250
+            }
+
+            position = { x, y };
+            console.log(`[FlowDiagram] Node ${node.id} using calculated position:`, position);
           }
 
           return {
             id: node.id,
             type: 'default',
-            position: { x, y },
+            position: position,
             data: {
               label: node.label,
               type: node.type,
@@ -240,6 +262,30 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
               position: change.position,
               positionAbsolute: change.positionAbsolute,
             };
+
+            // Send position update to backend with debounce per node
+            const nodeId = change.id;
+            const position = change.position;
+
+            // Clear existing timeout for this node if any
+            if (positionUpdateTimeoutsRef.current[nodeId]) {
+              clearTimeout(positionUpdateTimeoutsRef.current[nodeId]);
+            }
+
+            // Set new timeout for this node
+            positionUpdateTimeoutsRef.current[nodeId] = setTimeout(() => {
+              console.log(`[FlowDiagram] Saving position for node ${nodeId}:`, position);
+              updateNodePosition(currentDatasetId, nodeId, position)
+                .then(() => {
+                  console.log(`[FlowDiagram] Position saved for node ${nodeId}`);
+                })
+                .catch((error) => {
+                  console.error(`[FlowDiagram] Failed to save position for node ${nodeId}:`, error);
+                });
+
+              // Clean up timeout reference
+              delete positionUpdateTimeoutsRef.current[nodeId];
+            }, 500); // Debounce 500ms to avoid too many requests while dragging
           } else if (change.type === 'select') {
             // Handle selection changes if needed
             updatedNodes[nodeIndex] = {
@@ -251,7 +297,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       });
       return updatedNodes;
     });
-  }, []);
+  }, [currentDatasetId]);
 
   // Handle edge changes
   const handleEdgesChange = React.useCallback((changes: any) => {

@@ -46,7 +46,8 @@ class ProjectMetadata:
         depends_on: Optional[List[str]] = None,
         execution_status: str = "not_executed",
         result_format: Optional[str] = None,
-        result_path: Optional[str] = None
+        result_path: Optional[str] = None,
+        position: Optional[Dict[str, float]] = None
     ) -> None:
         """
         Add a node to project metadata
@@ -59,6 +60,7 @@ class ProjectMetadata:
             execution_status: Execution state (not_executed, pending_validation, validated)
             result_format: Result format (parquet, json, image, visualization)
             result_path: Path to saved result file
+            position: Node position in flow diagram {x: float, y: float}
         """
         self.nodes[node_id] = {
             "node_id": node_id,
@@ -69,7 +71,8 @@ class ProjectMetadata:
             "result_format": result_format,
             "result_path": result_path,
             "error_message": None,  # Error message if execution failed
-            "last_execution_time": None  # ISO format timestamp of last execution
+            "last_execution_time": None,  # ISO format timestamp of last execution
+            "position": position  # Node position {x: float, y: float}
         }
         self.updated_at = datetime.now().isoformat()
 
@@ -218,7 +221,8 @@ class ProjectManager:
         node_description: str = "",
         execution_status: str = "not_executed",
         result_format: Optional[str] = None,
-        result_path: Optional[str] = None
+        result_path: Optional[str] = None,
+        position: Optional[Dict[str, float]] = None
     ) -> int:
         """
         Add a node to the project with support for execution status and results
@@ -233,6 +237,7 @@ class ProjectManager:
             execution_status: Execution state (not_executed, pending_validation, validated)
             result_format: Result format (parquet, json, image, visualization)
             result_path: Path to saved result file
+            position: Node position in flow diagram {x: float, y: float}
 
         Returns:
             Index of the last added cell in notebook
@@ -248,7 +253,8 @@ class ProjectManager:
             node_id, node_type, name, depends_on,
             execution_status=execution_status,
             result_format=result_format,
-            result_path=result_path
+            result_path=result_path,
+            position=position
         )
 
         # Add description markdown if provided
@@ -304,6 +310,30 @@ class ProjectManager:
             node for node in self.metadata.nodes.values()
             if node.get("type") == node_type
         ]
+
+    def update_node_position(self, node_id: str, position: Dict[str, float]) -> None:
+        """
+        Update node position in the flow diagram
+
+        Args:
+            node_id: Node ID
+            position: Position dict with x and y coordinates {x: float, y: float}
+        """
+        if not self.loaded:
+            raise RuntimeError("Project not loaded")
+
+        if self.metadata is None:
+            raise RuntimeError("Metadata not initialized")
+
+        if node_id not in self.metadata.nodes:
+            raise ValueError(f"Node {node_id} not found in project metadata")
+
+        # Update position
+        self.metadata.nodes[node_id]["position"] = position
+        self.metadata.updated_at = datetime.now().isoformat()
+
+        # Save to disk
+        self._save_metadata()
 
     def save_node_result(
         self,
