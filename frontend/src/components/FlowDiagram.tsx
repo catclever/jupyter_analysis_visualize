@@ -286,10 +286,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     onNodeClick(node.id);
   };
 
-  // 禁用画布点击事件 - 这是激进方案，完全不处理画布点击
-  // 只有节点点击才会触发选择变化
-  // 原因：XYFlow的事件系统中，节点点击容易被误路由到画布点击
-  const handlePaneClick = null;  // ← 完全禁用
+  // 禁用画布点击事件 - 完全不处理任何画布点击操作
+  // 这样可以避免点击节点时被误识别为画布点击
+  const handlePaneClick = undefined;
 
   const toggleNodeTypeFilter = (type: 'data' | 'compute' | 'chart') => {
     const newFilter = new Set(nodeTypeFilter);
@@ -686,7 +685,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onNodeClick={handleNodeClick}
-        // onPaneClick={handlePaneClick}  ← 已禁用，激进方案
+        onPaneClick={handlePaneClick}
         connectionMode={ConnectionMode.Loose}
         fitView
         attributionPosition="bottom-left"
