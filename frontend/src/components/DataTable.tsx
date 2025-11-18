@@ -3606,50 +3606,6 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayedNodeId, projectId, currentDatasetId]);
 
-  // Direct textarea input listener for react-simple-code-editor
-  // The library's onChange might not always fire properly, so we listen to input events directly
-  useEffect(() => {
-    if (!isEditingCode) return;
-
-    const editorContainer = document.querySelector('.editor-container');
-    if (!editorContainer) return;
-
-    const textarea = editorContainer.querySelector('textarea') as HTMLTextAreaElement | null;
-    if (!textarea) return;
-
-    const handleDirectInput = (e: Event) => {
-      const target = e.target as HTMLTextAreaElement;
-      const newValue = target.value;
-
-      // Update editingCode state with the actual textarea value
-      // This bypasses the onChange event which might not be firing
-      if (newValue !== editingCode) {
-        console.log('[DirectInput] textarea input detected', {
-          newLength: newValue.length,
-          oldLength: editingCode.length,
-          isDifferent: newValue !== apiCode,
-          preview: newValue.substring(0, 50)
-        });
-        setEditingCode(newValue);
-
-        // Update change tracking
-        if (newValue !== apiCode) {
-          codeChanges.markAsChanged();
-        } else {
-          codeChanges.markAsSaved();
-        }
-      }
-    };
-
-    // Listen to both input and change events
-    textarea.addEventListener('input', handleDirectInput);
-    textarea.addEventListener('change', handleDirectInput);
-
-    return () => {
-      textarea.removeEventListener('input', handleDirectInput);
-      textarea.removeEventListener('change', handleDirectInput);
-    };
-  }, [editingCode, apiCode, isEditingCode, codeChanges]);
 
   // 当currentPage改变时，重新加载该页的数据
   useEffect(() => {
@@ -3773,110 +3729,40 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   const handleCodeEdit = () => {
     setEditingCode(apiCode);
     setIsEditingCode(true);
-    codeChanges.reset(); // Clear any previous changes
+    codeChanges.markAsSaved(); // Start fresh in edit mode
   };
 
   const handleCodeChange = (newContent: string) => {
-    console.log('[DEBUG:handleCodeChange] Input detected', {
-      newContentLength: newContent.length,
-      apiCodeLength: apiCode.length,
-      isDifferent: newContent !== apiCode,
-      preview: newContent.substring(0, 50),
-      timestamp: new Date().toISOString()
-    });
     setEditingCode(newContent);
-    // Mark as changed if different from original, as saved if same
+    // Mark as changed if different from original
     if (newContent !== apiCode) {
       codeChanges.markAsChanged();
-      console.log('[DEBUG:handleCodeChange] Marked as changed');
     } else {
       codeChanges.markAsSaved();
-      console.log('[DEBUG:handleCodeChange] Marked as saved');
     }
   };
 
   const handleCodeSave = async () => {
     if (!displayedNodeId) return;
 
-    // DEBUG: Log current state before processing
-    console.log('[handleCodeSave] Called with:', {
-      displayedNodeId,
-      editingCodeLength: editingCode?.length || 0,
-      apiCodeLength: apiCode?.length || 0,
-      isEditingCode,
-      timestamp: new Date().toISOString()
-    });
-
     setIsSavingCode(true);
     try {
-      // CRITICAL BUGFIX: The CodeEditor's onChange event might not be triggered properly
-      // So editingCode might still be empty even though user typed in the editor
-      // Try multiple sources to get the actual code content
-
+      // Get the actual code from the editor textarea in the DOM
+      const editorContainer = document.querySelector('.editor-container');
       let codeToSave = editingCode;
-      let source = 'editingCode state';
 
-      // If editingCode is empty, try to read from the DOM
-      // react-simple-code-editor may not trigger onChange properly,
-      // so we need to read the actual rendered content
-      if (!codeToSave || codeToSave.trim() === '') {
-        const editorContainer = document.querySelector('.editor-container');
-
-        if (editorContainer) {
-          // PRIORITY 1: Try to get the rendered code from the <pre> element
-          // This is the visual representation that the user sees
-          const preElement = editorContainer.querySelector('pre');
-          if (preElement && preElement.textContent && preElement.textContent.trim() !== '') {
-            codeToSave = preElement.textContent;
-            source = 'DOM pre element (visual rendered code)';
-            console.log('[handleCodeSave] Got code from DOM pre element:', {
-              length: codeToSave.length,
-              source: source,
-              preview: codeToSave.substring(0, 100)
-            });
-          }
-
-          // PRIORITY 2: If pre element is empty, try the textarea
-          if (!codeToSave || codeToSave.trim() === '') {
-            let editorTextarea = editorContainer.querySelector('textarea') as HTMLTextAreaElement | null;
-
-            if (editorTextarea && editorTextarea.value && editorTextarea.value.trim() !== '') {
-              codeToSave = editorTextarea.value;
-              source = 'DOM textarea (onChange not triggered)';
-              console.log('[handleCodeSave] Got code from DOM textarea:', {
-                length: codeToSave.length,
-                source: source,
-                preview: codeToSave.substring(0, 100)
-              });
-            } else {
-              console.warn('[handleCodeSave] Could not find usable content in editor', {
-                preFound: !!preElement,
-                preContent: preElement?.textContent?.substring(0, 50),
-                textareaFound: !!editorTextarea,
-                textareaValue: editorTextarea?.value?.substring(0, 50)
-              });
-            }
-          }
-        } else {
-          console.warn('[handleCodeSave] Editor container not found');
+      if (editorContainer) {
+        const textarea = editorContainer.querySelector('textarea') as HTMLTextAreaElement | null;
+        if (textarea && textarea.value) {
+          codeToSave = textarea.value;
         }
       }
 
-      // If we still don't have meaningful code, abort save
       if (!codeToSave || codeToSave.trim() === '') {
-        console.warn('[handleCodeSave] No code to save', {
-          editingCodeLength: editingCode?.length || 0,
-          source: source
-        });
+        console.warn('[handleCodeSave] No code to save');
         setIsSavingCode(false);
         return;
       }
-
-      console.log('[handleCodeSave] Saving code', {
-        length: codeToSave.length,
-        source: source,
-        preview: codeToSave.substring(0, 50)
-      });
 
       const result = await updateNodeCode(projectId, displayedNodeId, codeToSave);
 
@@ -3886,7 +3772,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
 
       setApiCodeWithMetadata(fullCode);
       setApiCode(cleanedCode);
-      setEditingCode(cleanedCode);  // Update editingCode with the saved version
+      setEditingCode(cleanedCode);
       setIsEditingCode(false);
       codeChanges.markAsSaved();
 
@@ -3894,7 +3780,6 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
       onProjectUpdate?.();
     } catch (err) {
       console.error('Failed to save code:', err);
-      // TODO: Show error toast
       throw err;
     } finally {
       setIsSavingCode(false);
@@ -4221,15 +4106,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             </div>
           )}
           <CodeEditor
-            value={apiCode}
-            onChange={(newValue) => {
-              setApiCode(newValue);
-              if (newValue !== apiCodeWithMetadata) {
-                codeChanges.markAsChanged();
-              } else {
-                codeChanges.markAsSaved();
-              }
-            }}
+            value={editingCode}
+            onChange={handleCodeChange}
           />
         </div>
       ) : dictResult && !effectiveShowConclusion ? (
