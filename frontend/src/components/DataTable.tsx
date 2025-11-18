@@ -3394,6 +3394,8 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   // Execution state tracking
   const [isExecuting, setIsExecuting] = useState(false);
   const [nodeErrors, setNodeErrors] = useState<Record<string, string>>({});
+  // Force refresh of node data after execution (triggered by incrementing counter)
+  const [nodeRefreshKey, setNodeRefreshKey] = useState(0);
 
   const { projectCache, loadProject, updateProjectCache } = useProjectCache();
   const markdownChanges = useUnsavedChanges();
@@ -3597,7 +3599,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     setCurrentPage(1); // 重置分页
     loadNewNode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [displayedNodeId, projectId, currentDatasetId]);
+  }, [displayedNodeId, projectId, currentDatasetId, nodeRefreshKey]);
 
 
   // 当currentPage改变时，重新加载该页的数据
@@ -3842,29 +3844,16 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // Update local node execution status immediately for UI refresh
         setNodeExecutionStatus('validated');
 
+        // Trigger flow diagram refresh to show updated execution status and new edges
         onProjectUpdate?.();
 
-        // Also reload the node's result data immediately
-        if (displayedNodeId) {
-          try {
-            const data = await getNodeData(projectId, displayedNodeId, 1, 10);
-            // 问题1修复: 只有当数据成功加载且有效时，才切换到 table 视图
-            // 这确保了 setApiData 在 setNodeViewMode 之前完成
-            setApiData(data);
-
-            // 检查数据是否有效（不为 null，且有记录）
-            if (data && (data.total_records > 0 || data.columns?.length > 0)) {
-              // 数据有效，切换到 table 视图
-              setNodeViewMode(displayedNodeId, 'table');
-            } else {
-              // 数据为空，保留当前视图（默认是 code）
-              console.warn('[DataTable] No data returned for executed node');
-            }
-          } catch (error) {
-            console.error('Failed to load result data:', error);
-            // 数据加载失败，不切换视图，保持 code 视图
-          }
-        }
+        // Force reload DataTable region (dict result detection, node view mode, and result data)
+        // This is critical because:
+        // - The node may now have a dict result (is_dict_result flag was set during execution)
+        // - The result format may have changed (null -> 'parquet')
+        // - The execution status changed (pending -> validated)
+        // Incrementing nodeRefreshKey triggers the useEffect at line 3602 which reloads everything
+        setNodeRefreshKey(prev => prev + 1);
       } else if (result.status === 'pending_validation') {
         // Show error message
         setNodeErrors((prev) => ({
@@ -3886,13 +3875,19 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         } catch (error) {
           console.error('Failed to refresh project data:', error);
         }
-
+        // Refresh flow diagram to show updated status
         onProjectUpdate?.();
+        // Also refresh DataTable to show updated status
+        setNodeRefreshKey(prev => prev + 1);
       } else {
         toast({
           variant: 'destructive',
           description: result.error_message || 'Execution error',
         });
+        // Refresh flow diagram on error
+        onProjectUpdate?.();
+        // Also refresh DataTable on error
+        setNodeRefreshKey(prev => prev + 1);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Execution failed';
@@ -3904,6 +3899,10 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         variant: 'destructive',
         description: message,
       });
+      // Refresh flow diagram on error
+      onProjectUpdate?.();
+      // Also refresh DataTable on unexpected error
+      setNodeRefreshKey(prev => prev + 1);
     } finally {
       setIsExecuting(false);
     }
@@ -4113,12 +4112,71 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         </div>
       ) : dictResult && !effectiveShowConclusion ? (
         // Display dict result without markdown panel if markdown is not explicitly opened
-        <div className="h-full overflow-auto">
-          <DictResultDisplay
-            keys={dictResult.keys}
-            tables={dictResult.tables}
-          />
-        </div>
+        // Support view mode toggle between dict result (table) and code editor
+        currentNodeViewMode === 'code' ? (
+          <div className="h-full flex flex-col">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+              <Button
+                size="sm"
+                onClick={handleCodeSave}
+                disabled={!codeChanges.hasChanges || isSavingCode}
+                className="h-7 px-2 text-xs"
+              >
+                Save
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleCodeCancel}
+                variant="outline"
+                disabled={isSavingCode}
+                className="h-7 px-2 text-xs"
+              >
+                Cancel
+              </Button>
+              <div className="flex-1" />
+              <Button
+                size="sm"
+                onClick={handleExecuteNode}
+                disabled={isExecuting}
+                className="h-7 px-3 text-xs bg-green-600 hover:bg-green-700"
+              >
+                {isExecuting ? (
+                  <>
+                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    Executing...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-3 w-3 mr-1" />
+                    Execute
+                  </>
+                )}
+              </Button>
+            </div>
+            {nodeErrors[displayedNodeId || ''] && (
+              <div className="px-4 py-2 bg-red-50 border-b border-red-200">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-xs text-red-600">
+                    <p className="font-semibold">Execution Error</p>
+                    <p className="mt-1">{nodeErrors[displayedNodeId || '']}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <CodeEditor
+              value={editingCode}
+              onChange={handleCodeChange}
+            />
+          </div>
+        ) : (
+          <div className="h-full overflow-auto">
+            <DictResultDisplay
+              keys={dictResult.keys}
+              tables={dictResult.tables}
+            />
+          </div>
+        )
       ) : effectiveShowConclusion ? (
         <ResizablePanelGroup direction="horizontal" className="flex-1">
           <ResizablePanel defaultSize={60} minSize={30}>

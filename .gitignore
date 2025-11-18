@@ -53,6 +53,7 @@ env/
 # - designs/: 新的设计提案 (追踪，重要的架构决策)
 # - claude.md: 本地开发规范 (不追踪)
 claude.md
+CLAUDE.md
 reports/
 
 # Backend - Runtime

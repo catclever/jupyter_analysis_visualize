@@ -51,7 +51,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         setError(null);
 
         // Use currentDatasetId directly - no mapping needed as we now load projects dynamically
-        const project = await getProject(currentDatasetId);
+        // Always bypass cache to get latest project metadata
+        const project = await getProject(currentDatasetId, true);
         console.log('[FlowDiagram] Loaded project:', project);
         console.log('[FlowDiagram] Nodes count:', project.nodes.length);
         console.log('[FlowDiagram] Sample node:', project.nodes[0]);
@@ -257,18 +258,79 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     return ancestors;
   };
 
-  // 获取节点的显示等级：selected(当前) > parent(直接父节点) > ancestor(祖先) > dimmed(其他)
+  const getNodeTypeById = (nodeId: string): string | null => {
+    const n = nodes.find(n => n.id === nodeId);
+    if (!n) return null;
+    const d = n.data as FlowNodeData;
+    return d.type || null;
+  };
+
+  const edgeKey = (e: Edge): string => (e.id || `${e.source}->${e.target}`);
+
+  const visibility = React.useMemo(() => {
+    if (!selectedNodeId) {
+      return {
+        nodeIds: new Set<string>(),
+        edgeKeys: new Set<string>(),
+      };
+    }
+
+    const selectedType = getNodeTypeById(selectedNodeId);
+    const isToolSelected = selectedType === NodeType.TOOL || selectedType === 'tool';
+
+    const nodeIds = new Set<string>();
+    const edgeKeys = new Set<string>();
+    nodeIds.add(selectedNodeId);
+
+    if (isToolSelected) {
+      edges.forEach(e => {
+        if (e.source === selectedNodeId) {
+          nodeIds.add(e.target);
+          edgeKeys.add(edgeKey(e));
+        }
+      });
+      return { nodeIds, edgeKeys };
+    }
+
+    const visited = new Set<string>();
+    const stack: string[] = [selectedNodeId];
+    visited.add(selectedNodeId);
+
+    while (stack.length) {
+      const current = stack.pop() as string;
+      edges.forEach(e => {
+        if (e.target === current) {
+          const parentId = e.source;
+          const parentType = getNodeTypeById(parentId);
+          if (parentType && parentType !== NodeType.TOOL && parentType !== 'tool') {
+            if (!visited.has(parentId)) {
+              visited.add(parentId);
+              nodeIds.add(parentId);
+              stack.push(parentId);
+            }
+            edgeKeys.add(edgeKey(e));
+          }
+        }
+      });
+    }
+
+    edges.forEach(e => {
+      if (e.target === selectedNodeId) {
+        const parentType = getNodeTypeById(e.source);
+        if (parentType === NodeType.TOOL || parentType === 'tool') {
+          nodeIds.add(e.source);
+          edgeKeys.add(edgeKey(e));
+        }
+      }
+    });
+
+    return { nodeIds, edgeKeys };
+  }, [selectedNodeId, nodes, edges]);
+
   const getNodeLevel = (nodeId: string): 'selected' | 'parent' | 'ancestor' | 'dimmed' => {
-    if (!selectedNodeId) return 'dimmed'; // 没有选中时都是普通状态
+    if (!selectedNodeId) return 'dimmed';
     if (nodeId === selectedNodeId) return 'selected';
-
-    const directParents = getDirectParentNodes(selectedNodeId, edges);
-    if (directParents.has(nodeId)) return 'parent';
-
-    const ancestors = getAllAncestorNodes(selectedNodeId, edges);
-    if (ancestors.has(nodeId)) return 'ancestor';
-
-    return 'dimmed';
+    return visibility.nodeIds.has(nodeId) ? 'parent' : 'dimmed';
   };
 
   const handleNodeClick = (_event: React.MouseEvent | any, node: Node) => {
@@ -287,15 +349,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     setNodeTypeFilter(newFilter);
   };
 
-  // 判断边是否应该显示（只有当两个端点都不是置灰状态时，才显示）
   const shouldShowEdge = (edge: Edge): boolean => {
-    if (!selectedNodeId) return true; // 没有选中时，所有边都显示
-
-    const sourceLevel = getNodeLevel(edge.source);
-    const targetLevel = getNodeLevel(edge.target);
-
-    // 只要任一端点是置灰的，就隐藏这条边
-    return sourceLevel !== 'dimmed' && targetLevel !== 'dimmed';
+    if (!selectedNodeId) return true;
+    return visibility.edgeKeys.has(edgeKey(edge));
   };
 
   // 动态添加边（在节点执行时调用）

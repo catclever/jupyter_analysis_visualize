@@ -432,3 +432,90 @@ When implementing features from design documents:
 - During: Multiple iterations and refinements of the design
 - After: Implementation complete → Delete `designs/NODE_STANDARDIZATION_PLAN.md`
 - Document: Move relevant implementation notes to `reports/NODE_STANDARDIZATION_IMPLEMENTATION.md` if needed for future reference
+
+---
+
+## Documentation Policy: No Analysis Reports for Modifications
+
+### Rule: Code Changes Should Be Documented in Git Commits, Not Reports
+
+**Policy:**
+All modifications, optimizations, bug fixes, and improvements should be documented through **git commit messages** rather than creating analysis or report documents.
+
+**Guidelines:**
+1. **Every change gets a commit message**, not a report file
+   - Use clear, descriptive commit messages that explain what changed and why
+   - Follow conventional commit format if applicable (feat:, fix:, refactor:, etc.)
+   - Include context and rationale in the commit message body
+
+2. **reports/ directory usage**
+   - Only use `reports/` for ongoing reference materials
+   - Examples: API documentation, architecture guides, quick references
+   - Do NOT create change logs, analysis reports, or summary documents for modifications
+   - Analysis documents are temporary working notes (not tracked in git)
+
+3. **git history is the source of truth**
+   - Git commits preserve all modification history
+   - Commit messages provide context and rationale
+   - No need to duplicate this information in report files
+   - Developers can use `git log` to understand what changed and why
+
+**Benefits:**
+- Single source of truth (git history)
+- Reduced file clutter in `reports/`
+- More maintainable documentation
+- Better traceability of changes
+
+**Example:**
+❌ **Bad**: Create `reports/OPTIMIZATION_SUMMARY_2025_11_18.md`
+✅ **Good**: Create commit `fix: optimize kernel variable checking performance`
+
+With detailed message:
+```
+fix: optimize kernel variable checking performance
+
+- Reduced list_variables() calls by caching results per execution
+- Improved response time from 500ms to 100ms for large projects
+- Updated test_kernel_manager.py to verify optimizations
+```
+
+---
+
+## Documentation Generation Policy
+
+### Rule: No Automatic Generation of Manuals or Documentation
+
+**Policy:**
+Do NOT automatically generate, create, or write documentation files (manuals, guides, reference docs, etc.) unless explicitly requested by the user.
+
+**Guidelines:**
+1. **Default behavior: No documentation generation**
+   - Do not create `.md` files for features unless asked
+   - Do not generate API documentation unless requested
+   - Do not write guides or tutorials proactively
+   - Do not create README files or change logs automatically
+
+2. **When documentation IS explicitly requested**
+   - Create only what was specifically asked for
+   - Place files in appropriate directories per other rules
+   - Document the current state of the system accurately
+   - Keep documentation focused and concise
+
+3. **What counts as "explicit request"**
+   - User: "Create a README for this feature"
+   - User: "Write API documentation"
+   - User: "Generate a guide for X"
+   - User: "Document this module"
+
+4. **What does NOT count**
+   - User asks to implement a feature (code only)
+   - User asks to fix a bug (just fix the code)
+   - User asks to optimize something (no report/doc)
+   - User asks to refactor code (no analysis doc)
+
+**Rationale:**
+- Documentation generation wastes time and adds unnecessary files
+- Code is self-documenting when clear and well-commented
+- Git history preserves all changes and context
+- Unnecessary files clutter the repository
+- Users know what documentation they actually need

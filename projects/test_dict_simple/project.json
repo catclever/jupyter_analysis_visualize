@@ -1,0 +1,25 @@
+{
+  "project_id": "test_dict_simple",
+  "name": "Test DataFrame Dictionary",
+  "description": "Simple test project with one node that generates a DataFrame dictionary",
+  "version": "1.0.0",
+  "created_at": "2025-11-18T16:30:00.000000",
+  "updated_at": "2025-11-18T16:30:00.000000",
+  "nodes": [
+    {
+      "node_id": "create_dict",
+      "node_type": "compute",
+      "name": "Create DataFrame Dictionary",
+      "type": "compute",
+      "depends_on": [],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/create_dict",
+      "error_message": null,
+      "execution_time": 0.023213,
+      "last_execution_time": "2025-11-18T18:14:13.180469",
+      "output_type": "dataframe",
+      "is_dict_result": true
+    }
+  ]
+}

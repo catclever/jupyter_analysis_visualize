@@ -97,8 +97,18 @@ export async function listProjects(): Promise<Project[]> {
 /**
  * Get project details including DAG
  */
-export async function getProject(projectId: string): Promise<ProjectDetail> {
-  const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}`);
+export async function getProject(projectId: string, noCache: boolean = true): Promise<ProjectDetail> {
+  // Add timestamp to prevent browser caching when noCache is true
+  const url = noCache
+    ? `${API_BASE_URL}/api/projects/${projectId}?t=${Date.now()}`
+    : `${API_BASE_URL}/api/projects/${projectId}`;
+
+  const response = await fetch(url, {
+    headers: noCache ? {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache'
+    } : {}
+  });
   if (!response.ok) {
     throw new Error(`Failed to fetch project ${projectId}: ${response.statusText}`);
   }
