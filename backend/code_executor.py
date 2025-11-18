@@ -116,7 +116,12 @@ class CodeValidator:
         # Look for indicators in the code
         code_lower = code.lower()
 
-        # Check for DataFrame indicators
+        # PRIORITY 1: Check for function definition FIRST (before other patterns)
+        # This is crucial for tool nodes which may have DataFrame operations inside the function
+        if CodeValidator.has_function_definition(code, node_id):
+            return 'function'
+
+        # PRIORITY 2: Check for DataFrame indicators
         if 'dataframe' in code_lower or 'pd.dataframe' in code_lower or '.groupby(' in code_lower or '.merge(' in code_lower:
             return 'dataframe'
         if f'{node_id}.to_parquet' in code or f'{node_id}.to_csv' in code or f'{node_id}.to_json' in code:
@@ -124,23 +129,19 @@ class CodeValidator:
         if f'pd.read_' in code_lower or f'{node_id} = load' in code.lower():
             return 'dataframe'
 
-        # Check for dict indicators
+        # PRIORITY 3: Check for dict indicators
         if '{' in code and '}' in code and '=' in code:
             # Could be dict
             if 'json' in code_lower or 'dict' in code_lower:
                 return 'dict'
 
-        # Check for Figure/Chart indicators
+        # PRIORITY 4: Check for Figure/Chart indicators
         if 'plotly' in code_lower or 'go.Figure' in code_lower or 'px.' in code_lower:
             return 'figure'
         if 'matplotlib' in code_lower or 'plt.' in code_lower:
             return 'figure'
         if 'echarts' in code_lower or 'echarts_config' in code_lower:
             return 'figure'
-
-        # Check for function definition
-        if CodeValidator.has_function_definition(code, node_id):
-            return 'function'
 
         return 'unknown'
 
@@ -507,6 +508,102 @@ save_path = functions_dir / '{node_id}.pkl'
 with open(str(save_path), 'wb') as f:
     pickle.dump({node_id}, f)
 print(f"✓ Saved pickle to {{save_path}}")"""
+
+        elif result_format == "image":
+            visualizations_dir = str(self.pm.visualizations_path)
+            save_code = f"""
+# Auto-appended: Save result to image
+import os
+from pathlib import Path
+from PIL import Image
+import base64
+import io
+
+visualizations_dir = Path(r'{visualizations_dir}')
+visualizations_dir.mkdir(parents=True, exist_ok=True)
+
+# Determine file extension based on object type
+file_ext = '.png'  # default
+
+try:
+    # Handle Plotly figures (convert to static image)
+    if hasattr({node_id}, '__class__') and {node_id}.__class__.__name__ == 'Figure':
+        # Plotly Figure - try multiple methods
+        saved_successfully = False
+
+        # Method 1: Try to_image (requires kaleido)
+        if hasattr({node_id}, 'to_image') and callable({node_id}.to_image):
+            try:
+                img_bytes = {node_id}.to_image(format='png', width=1200, height=600)
+                save_path = visualizations_dir / '{node_id}.png'
+                with open(str(save_path), 'wb') as f:
+                    f.write(img_bytes)
+                print(f"✓ Saved image (Plotly with to_image): {{save_path}}")
+                saved_successfully = True
+            except Exception as e1:
+                print(f"  Note: to_image failed ({{type(e1).__name__}}): {{e1}}")
+
+        # Method 2: Fallback to HTML (always works)
+        if not saved_successfully:
+            try:
+                html_path = visualizations_dir / '{node_id}.html'
+                {node_id}.write_html(str(html_path))
+                print(f"✓ Saved interactive chart (HTML): {{html_path}}")
+                # Also try to save a simple PNG by rendering the HTML
+                try:
+                    png_path = visualizations_dir / '{node_id}.png'
+                    # Use plotly kaleido if available, otherwise just note HTML was saved
+                    if hasattr({node_id}, 'write_image'):
+                        {node_id}.write_image(str(png_path))
+                        print(f"✓ Also saved as PNG: {{png_path}}")
+                except:
+                    print(f"  Note: PNG conversion requires kaleido, HTML version available")
+                saved_successfully = True
+            except Exception as e2:
+                print(f"  Error saving HTML: {{type(e2).__name__}}: {{e2}}")
+
+        if not saved_successfully:
+            raise RuntimeError("Could not save Plotly Figure in any format")
+    # Handle PIL Image objects
+    elif hasattr({node_id}, 'save') and callable({node_id}.save):
+        save_path = visualizations_dir / '{node_id}.png'
+        {node_id}.save(str(save_path))
+        print(f"✓ Saved image (PIL): {{save_path}}")
+    # Handle matplotlib figures
+    elif hasattr({node_id}, 'savefig') and callable({node_id}.savefig):
+        save_path = visualizations_dir / '{node_id}.png'
+        {node_id}.savefig(str(save_path), dpi=100, bbox_inches='tight')
+        print(f"✓ Saved image (matplotlib): {{save_path}}")
+    # Handle base64 encoded images
+    elif isinstance({node_id}, str) and {node_id}.startswith('data:image'):
+        # Extract base64 data
+        import re
+        match = re.search(r'data:image/(\\w+);base64,(.+)', {node_id})
+        if match:
+            img_format = match.group(1)
+            img_data = match.group(2)
+            import base64
+            img_bytes = base64.b64decode(img_data)
+            file_ext = f'.{{img_format}}'
+            save_path = visualizations_dir / f'{{'{node_id}'}}{{file_ext}}'
+            with open(str(save_path), 'wb') as f:
+                f.write(img_bytes)
+            print(f"✓ Saved image (base64): {{save_path}}")
+        else:
+            raise ValueError("Invalid base64 image format")
+    # Handle bytes directly
+    elif isinstance({node_id}, bytes):
+        save_path = visualizations_dir / '{node_id}.png'
+        with open(str(save_path), 'wb') as f:
+            f.write({node_id})
+        print(f"✓ Saved image (bytes): {{save_path}}")
+    else:
+        raise TypeError(f"Cannot save {{type({node_id}).__name__}} as image. Expected: Plotly Figure, PIL Image, matplotlib Figure, bytes, or base64 string. Got: {{type({node_id}).__name__}}")
+except Exception as e:
+    import traceback
+    print(f"ERROR saving image: {{e}}")
+    traceback.print_exc()
+    raise"""
 
         else:
             # No save code needed
@@ -1054,12 +1151,31 @@ with open(r'{full_path}', 'rb') as f:
                 return result
 
             # Step 7: Verify execution - check if expected variable exists in kernel
+            # NOTE: Tool nodes define functions that live in kernel namespace
+            # We skip get_variable() for tool nodes since functions cannot be pickled across processes
             var_value = None
-            try:
-                # Check if variable exists in kernel
-                var_value = self.km.get_variable(self.pm.project_id, node_id)
-                if var_value is None:
-                    result["error_message"] = f"Execution produced no value for '{node_id}'"
+            if node_type != 'tool':
+                try:
+                    # Check if variable exists in kernel (only for non-tool nodes)
+                    var_value = self.km.get_variable(self.pm.project_id, node_id)
+                    if var_value is None:
+                        result["error_message"] = f"Execution produced no value for '{node_id}'"
+                        result["status"] = "pending_validation"
+                        node['execution_status'] = 'pending_validation'
+                        node['error_message'] = result["error_message"]
+                        self.pm._save_metadata()
+
+                        # 同步到 notebook (失败时也要同步)
+                        try:
+                            self.nm.update_execution_status(node_id, 'pending_validation')
+                            self.nm.sync_metadata_comments()
+                            self.nm.save()
+                        except Exception as sync_e:
+                            print(f"[Warning] Failed to sync notebook metadata on failure: {sync_e}")
+
+                        return result
+                except Exception as e:
+                    result["error_message"] = f"Could not verify execution: {e}"
                     result["status"] = "pending_validation"
                     node['execution_status'] = 'pending_validation'
                     node['error_message'] = result["error_message"]
@@ -1074,86 +1190,79 @@ with open(r'{full_path}', 'rb') as f:
                         print(f"[Warning] Failed to sync notebook metadata on failure: {sync_e}")
 
                     return result
-            except Exception as e:
-                result["error_message"] = f"Could not verify execution: {e}"
-                result["status"] = "pending_validation"
-                node['execution_status'] = 'pending_validation'
-                node['error_message'] = result["error_message"]
-                self.pm._save_metadata()
-
-                # 同步到 notebook (失败时也要同步)
-                try:
-                    self.nm.update_execution_status(node_id, 'pending_validation')
-                    self.nm.sync_metadata_comments()
-                    self.nm.save()
-                except Exception as sync_e:
-                    print(f"[Warning] Failed to sync notebook metadata on failure: {sync_e}")
-
-                return result
+            else:
+                # Tool nodes: Function definition has been verified in Step 6, no need to get_variable
+                print(f"[Execution] ✓ Skipping variable retrieval for tool node '{node_id}' (functions cannot be pickled)")
 
             # Note: Save was already done by auto-appended code in Step 5
             # We don't do a second save here to avoid unreliable get_variable() issues
             print(f"[Execution] ✓ Result already saved by auto-appended code during Kernel execution")
 
-            # Step 8.5: Generate/overwrite result cell
-            try:
-                result_cell_code = ResultCellGenerator.generate_result_cell_code(
-                    node_id,
-                    node_type,
-                    result_format
-                )
+            # Step 8.5: Generate/overwrite result cell (skip for tool nodes)
+            # Tool nodes define functions that live in kernel namespace, no result cells needed
+            if node_type != 'tool':
+                try:
+                    result_cell_code = ResultCellGenerator.generate_result_cell_code(
+                        node_id,
+                        node_type,
+                        result_format
+                    )
 
-                # Replace project_id placeholder
-                result_cell_code = result_cell_code.replace(
-                    '{PROJECT_ID}',
-                    self.pm.project_id
-                )
+                    # Replace project_id placeholder
+                    result_cell_code = result_cell_code.replace(
+                        '{PROJECT_ID}',
+                        self.pm.project_id
+                    )
 
-                # Find and overwrite existing result cell, or append new one
-                notebook = self.nm.notebook
-                result_cell_found = False
+                    # Find and overwrite existing result cell, or append new one
+                    notebook = self.nm.notebook
+                    result_cell_found = False
 
-                for i, cell in enumerate(notebook.get('cells', [])):
-                    if cell.get('cell_type') == 'code':
-                        metadata = cell.get('metadata', {})
-                        if metadata.get('node_id') == node_id and metadata.get('result_cell'):
-                            # Overwrite existing result cell
-                            source_lines = result_cell_code.split('\n')
-                            # Add newlines to all lines except the last
-                            cell['source'] = [line + '\n' if i < len(source_lines)-1
-                                            else line for i, line in enumerate(source_lines)]
-                            result_cell_found = True
-                            result["result_cell_added"] = True
-                            break
+                    for i, cell in enumerate(notebook.get('cells', [])):
+                        if cell.get('cell_type') == 'code':
+                            metadata = cell.get('metadata', {})
+                            if metadata.get('node_id') == node_id and metadata.get('result_cell'):
+                                # Overwrite existing result cell
+                                source_lines = result_cell_code.split('\n')
+                                # Add newlines to all lines except the last
+                                cell['source'] = [line + '\n' if i < len(source_lines)-1
+                                                else line for i, line in enumerate(source_lines)]
+                                result_cell_found = True
+                                result["result_cell_added"] = True
+                                break
 
-                if not result_cell_found:
-                    # Append new result cell
-                    new_cell = {
-                        'cell_type': 'code',
-                        'execution_count': None,
-                        'metadata': {
-                            'node_id': node_id,
-                            'result_cell': True
-                        },
-                        'outputs': [],
-                        'source': result_cell_code.split('\n')
-                    }
-                    # Add newlines
-                    new_cell['source'] = [line + '\n' if i < len(new_cell['source'])-1
-                                        else line for i, line in enumerate(new_cell['source'])]
-                    notebook['cells'].append(new_cell)
-                    result["result_cell_added"] = True
+                    if not result_cell_found:
+                        # Append new result cell
+                        new_cell = {
+                            'cell_type': 'code',
+                            'execution_count': None,
+                            'metadata': {
+                                'node_id': node_id,
+                                'result_cell': True
+                            },
+                            'outputs': [],
+                            'source': result_cell_code.split('\n')
+                        }
+                        # Add newlines
+                        new_cell['source'] = [line + '\n' if i < len(new_cell['source'])-1
+                                            else line for i, line in enumerate(new_cell['source'])]
+                        notebook['cells'].append(new_cell)
+                        result["result_cell_added"] = True
 
-                # Save notebook
+                    # Save notebook
+                    self.nm.save()
+
+                except Exception as e:
+                    result["error_message"] = f"Failed to generate result cell: {e}"
+                    result["status"] = "pending_validation"
+                    node['execution_status'] = 'pending_validation'
+                    node['error_message'] = result["error_message"]
+                    self.pm._save_metadata()
+                    return result
+            else:
+                # Tool nodes: No result cells needed (functions stay in kernel namespace)
+                print(f"[Execution] ✓ Skipping result cell generation for tool node '{node_id}'")
                 self.nm.save()
-
-            except Exception as e:
-                result["error_message"] = f"Failed to generate result cell: {e}"
-                result["status"] = "pending_validation"
-                node['execution_status'] = 'pending_validation'
-                node['error_message'] = result["error_message"]
-                self.pm._save_metadata()
-                return result
 
             # Step 9: Sync complete metadata (unified metadata sync)
             # Update node status to validated and set result_path
