@@ -519,3 +519,43 @@ Do NOT automatically generate, create, or write documentation files (manuals, gu
 - Git history preserves all changes and context
 - Unnecessary files clutter the repository
 - Users know what documentation they actually need
+
+---
+
+## Documentation: No Plans, Checklists, or Summary Reports
+
+### Rule: Do NOT Generate Planning or Summary Documents
+
+**Policy:**
+Do NOT automatically create planning documents, checklists, summary reports, or status documents unless explicitly requested by the user.
+
+**What NOT to do (unless explicitly requested):**
+- ❌ Create test plans, test checklists, or test scenarios documents
+- ❌ Create optimization checklists or progress tracking documents
+- ❌ Create summary reports of changes made
+- ❌ Create fix summaries or solution explanations in document form
+- ❌ Create quick reference guides for what was just implemented
+- ❌ Create multiple documentation files explaining the same change
+
+**What IS allowed:**
+- ✅ Add code comments explaining why a change was made
+- ✅ Write detailed commit messages with context and rationale
+- ✅ Engage in planning discussion in conversation (but don't output as docs)
+- ✅ Provide explanations and analysis in conversation
+- ✅ Create documentation ONLY if user explicitly asks (e.g., "please document this fix")
+
+**Why this matters:**
+- Creates too many files cluttering the repository
+- Duplicates information already in git commits
+- Wastes time that could be spent on actual coding
+- Users will ask if they need documentation
+- Code + commit messages are sufficient
+
+**Exception:**
+When user explicitly asks: "Create a test plan for X" or "Document this fix", THEN create the document.
+
+**Examples:**
+- ❌ User: "Fix the code issue" → Create fix, commit with clear message. Don't create SUMMARY files.
+- ✅ User: "Fix the code and create a test plan" → Fix code AND create test plan document.
+- ❌ User: "Optimize this feature" → Optimize code, commit with clear message. Don't create OPTIMIZATION_SUMMARY.md
+- ✅ User: "Optimize and create a quick reference" → Optimize AND create quick reference.
