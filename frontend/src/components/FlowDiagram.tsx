@@ -286,16 +286,10 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     onNodeClick(node.id);
   };
 
-  // 处理画布点击（当点击不在节点上时）
-  const handlePaneClick = (_event: React.MouseEvent | any) => {
-    console.log('🖱️ Pane clicked (not on node)');
-    const debugMsg = `🖱️ Canvas clicked - deselecting`;
-    setDebugInfo(debugMsg);
-
-    // 注意: onNodeClick 期望一个 string nodeId，不能传 null
-    // 所以我们只更新本地选择，但不调用回调
-    // 实际上应该由父组件处理背景点击的取消选择逻辑
-  };
+  // 禁用画布点击事件 - 这是激进方案，完全不处理画布点击
+  // 只有节点点击才会触发选择变化
+  // 原因：XYFlow的事件系统中，节点点击容易被误路由到画布点击
+  const handlePaneClick = null;  // ← 完全禁用
 
   const toggleNodeTypeFilter = (type: 'data' | 'compute' | 'chart') => {
     const newFilter = new Set(nodeTypeFilter);
@@ -692,7 +686,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onNodeClick={handleNodeClick}
-        onPaneClick={handlePaneClick}
+        // onPaneClick={handlePaneClick}  ← 已禁用，激进方案
         connectionMode={ConnectionMode.Loose}
         fitView
         attributionPosition="bottom-left"
