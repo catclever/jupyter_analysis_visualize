@@ -221,16 +221,24 @@ class ExecutionManager:
         elif result['status'] == 'timeout':
             execution.complete(error=f"Timeout after {timeout}s")
         else:
-            # For all nodes (including tool nodes), retrieve result from kernel
-            # All node types should return a variable with the same name as node_id
-            try:
-                var_value = self.kernel_manager.get_variable(project_id, node_id)
-                # Auto-save result (pickle for tool nodes, parquet/json for others)
-                saved_path = self.project_manager.save_node_result(node_id, var_value)
-                execution.complete(result=var_value)
-            except Exception as e:
-                # If variable retrieval fails, report error
-                execution.complete(error=f"Failed to retrieve result for {node_id}: {str(e)}")
+            # For tool nodes, no result to save
+            if node['type'] == 'tool':
+                execution.complete(result=None)
+            else:
+                # For data/compute/chart nodes, try to retrieve result from kernel
+                # Try to get variable with node_id
+                try:
+                    var_value = self.kernel_manager.get_variable(project_id, node_id)
+                    # Auto-save result
+                    saved_path = self.project_manager.save_node_result(node_id, var_value)
+                    execution.complete(result=var_value)
+                except Exception as e:
+                    # Log the error for debugging purposes
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Failed to retrieve/save result for node {node_id}: {type(e).__name__}: {e}")
+                    # Mark as error instead of silently failing
+                    execution.complete(error=f"Failed to save result: {type(e).__name__}: {str(e)}")
 
         return execution
 

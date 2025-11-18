@@ -1,0 +1,313 @@
+{
+  "project_id": "ecommerce_analytics",
+  "name": "E-Commerce Analytics Platform",
+  "description": "Comprehensive e-commerce data analysis with multiple analysis pathways: Sales Trends, Customer Behavior, Category Competition, and Marketing Effectiveness",
+  "version": "1.0.0",
+  "created_at": "2025-11-18T09:41:34.689486",
+  "updated_at": "2025-11-18T09:41:34.689516",
+  "nodes": [
+    {
+      "node_id": "load_orders_data",
+      "node_type": "data_source",
+      "name": "Load Orders Data",
+      "depends_on": [],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/load_orders_data.parquet",
+      "error_message": null,
+      "execution_time": 0.408251,
+      "last_execution_time": "2025-11-18T09:41:35.724959",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "load_customers_data",
+      "node_type": "data_source",
+      "name": "Load Customers Data",
+      "depends_on": [],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/load_customers_data.parquet",
+      "error_message": null,
+      "execution_time": 0.021205,
+      "last_execution_time": "2025-11-18T10:09:18.385282",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "load_products_data",
+      "node_type": "data_source",
+      "name": "Load Products Data",
+      "depends_on": [],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/load_products_data.parquet",
+      "error_message": null,
+      "execution_time": 0.01898,
+      "last_execution_time": "2025-11-18T09:41:35.748677",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "load_promotions_data",
+      "node_type": "data_source",
+      "name": "Load Promotions Data",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null
+    },
+    {
+      "node_id": "tool_time_aggregation",
+      "node_type": "tool",
+      "name": "Tool: Time Aggregation Functions",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": null,
+      "result_path": null
+    },
+    {
+      "node_id": "tool_cohort_analysis",
+      "node_type": "tool",
+      "name": "Tool: Cohort Analysis",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": null,
+      "result_path": null
+    },
+    {
+      "node_id": "tool_category_metrics",
+      "node_type": "tool",
+      "name": "Tool: Category Metrics",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": null,
+      "result_path": null
+    },
+    {
+      "node_id": "tool_promo_impact",
+      "node_type": "tool",
+      "name": "Tool: Promotion Impact Analysis",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": null,
+      "result_path": null
+    },
+    {
+      "node_id": "p1_daily_sales",
+      "node_type": "compute",
+      "name": "Path 1: Daily Sales Trend",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null
+    },
+    {
+      "node_id": "p1_category_sales",
+      "node_type": "compute",
+      "name": "Path 1: Category Sales Distribution",
+      "depends_on": [
+        "load_orders_data"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p1_category_sales.parquet",
+      "error_message": null,
+      "execution_time": 0.919368,
+      "last_execution_time": "2025-11-18T10:13:34.255984",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p1_weekly_trend",
+      "node_type": "compute",
+      "name": "Path 1: Weekly Sales Trend",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null
+    },
+    {
+      "node_id": "p1_sales_chart",
+      "node_type": "chart",
+      "name": "Path 1: Sales by Category Chart",
+      "depends_on": [
+        "p1_category_sales"
+      ],
+      "execution_status": "pending_validation",
+      "result_format": "json",
+      "result_path": "parquets/p1_sales_chart.json",
+      "error_message": "Failed to load from file on kernel restart",
+      "execution_time": 1.980246,
+      "last_execution_time": "2025-11-18T10:14:02.863228",
+      "output_type": "figure",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p2_customer_purchase",
+      "node_type": "compute",
+      "name": "Path 2: Customer Purchase Behavior",
+      "depends_on": [
+        "load_customers_data",
+        "load_orders_data"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p2_customer_purchase.parquet",
+      "error_message": null,
+      "execution_time": 1.149943,
+      "last_execution_time": "2025-11-18T10:09:18.408192",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p2_loyalty_analysis",
+      "node_type": "compute",
+      "name": "Path 2: Loyalty Level Analysis",
+      "depends_on": [
+        "p2_customer_purchase"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p2_loyalty_analysis.parquet",
+      "error_message": null,
+      "execution_time": 0.976162,
+      "last_execution_time": "2025-11-18T10:09:39.176973",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p2_regional_behavior",
+      "node_type": "compute",
+      "name": "Path 2: Regional Purchase Behavior",
+      "depends_on": [
+        "p2_customer_purchase"
+      ],
+      "execution_status": "pending_validation",
+      "result_format": "parquet",
+      "result_path": "parquets/p2_regional_behavior.parquet",
+      "error_message": "Failed to load from file on kernel restart",
+      "execution_time": 1.273224,
+      "last_execution_time": "2025-11-18T10:12:42.743281",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p2_customer_chart",
+      "node_type": "chart",
+      "name": "Path 2: Loyalty Level Distribution Chart",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": "json",
+      "result_path": null
+    },
+    {
+      "node_id": "p3_category_comparison",
+      "node_type": "compute",
+      "name": "Path 3: Category Performance Comparison",
+      "depends_on": [
+        "load_orders_data",
+        "load_products_data"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p3_category_comparison.parquet",
+      "error_message": null,
+      "execution_time": 0.030396,
+      "last_execution_time": "2025-11-18T10:10:51.978042",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p3_category_market_share",
+      "node_type": "compute",
+      "name": "Path 3: Category Market Share",
+      "depends_on": [
+        "p3_category_comparison"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p3_category_market_share.parquet",
+      "error_message": null,
+      "execution_time": 1.060931,
+      "last_execution_time": "2025-11-18T10:31:08.242366",
+      "output_type": "unknown",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p3_top_products",
+      "node_type": "compute",
+      "name": "Path 3: Top Products by Revenue",
+      "depends_on": [
+        "load_orders_data",
+        "load_products_data"
+      ],
+      "execution_status": "pending_validation",
+      "result_format": "parquet",
+      "result_path": "parquets/p3_top_products.parquet",
+      "error_message": "Failed to load from file on kernel restart",
+      "execution_time": 1.1313,
+      "last_execution_time": "2025-11-18T10:10:55.963997",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p3_category_chart",
+      "node_type": "chart",
+      "name": "Path 3: Market Share Distribution",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": "json",
+      "result_path": null
+    },
+    {
+      "node_id": "p4_promo_effectiveness",
+      "node_type": "compute",
+      "name": "Path 4: Promotion Effectiveness",
+      "depends_on": [
+        "load_orders_data"
+      ],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null
+    },
+    {
+      "node_id": "p4_category_promo_impact",
+      "node_type": "compute",
+      "name": "Path 4: Promotion Impact by Category",
+      "depends_on": [
+        "load_orders_data"
+      ],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null
+    },
+    {
+      "node_id": "p4_payment_method_analysis",
+      "node_type": "compute",
+      "name": "Path 4: Payment Method Analysis",
+      "depends_on": [
+        "load_orders_data"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p4_payment_method_analysis.parquet",
+      "error_message": null,
+      "execution_time": 1.005117,
+      "last_execution_time": "2025-11-18T10:12:27.716048",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p4_promo_chart",
+      "node_type": "chart",
+      "name": "Path 4: Promotion Effectiveness Comparison",
+      "depends_on": [
+        "p4_promo_effectiveness"
+      ],
+      "execution_status": "not_executed",
+      "result_format": "json",
+      "result_path": null
+    }
+  ]
+}

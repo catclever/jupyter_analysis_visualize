@@ -294,25 +294,108 @@ class KernelManager:
             raise RuntimeError(f"No kernel found for project {project_id}")
 
         try:
+            import base64
             client = kernel.kernel_manager.client()
             client.start_channels()
 
-            # Request variable value
-            code = f"__var_value = {var_name}; __var_type = type({var_name}).__name__"
+            # Check variable type first
+            code = f"__var_type = type({var_name}).__name__; print(__var_type)"
             msg_id = client.execute(code)
+            var_type = ""
 
-            # Wait for execution
             while True:
                 try:
                     msg = client.get_iopub_msg(timeout=1)
-                    if msg.get("msg_type") == "status":
+                    msg_type = msg.get("msg_type", "")
+
+                    if msg_type == "stream":
+                        var_type += msg.get("content", {}).get("text", "")
+                    elif msg_type == "status":
                         if msg.get("content", {}).get("execution_state") == "idle":
                             break
                 except:
                     continue
 
-            # Get variable value
-            code_get = "__var_value"
+            var_type = var_type.strip()
+
+            # For DataFrame, use pickle serialization for reliable data retrieval
+            if var_type == 'DataFrame':
+                code_pickle = f"""
+import pickle
+import base64
+__pickled = base64.b64encode(pickle.dumps({var_name})).decode('utf-8')
+print(__pickled)
+"""
+                msg_id = client.execute(code_pickle)
+                output = ""
+
+                while True:
+                    try:
+                        msg = client.get_iopub_msg(timeout=1)
+                        msg_type = msg.get("msg_type", "")
+
+                        if msg_type == "stream":
+                            output += msg.get("content", {}).get("text", "")
+                        elif msg_type == "status":
+                            if msg.get("content", {}).get("execution_state") == "idle":
+                                break
+                    except:
+                        continue
+
+                client.stop_channels()
+                kernel.update_activity()
+
+                # Unpickle the DataFrame
+                try:
+                    import pickle
+                    pickled_data = base64.b64decode(output.strip())
+                    return pickle.loads(pickled_data)
+                except Exception as e:
+                    raise RuntimeError(f"Failed to unpickle DataFrame {var_name}: {e}")
+
+            # For functions and other non-JSON objects, try cloudpickle/pickle
+            if var_type in ['function', 'method', 'type', 'builtin_function_or_method']:
+                code_pickle = f"""
+try:
+    import cloudpickle
+    import base64
+    __pickled = base64.b64encode(cloudpickle.dumps({var_name})).decode('utf-8')
+    print(__pickled)
+except ImportError:
+    import pickle
+    import base64
+    __pickled = base64.b64encode(pickle.dumps({var_name})).decode('utf-8')
+    print(__pickled)
+"""
+                msg_id = client.execute(code_pickle)
+                output = ""
+
+                while True:
+                    try:
+                        msg = client.get_iopub_msg(timeout=1)
+                        msg_type = msg.get("msg_type", "")
+
+                        if msg_type == "stream":
+                            output += msg.get("content", {}).get("text", "")
+                        elif msg_type == "status":
+                            if msg.get("content", {}).get("execution_state") == "idle":
+                                break
+                    except:
+                        continue
+
+                client.stop_channels()
+                kernel.update_activity()
+
+                # Unpickle the function
+                try:
+                    import pickle
+                    pickled_data = base64.b64decode(output.strip())
+                    return pickle.loads(pickled_data)
+                except Exception as e:
+                    raise RuntimeError(f"Failed to unpickle {var_name}: {e}")
+
+            # For other types, use text representation
+            code_get = f"print(repr({var_name}))"
             msg_id = client.execute(code_get)
             output = ""
 

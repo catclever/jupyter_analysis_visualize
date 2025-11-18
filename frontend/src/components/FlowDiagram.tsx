@@ -42,15 +42,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Track node click with position and time-based detection
-  // Includes timestamp to invalidate stale references from previous interactions
-  const nodeClickStartRef = React.useRef<{
-    nodeId: string;
-    x: number;
-    y: number;
-    timestamp: number;
-    isActive: boolean;
-  } | null>(null);
+  // Debug state - track click information
+  const [debugInfo, setDebugInfo] = useState<string>('Waiting for click...');
+  const [showDebug, setShowDebug] = useState(true);
 
   // 从 API 获取项目数据
   useEffect(() => {
@@ -187,6 +181,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         if (nodeIndex !== -1) {
           if (change.type === 'position' && change.position) {
             // Update position for drag operations
+            console.log('📍 Node dragged:', change.id, 'to', change.position);
+            setDebugInfo(`📍 Dragging: ${change.id}`);
             updatedNodes[nodeIndex] = {
               ...updatedNodes[nodeIndex],
               position: change.position,
@@ -280,63 +276,25 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     return 'dimmed';
   };
 
-  const handleNodeMouseDown = (_event: React.MouseEvent | any, node: Node) => {
-    // Record mouse position when user starts interacting with a node
-    const clientX = _event?.clientX ?? (_event?.touches?.[0]?.clientX);
-    const clientY = _event?.clientY ?? (_event?.touches?.[0]?.clientY);
+  const handleNodeClick = (_event: React.MouseEvent | any, node: Node) => {
+    console.log('✅ handleNodeClick FIRED for node:', node.id);
 
-    if (clientX !== undefined && clientY !== undefined) {
-      nodeClickStartRef.current = {
-        nodeId: node.id,
-        x: clientX,
-        y: clientY,
-        timestamp: Date.now(),
-        isActive: true
-      };
-    }
+    const debugMsg = `✅ SELECTED: ${node.id}`;
+    setDebugInfo(debugMsg);
+
+    // 调用点击回调让父组件更新选择状态
+    onNodeClick(node.id);
   };
 
-  const handleNodeClick = (_event: React.MouseEvent | any, node: Node) => {
-    // Prevent default behaviors
-    _event?.stopPropagation?.();
-    _event?.preventDefault?.();
+  // 处理画布点击（当点击不在节点上时）
+  const handlePaneClick = (_event: React.MouseEvent | any) => {
+    console.log('🖱️ Pane clicked (not on node)');
+    const debugMsg = `🖱️ Canvas clicked - deselecting`;
+    setDebugInfo(debugMsg);
 
-    if (_event?.nativeEvent) {
-      _event.nativeEvent.stopImmediatePropagation?.();
-    }
-
-    // Get current position
-    const clientX = _event?.clientX ?? (_event?.touches?.[0]?.clientX);
-    const clientY = _event?.clientY ?? (_event?.touches?.[0]?.clientY);
-
-    const startInfo = nodeClickStartRef.current;
-    let shouldSelect = false;
-
-    // Simple distance-based check: if mouse moved < 20px, treat as click
-    if (startInfo && startInfo.nodeId === node.id && clientX !== undefined && clientY !== undefined) {
-      const distanceMoved = Math.hypot(clientX - startInfo.x, clientY - startInfo.y);
-
-      if (distanceMoved < 20) {
-        shouldSelect = true;
-        console.log('[FlowDiagram] Node clicked:', node.id, `distance: ${distanceMoved.toFixed(1)}px`);
-      } else {
-        console.log('[FlowDiagram] Drag detected:', node.id, `distance: ${distanceMoved.toFixed(1)}px`);
-      }
-    } else {
-      // Fallback: always select if we can't track the interaction
-      // This ensures clicks from edges or other sources still work
-      shouldSelect = true;
-      console.log('[FlowDiagram] Node clicked (fallback):', node.id);
-    }
-
-    if (shouldSelect) {
-      onNodeClick(node.id);
-    }
-
-    // Clean up
-    if (nodeClickStartRef.current) {
-      nodeClickStartRef.current.isActive = false;
-    }
+    // 注意: onNodeClick 期望一个 string nodeId，不能传 null
+    // 所以我们只更新本地选择，但不调用回调
+    // 实际上应该由父组件处理背景点击的取消选择逻辑
   };
 
   const toggleNodeTypeFilter = (type: 'data' | 'compute' | 'chart') => {
@@ -695,6 +653,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
               return {
                 ...node,
                 className: classNames,
+                selectable: true,  // 确保节点可被选中
                 // Store status for potential use in node rendering
                 data: {
                   ...node.data,
@@ -732,12 +691,12 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         })}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
-        onNodeMouseDown={handleNodeMouseDown}
         onNodeClick={handleNodeClick}
+        onPaneClick={handlePaneClick}
         connectionMode={ConnectionMode.Loose}
         fitView
         attributionPosition="bottom-left"
-        selectNodesOnDrag={false}
+        selectNodesOnDrag={true}
         multiSelectionKeyCode={null}
         deleteKeyCode={null}
       >
@@ -762,6 +721,22 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-foreground"></div>
               <p className="text-muted-foreground text-sm mt-2">Loading project...</p>
             </div>
+          </div>
+        )}
+
+        {/* Debug Panel */}
+        {showDebug && (
+          <div className="absolute bottom-4 left-4 bg-slate-900 text-white p-3 rounded border border-slate-700 text-sm font-mono z-40 max-w-xs">
+            <div className="flex justify-between items-center mb-2">
+              <span className="font-bold">🐛 Debug Info</span>
+              <button
+                onClick={() => setShowDebug(false)}
+                className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded"
+              >
+                Hide
+              </button>
+            </div>
+            <div className="text-green-400">{debugInfo}</div>
           </div>
         )}
 

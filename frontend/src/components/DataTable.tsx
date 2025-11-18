@@ -3566,10 +3566,14 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
           // Strip metadata comments for editing
           const cleanedCode = stripMetadataComments(codeData.code);
           setApiCode(cleanedCode);
+          // Initialize editingCode with the cleaned code so it's ready for editing
+          // This ensures editingCode has the correct value even when entering edit mode automatically
+          setEditingCode(cleanedCode);
         } catch (err) {
           console.log('No code available for node', displayedNodeId);
           setApiCode('');
           setApiCodeWithMetadata('');
+          setEditingCode('');
         }
 
         // 加载markdown总结
@@ -3601,6 +3605,51 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     loadNewNode();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [displayedNodeId, projectId, currentDatasetId]);
+
+  // Direct textarea input listener for react-simple-code-editor
+  // The library's onChange might not always fire properly, so we listen to input events directly
+  useEffect(() => {
+    if (!isEditingCode) return;
+
+    const editorContainer = document.querySelector('.editor-container');
+    if (!editorContainer) return;
+
+    const textarea = editorContainer.querySelector('textarea') as HTMLTextAreaElement | null;
+    if (!textarea) return;
+
+    const handleDirectInput = (e: Event) => {
+      const target = e.target as HTMLTextAreaElement;
+      const newValue = target.value;
+
+      // Update editingCode state with the actual textarea value
+      // This bypasses the onChange event which might not be firing
+      if (newValue !== editingCode) {
+        console.log('[DirectInput] textarea input detected', {
+          newLength: newValue.length,
+          oldLength: editingCode.length,
+          isDifferent: newValue !== apiCode,
+          preview: newValue.substring(0, 50)
+        });
+        setEditingCode(newValue);
+
+        // Update change tracking
+        if (newValue !== apiCode) {
+          codeChanges.markAsChanged();
+        } else {
+          codeChanges.markAsSaved();
+        }
+      }
+    };
+
+    // Listen to both input and change events
+    textarea.addEventListener('input', handleDirectInput);
+    textarea.addEventListener('change', handleDirectInput);
+
+    return () => {
+      textarea.removeEventListener('input', handleDirectInput);
+      textarea.removeEventListener('change', handleDirectInput);
+    };
+  }, [editingCode, apiCode, isEditingCode, codeChanges]);
 
   // 当currentPage改变时，重新加载该页的数据
   useEffect(() => {
@@ -3728,28 +3777,116 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   };
 
   const handleCodeChange = (newContent: string) => {
+    console.log('[DEBUG:handleCodeChange] Input detected', {
+      newContentLength: newContent.length,
+      apiCodeLength: apiCode.length,
+      isDifferent: newContent !== apiCode,
+      preview: newContent.substring(0, 50),
+      timestamp: new Date().toISOString()
+    });
     setEditingCode(newContent);
     // Mark as changed if different from original, as saved if same
     if (newContent !== apiCode) {
       codeChanges.markAsChanged();
+      console.log('[DEBUG:handleCodeChange] Marked as changed');
     } else {
       codeChanges.markAsSaved();
+      console.log('[DEBUG:handleCodeChange] Marked as saved');
     }
   };
 
   const handleCodeSave = async () => {
-    if (!displayedNodeId || !codeChanges.hasChanges) return;
+    if (!displayedNodeId) return;
+
+    // DEBUG: Log current state before processing
+    console.log('[handleCodeSave] Called with:', {
+      displayedNodeId,
+      editingCodeLength: editingCode?.length || 0,
+      apiCodeLength: apiCode?.length || 0,
+      isEditingCode,
+      timestamp: new Date().toISOString()
+    });
 
     setIsSavingCode(true);
     try {
-      const result = await updateNodeCode(projectId, displayedNodeId, editingCode);
+      // CRITICAL BUGFIX: The CodeEditor's onChange event might not be triggered properly
+      // So editingCode might still be empty even though user typed in the editor
+      // Try multiple sources to get the actual code content
+
+      let codeToSave = editingCode;
+      let source = 'editingCode state';
+
+      // If editingCode is empty, try to read from the DOM
+      // react-simple-code-editor may not trigger onChange properly,
+      // so we need to read the actual rendered content
+      if (!codeToSave || codeToSave.trim() === '') {
+        const editorContainer = document.querySelector('.editor-container');
+
+        if (editorContainer) {
+          // PRIORITY 1: Try to get the rendered code from the <pre> element
+          // This is the visual representation that the user sees
+          const preElement = editorContainer.querySelector('pre');
+          if (preElement && preElement.textContent && preElement.textContent.trim() !== '') {
+            codeToSave = preElement.textContent;
+            source = 'DOM pre element (visual rendered code)';
+            console.log('[handleCodeSave] Got code from DOM pre element:', {
+              length: codeToSave.length,
+              source: source,
+              preview: codeToSave.substring(0, 100)
+            });
+          }
+
+          // PRIORITY 2: If pre element is empty, try the textarea
+          if (!codeToSave || codeToSave.trim() === '') {
+            let editorTextarea = editorContainer.querySelector('textarea') as HTMLTextAreaElement | null;
+
+            if (editorTextarea && editorTextarea.value && editorTextarea.value.trim() !== '') {
+              codeToSave = editorTextarea.value;
+              source = 'DOM textarea (onChange not triggered)';
+              console.log('[handleCodeSave] Got code from DOM textarea:', {
+                length: codeToSave.length,
+                source: source,
+                preview: codeToSave.substring(0, 100)
+              });
+            } else {
+              console.warn('[handleCodeSave] Could not find usable content in editor', {
+                preFound: !!preElement,
+                preContent: preElement?.textContent?.substring(0, 50),
+                textareaFound: !!editorTextarea,
+                textareaValue: editorTextarea?.value?.substring(0, 50)
+              });
+            }
+          }
+        } else {
+          console.warn('[handleCodeSave] Editor container not found');
+        }
+      }
+
+      // If we still don't have meaningful code, abort save
+      if (!codeToSave || codeToSave.trim() === '') {
+        console.warn('[handleCodeSave] No code to save', {
+          editingCodeLength: editingCode?.length || 0,
+          source: source
+        });
+        setIsSavingCode(false);
+        return;
+      }
+
+      console.log('[handleCodeSave] Saving code', {
+        length: codeToSave.length,
+        source: source,
+        preview: codeToSave.substring(0, 50)
+      });
+
+      const result = await updateNodeCode(projectId, displayedNodeId, codeToSave);
 
       // Backend returns code with updated metadata comments
-      const fullCode = result.code || editingCode;
+      const fullCode = result.code || codeToSave;
       const cleanedCode = stripMetadataComments(fullCode);
 
       setApiCodeWithMetadata(fullCode);
       setApiCode(cleanedCode);
+      setEditingCode(cleanedCode);  // Update editingCode with the saved version
       setIsEditingCode(false);
       codeChanges.markAsSaved();
 
@@ -3782,7 +3919,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     // First, save code changes if any
     if (codeChanges.hasChanges && isEditingCode) {
       try {
-        await updateNodeCode(projectId, displayedNodeId, apiCode);
+        await updateNodeCode(projectId, displayedNodeId, editingCode);
         codeChanges.markAsSaved();
       } catch (error) {
         toast({

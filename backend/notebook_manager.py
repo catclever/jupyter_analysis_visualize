@@ -801,13 +801,19 @@ else:
             source_text: Full source code text
 
         Returns:
-            Code without metadata comments
+            Code without metadata comments (preserves empty lines)
         """
-        # Find the end marker
+        # Find the end marker - must include the newline after it
+        # Pattern explanation:
+        # - #\s*===== End of system-managed metadata ===== : matches the end marker with optional whitespace
+        # - \n : matches the newline after the marker
+        # - (.*) : captures everything after, including the first newline
         pattern = r"#\s*===== End of system-managed metadata =====\n(.*)"
         match = re.search(pattern, source_text, re.DOTALL)
         if match:
-            return match.group(1)
+            extracted = match.group(1)
+            # Ensure we preserve the code, even if it starts with whitespace
+            return extracted
         # If no metadata section, return original text
         return source_text
 

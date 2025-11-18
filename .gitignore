@@ -8,9 +8,7 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-# Keep frontend/dist for static hosting deployment
-!frontend/dist/
-# But ignore other build outputs
+dist
 dist-ssr
 *.local
 
@@ -63,8 +61,10 @@ backend/*.pkl
 backend/*.parquet
 backend/.env
 backend/.env.local
-# Backend - Wheel packages (offline deployment, not tracked in git)
 backend/whls/
+
+# Offline Package - Runtime artifacts
+1117_offline_package/backend/whls/
 
 # Projects - Generated Results (parquets, json, pkl are generated output)
 projects/*/parquets/
@@ -87,16 +87,9 @@ view_notebook_metadata.py
 README_METADATA.md
 # # All ipynb files except those in version control
 # *.ipynb
-# But specifically ignore test-generated notebooks
-backend/test/*.ipynb
-backend/test/*.parquet
-backend/test/*.json
-backend/test/temp/
-backend/test/*.pkl
-backend/test/generate_*
 
-# # offline_packages
-# *offline_package/
+# test
+test/
 
 # Editor directories and files
 .vscode/*

@@ -154,30 +154,44 @@ class CodeValidator:
         Returns:
             (is_valid, message, inferred_type)
         """
+        print(f"\n[ValidateDebug] Validating node: {node_id}, type: {node_type}")
+
         # Step 1: Check if same-named variable/function exists
         if node_type == 'tool':
             has_result = CodeValidator.has_function_definition(code, node_id)
+            print(f"[ValidateDebug] Step 1 (tool): has_function_definition('{node_id}') = {has_result}")
             if not has_result:
+                print(f"[ValidateDebug] ✗ FAILED: Tool node must define function '{node_id}'")
                 return False, f"Tool node must define function '{node_id}'", 'unknown'
         else:
             has_result = CodeValidator.has_same_named_variable(code, node_id)
+            print(f"[ValidateDebug] Step 1 (non-tool): has_same_named_variable('{node_id}') = {has_result}")
             if not has_result:
+                print(f"[ValidateDebug] ✗ FAILED: Code must assign variable '{node_id}'")
                 return False, f"Code must assign variable '{node_id}'", 'unknown'
+
+        print(f"[ValidateDebug] Step 1 ✓ PASSED")
 
         # Step 2: Infer type and validate against node_type
         inferred_type = CodeValidator.infer_return_type(code, node_id)
+        print(f"[ValidateDebug] Step 2: infer_return_type('{node_id}') = '{inferred_type}'")
 
         # Type validation rules
         if node_type in ['data_source', 'compute']:
             if inferred_type not in ['dataframe', 'unknown']:
+                print(f"[ValidateDebug] ✗ FAILED: Node must return DataFrame, but got {inferred_type}")
                 return False, f"Node '{node_id}' must return DataFrame, but code suggests {inferred_type}", inferred_type
         elif node_type == 'chart':
             if inferred_type not in ['figure', 'dict', 'unknown']:
+                print(f"[ValidateDebug] ✗ FAILED: Node must return Figure/dict, but got {inferred_type}")
                 return False, f"Node '{node_id}' must return Figure or dict, but code suggests {inferred_type}", inferred_type
         elif node_type == 'tool':
             if inferred_type not in ['function', 'unknown']:
+                print(f"[ValidateDebug] ✗ FAILED: Tool node must return function, but got {inferred_type}")
                 return False, f"Tool node '{node_id}' must define function, but code suggests {inferred_type}", inferred_type
 
+        print(f"[ValidateDebug] Step 2 ✓ PASSED")
+        print(f"[ValidateDebug] ✓ ALL VALIDATIONS PASSED\n")
         return True, "Form validation passed", inferred_type
 
 
@@ -276,14 +290,102 @@ class CodeExecutor:
 
         Gets or creates kernel with project directory as working directory.
         This ensures relative file paths in code work correctly.
+
+        On new kernel creation, automatically loads validated nodes' results
+        from files into the kernel namespace.
         """
         # 只在第一次创建 kernel 时设置工作目录
-        if project_id not in self.km.project_kernels:
+        is_new_kernel = project_id not in self.km.project_kernels
+
+        if is_new_kernel:
             project_path = self.pm.project_path
             if project_path:
                 self.km.get_or_create_kernel(project_id, str(project_path))
             else:
                 self.km.get_or_create_kernel(project_id)
+
+            # Auto-load validated nodes into kernel
+            print(f"\n[KernelInit] New kernel created for project '{project_id}'")
+            self._load_validated_nodes_on_kernel_init(project_id)
+
+    def _load_validated_nodes_on_kernel_init(self, project_id: str) -> None:
+        """
+        Load validated nodes' results from files into kernel namespace on kernel init.
+
+        When a new kernel is created, this automatically loads all nodes with
+        execution_status == 'validated' from their saved result files into the kernel.
+
+        If a file load fails, the node's status is changed to 'pending_validation'.
+
+        Args:
+            project_id: Project identifier
+        """
+        print(f"[KernelInit] Loading validated nodes into kernel...")
+
+        # Get all validated nodes
+        nodes = self.pm.list_nodes()
+        validated_nodes = [n for n in nodes if n.get('execution_status') == 'validated']
+
+        print(f"[KernelInit] Found {len(validated_nodes)} validated nodes")
+
+        if not validated_nodes:
+            print(f"[KernelInit] No validated nodes to load")
+            return
+
+        loaded_count = 0
+        failed_nodes = []
+
+        for node in validated_nodes:
+            node_id = node['node_id']
+            node_type = node.get('type', 'compute')
+            result_format = node.get('result_format', 'pkl' if node_type == 'tool' else 'parquet')
+
+            try:
+                # Get result path
+                if node_type == 'tool':
+                    # Tool nodes are saved as pickles
+                    result_path = str(self.pm.project_path / 'functions' / f'{node_id}.pkl')
+                else:
+                    # Data and compute nodes are saved as parquets
+                    result_path = str(self.pm.parquets_path / f'{node_id}.parquet')
+
+                # Load from file into kernel
+                success = self._load_variable_from_file(
+                    node_id,
+                    result_path,
+                    result_format
+                )
+
+                if success:
+                    print(f"[KernelInit] ✓ Loaded validated node '{node_id}'")
+                    loaded_count += 1
+                else:
+                    print(f"[KernelInit] ✗ Failed to load node '{node_id}'")
+                    failed_nodes.append(node_id)
+
+            except Exception as e:
+                print(f"[KernelInit] ✗ Error loading node '{node_id}': {e}")
+                failed_nodes.append(node_id)
+
+        # Update status for failed nodes
+        if failed_nodes:
+            print(f"[KernelInit] Updating {len(failed_nodes)} failed nodes to 'pending_validation'")
+            for node_id in failed_nodes:
+                node = self.pm.get_node(node_id)
+                if node:
+                    node['execution_status'] = 'pending_validation'
+                    node['error_message'] = 'Failed to load from file on kernel restart'
+                    self.pm._save_metadata()
+
+                    # Also update notebook
+                    try:
+                        self.nm.update_execution_status(node_id, 'pending_validation')
+                        self.nm.sync_metadata_comments()
+                        self.nm.save()
+                    except Exception as e:
+                        print(f"[KernelInit] Warning: Failed to update notebook for {node_id}: {e}")
+
+        print(f"[KernelInit] ✓ Kernel initialization complete: {loaded_count}/{len(validated_nodes)} nodes loaded")
 
     def _check_same_named_variable_in_code(self, node_id: str, code: str) -> Tuple[bool, str]:
         """
@@ -296,7 +398,7 @@ class CodeExecutor:
             return True, f"Code assigns variable '{node_id}'"
         return False, f"Code does NOT assign variable '{node_id}' - will be auto-appended"
 
-    def _auto_append_save_code(self, code: str, node_id: str, result_format: str) -> str:
+    def _auto_append_save_code(self, code: str, node_id: str, result_format: str, node_type: str = None) -> str:
         """
         Auto-append result-saving code to persist execution results.
 
@@ -308,7 +410,16 @@ class CodeExecutor:
 
         Note: Saves regardless of whether the code already assigns the variable.
         This ensures results are always persisted for display in the frontend.
+
+        Exception: Tool nodes don't get auto-save code because:
+        - Tool nodes define functions (not variables)
+        - Functions stay in kernel namespace and get reused
+        - There's nothing to "save" - the function IS the result
         """
+        # Tool nodes: Skip auto-append save code
+        if node_type == "tool":
+            return code
+
         # Use absolute paths for parquets directory
         parquets_dir = str(self.pm.parquets_path)
 
@@ -350,10 +461,14 @@ else:
     # Single DataFrame - save directly
     save_path = parquets_dir / '{node_id}.parquet'
     try:
-        {node_id}.to_parquet(str(save_path), index=False)
+        # Ensure we have a copy, not a view
+        df_to_save = {node_id}.copy() if hasattr({node_id}, 'copy') else {node_id}
+        df_to_save.to_parquet(str(save_path), index=False)
         print(f"✓ Saved parquet: {{save_path}}")
     except Exception as e:
+        import traceback
         print(f"ERROR saving parquet: {{e}}")
+        traceback.print_exc()
         raise"""
 
         elif result_format == "json":
@@ -795,7 +910,35 @@ with open(r'{full_path}', 'rb') as f:
                 code = source
 
             # Step 1: Form validation - check if code assigns correct variable/function with correct type
-            node_type = node.get('type', 'compute')
+            # 关键修复: 优先从 notebook 元数据注释里读取节点类型，而不是从 project.json
+            # 这样确保前端修改的节点类型能被立即识别，即使 project.json 还没更新
+            cell_metadata = code_cell.get('metadata', {})
+            node_type_from_notebook = cell_metadata.get('node_type')
+
+            # 调试输出：看节点类型在哪里被读取
+            print(f"\n[NodeTypeDebug] Node: {node_id}")
+            print(f"[NodeTypeDebug] Notebook metadata keys: {list(cell_metadata.keys())}")
+            print(f"[NodeTypeDebug] node_type from notebook: {node_type_from_notebook}")
+            print(f"[NodeTypeDebug] node_type from project.json: {node.get('type', 'compute')}")
+
+            if node_type_from_notebook:
+                # 使用 notebook 元数据中的节点类型（最新的）
+                node_type = node_type_from_notebook
+                print(f"[NodeTypeDebug] ✓ Using node_type from notebook metadata: '{node_type}'")
+            else:
+                # 回退到 project.json 中的节点类型
+                node_type = node.get('type', 'compute')
+                print(f"[NodeTypeDebug] ✗ Using node_type from project.json: '{node_type}'")
+
+            print(f"[NodeTypeDebug] Final node_type for validation: '{node_type}'")
+            print(f"[NodeTypeDebug] Code preview: {code[:100]}...\n")
+
+            # DEBUG: Log code preview (after node_type is defined)
+            print(f"\n[CodeDebug] Node {node_id}, type {node_type}:")
+            print(f"[CodeDebug] Code length: {len(code)}")
+            print(f"[CodeDebug] Code preview (first 200 chars):\n{code[:200]}")
+            print(f"[CodeDebug] Code ends with: ...{code[-100:] if len(code) > 100 else code}")
+
             is_valid, validation_msg, inferred_type = CodeValidator.validate_node_form(code, node_id, node_type)
 
             if not is_valid:
@@ -847,10 +990,17 @@ with open(r'{full_path}', 'rb') as f:
                 print(f"[Execution] Step 4: No missing dependencies (analyzed_deps={analyzed_deps}), skipping recursive execution")
 
             # Step 5: Auto-append save code to persist results
-            result_format = node.get('result_format', 'parquet')
+            # Default result_format depends on node type:
+            # - tool nodes default to 'pkl' (for function serialization)
+            # - other nodes default to 'parquet' (for dataframe serialization)
+            if node_type == 'tool':
+                result_format = node.get('result_format', 'pkl')
+            else:
+                result_format = node.get('result_format', 'parquet')
 
             # Always append save code to ensure results are persisted for frontend display
-            code = self._auto_append_save_code(code, node_id, result_format)
+            # (except for tool nodes - they define functions that stay in kernel)
+            code = self._auto_append_save_code(code, node_id, result_format, node_type)
 
             # Step 6: Execute current node code
             try:
@@ -968,10 +1118,10 @@ with open(r'{full_path}', 'rb') as f:
                         metadata = cell.get('metadata', {})
                         if metadata.get('node_id') == node_id and metadata.get('result_cell'):
                             # Overwrite existing result cell
-                            cell['source'] = result_cell_code.split('\n')
-                            # Add newlines except for last line
-                            cell['source'] = [line + '\n' if i < len(cell['source'])-1
-                                            else line for i, line in enumerate(cell['source'])]
+                            source_lines = result_cell_code.split('\n')
+                            # Add newlines to all lines except the last
+                            cell['source'] = [line + '\n' if i < len(source_lines)-1
+                                            else line for i, line in enumerate(source_lines)]
                             result_cell_found = True
                             result["result_cell_added"] = True
                             break
@@ -1067,8 +1217,8 @@ with open(r'{full_path}', 'rb') as f:
             except Exception as e:
                 print(f"[Warning] Failed to sync notebook after updating depends_on: {e}")
 
-            # Final: Generate markdown documentation for execution completion
-            self._generate_execution_markdown(node_id, node, start_time)
+            # Final: Generate markdown documentation for execution completion (with output)
+            self._generate_execution_markdown(node_id, node, start_time, execution_output)
 
             result["status"] = "success"
             result["execution_time"] = (datetime.now() - start_time).total_seconds()
@@ -1261,7 +1411,7 @@ with open(r'{full_path}', 'rb') as f:
 
         return loaded_names - builtins
 
-    def _generate_execution_markdown(self, node_id: str, node: Dict[str, Any], start_time: datetime) -> None:
+    def _generate_execution_markdown(self, node_id: str, node: Dict[str, Any], start_time: datetime, execution_output: Dict = None) -> None:
         """
         Generate or update markdown documentation for execution completion.
 
@@ -1269,6 +1419,13 @@ with open(r'{full_path}', 'rb') as f:
         - Execution completion timestamp
         - Execution duration
         - Basic execution summary
+        - Execution output (print statements and results)
+
+        Args:
+            node_id: ID of the executed node
+            node: Node metadata
+            start_time: Start time of execution
+            execution_output: Dict with 'status', 'output', 'error' from kernel execution
 
         Future: Can be extended with AI-generated summaries
         """
@@ -1277,7 +1434,7 @@ with open(r'{full_path}', 'rb') as f:
             completion_time = datetime.now().isoformat()
             node_name = node.get('name', node_id)
 
-            # Generate markdown content with execution details
+            # Build markdown content with execution details
             markdown_content = f"""## ✓ Execution Complete: {node_name}
 
 **Completed at:** {completion_time}
@@ -1285,6 +1442,27 @@ with open(r'{full_path}', 'rb') as f:
 **Execution time:** {execution_time:.2f}s
 
 **Status:** ✅ Success
+
+### Execution Output"""
+
+            # Add execution output if available
+            if execution_output:
+                output_text = execution_output.get('output', '')
+                if output_text and output_text.strip():
+                    # Format output in a code block for better readability
+                    markdown_content += f"""
+
+```
+{output_text}
+```"""
+                else:
+                    # If no output, add a note
+                    markdown_content += "\n\n_(No output generated)_"
+            else:
+                markdown_content += "\n\n_(No output available)_"
+
+            # Add footer note
+            markdown_content += """
 
 ---
 
