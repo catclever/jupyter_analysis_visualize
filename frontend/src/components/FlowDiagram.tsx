@@ -680,6 +680,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         /* 数据源节点 (data_source) - 莫兰迪蓝 */
         .flow-node-data_source {
           background: #a8c5da !important;
+          opacity: 1;
         }
 
         .flow-node-data_source > div {
@@ -689,6 +690,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         .flow-node-data_source.selected {
           background: #a8c5da;
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 197, 218, 0.8);
+          opacity: 1;
         }
 
         .flow-node-data_source.parent {
@@ -710,6 +712,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         /* 计算节点 (compute) - 莫兰迪紫 */
         .flow-node-compute {
           background: #c4a8d4 !important;
+          opacity: 1;
         }
 
         .flow-node-compute > div {
@@ -719,6 +722,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         .flow-node-compute.selected {
           background: #c4a8d4 !important;
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(196, 168, 212, 0.8) !important;
+          opacity: 1;
         }
 
         .flow-node-compute.parent {
@@ -741,6 +745,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         .flow-node-chart,
         .flow-node-image {
           background: #d4c4a8 !important;
+          opacity: 1;
         }
 
         .flow-node-chart > div,
@@ -752,6 +757,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         .flow-node-image.selected {
           background: #d4c4a8 !important;
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(212, 196, 168, 0.8) !important;
+          opacity: 1;
         }
 
         .flow-node-chart.parent,
@@ -776,6 +782,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         /* 工具节点 (tool) - 莫兰迪青 */
         .flow-node-tool {
           background: #a8d4c4 !important;
+          opacity: 1;
         }
 
         .flow-node-tool > div {
@@ -785,6 +792,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         .flow-node-tool.selected {
           background: #a8d4c4 !important;
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 212, 196, 0.8) !important;
+          opacity: 1;
         }
 
         .flow-node-tool.parent {
