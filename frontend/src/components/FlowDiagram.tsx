@@ -607,6 +607,20 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         .flow-node-status-badge.not_executed {
           color: #999;
         }
+
+        /* 禁用画布点击事件 - 覆盖XYFlow的点击处理 */
+        .react-flow__pane {
+          pointer-events: none !important;
+        }
+
+        /* 但保留节点的点击事件 */
+        .react-flow__node {
+          pointer-events: auto !important;
+        }
+
+        .react-flow__edge {
+          pointer-events: auto !important;
+        }
       `}</style>
       
       <ReactFlow
