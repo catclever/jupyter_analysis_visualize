@@ -56,6 +56,8 @@ const Index = () => {
   // 当数据集改变时，加载新项目并重置选中的节点
   useEffect(() => {
     setSelectedNodeId(null);
+    // 仅在存在有效数据集 ID 时加载项目，避免初始空 ID 触发 404
+    if (!currentDatasetId) return;
     // Load the new project (with caching)
     loadProject(currentDatasetId).catch((err) => {
       console.error('Failed to load project:', err);
