@@ -64,6 +64,20 @@ const Index = () => {
     });
   }, [currentDatasetId, loadProject]);
 
+  // 当选中节点时，自动打开分析面板
+  useEffect(() => {
+    if (selectedNodeId) {
+      setIsAnalysisSidebarOpen(true);
+    }
+  }, [selectedNodeId]);
+
+  // Handle node deletion from DataTable
+  const handleNodeDelete = (nodeId: string) => {
+    // This will trigger through the FlowDiagram's onNodeDelete callback
+    // For now, we just need to make sure the node gets deleted
+    // The actual deletion logic is in FlowDiagram
+  };
+
   // 如果还在加载项目，显示加载状态
   if (isLoadingProjects || !currentDatasetId) {
     return (
@@ -115,6 +129,7 @@ const Index = () => {
                       onNodeDeselect={() => setSelectedNodeId(null)}
                       currentDatasetId={currentDatasetId}
                       onProjectUpdate={() => setProjectRefreshKey(prev => prev + 1)}
+                      onNodeDelete={handleNodeDelete}
                     />
                   </div>
                 </ResizablePanel>

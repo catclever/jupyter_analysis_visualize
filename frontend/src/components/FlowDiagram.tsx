@@ -34,19 +34,11 @@ interface FlowNodeData extends Record<string, unknown> {
   onNodeDelete?: (nodeId: string) => void;  // Callback for node deletion
 }
 
-// Custom node component with eye icon and delete button
+// Custom node component with eye icon
 function NodeWithEyeIcon({ id, data }: NodeProps<FlowNodeData>) {
   const handleVisibilityToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
     data.onVisibilityToggle?.(id);
-  };
-
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const confirmed = window.confirm(`确定删除节点 ${id} 吗?`);
-    if (confirmed && (data as any).onNodeDelete) {
-      (data as any).onNodeDelete(id);
-    }
   };
 
   const isVisible = data.isVisible ?? true;
@@ -57,46 +49,28 @@ function NodeWithEyeIcon({ id, data }: NodeProps<FlowNodeData>) {
       <div className="relative px-4 py-3">
         <p className="text-sm font-medium text-center whitespace-nowrap">{data.label}</p>
 
-        {/* Bottom left: Eye icon, Bottom right: Empty (for potential delete button) */}
-        <div className="absolute bottom-1 left-1">
+        {/* Bottom left: Eye icon, very small, as node attachment */}
+        <div className="absolute bottom-0 left-0">
           <button
             onClick={handleVisibilityToggle}
-            className="p-1.5 rounded hover:bg-black/10 transition-colors"
+            className="p-0 rounded hover:bg-black/10 transition-colors"
             title={isVisible ? '隐藏节点' : '显示节点'}
             style={{
               background: isVisible ? 'transparent' : 'rgba(0,0,0,0.05)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             {isVisible ? (
-              <Eye className="h-3.5 w-3.5 text-foreground/70" />
+              <Eye className="h-2 w-2 text-foreground/60" />
             ) : (
-              <EyeOff className="h-3.5 w-3.5 text-foreground/40" />
+              <EyeOff className="h-2 w-2 text-foreground/30" />
             )}
           </button>
         </div>
-
-        {/* Delete button - always visible but subtle */}
-        <button
-          onClick={handleDelete}
-          className="absolute bottom-1 right-1 p-1 rounded hover:bg-red-100 transition-all"
-          title="删除此节点"
-          style={{
-            background: 'transparent',
-            color: '#ef4444',
-            opacity: 0.6,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = '1';
-            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.opacity = '0.6';
-            e.currentTarget.style.background = 'transparent';
-          }}
-        >
-          <span className="text-sm font-bold leading-none">×</span>
-        </button>
       </div>
+
       <Handle position={Position.Bottom} type="source" />
     </div>
   );
@@ -251,6 +225,17 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   const [nodeIdCounter, setNodeIdCounter] = React.useState(0);
   const [selectedNodeTypeForDrag, setSelectedNodeTypeForDrag] = React.useState<NodeType | null>(null);
   const [openCategoryDropdown, setOpenCategoryDropdown] = React.useState<string | null>(null);
+
+  // Initialize selectedNodeTypeForDrag with default types for each category
+  React.useEffect(() => {
+    if (!selectedNodeTypeForDrag) {
+      // Get the first node type from the first category as default
+      const firstCategory = Object.values(CATEGORY_LAYOUTS)[0];
+      if (firstCategory && firstCategory.nodeTypes.length > 0) {
+        setSelectedNodeTypeForDrag(firstCategory.nodeTypes[0]);
+      }
+    }
+  }, []);
 
   // Handle node changes (including drag operations)
   const handleNodesChange = React.useCallback((changes: any) => {
@@ -546,28 +531,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
   return (
     <div className="h-full w-full bg-card rounded-lg border border-border overflow-hidden flex flex-col">
-      {/* 顶部工具栏：左侧过滤条 + 右侧节点添加面板 */}
-      <div className="flex items-center justify-between gap-3 p-3 border-b border-border bg-muted/50">
-        {/* 左侧：过滤条 */}
-        <div className="flex gap-2">
-          {Object.values(CATEGORY_LAYOUTS).map((layout) => (
-            <button
-              key={`filter-${layout.category}`}
-              onClick={() => toggleNodeTypeFilter(layout.category)}
-              className="px-3 py-1 rounded transition-all text-xs font-medium"
-              style={{
-                backgroundColor: nodeTypeFilter.has(layout.category) ? layout.color + '80' : layout.color + '08',
-                border: `1px solid ${layout.color}`,
-                color: nodeTypeFilter.has(layout.category) ? '#000000' : layout.color,
-                opacity: nodeTypeFilter.has(layout.category) ? 0.9 : 0.35,
-              }}
-              title={`${nodeTypeFilter.has(layout.category) ? '隐藏' : '显示'} ${layout.label}`}
-            >
-              {layout.label}
-            </button>
-          ))}
-        </div>
-
+      {/* 顶部工具栏：右侧节点添加面板 */}
+      <div className="flex items-center justify-end gap-3 p-3 border-b border-border bg-muted/50">
         {/* 右侧：节点添加和管理面板 */}
         <div className="flex gap-1 bg-background/50 rounded p-2 border border-border/30">
           {Object.values(CATEGORY_LAYOUTS).map((layout) => {
@@ -582,21 +547,20 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                 {/* 节点类型按钮 - 可拖拽 */}
                 <div className="flex items-center gap-1">
                   <button
-                    draggable={selectedNodeTypeForDrag !== null}
+                    draggable={true}
                     onDragStart={(e) => {
-                      if (selectedNodeTypeForDrag) {
-                        e.dataTransfer.effectAllowed = 'copy';
-                        e.dataTransfer.setData('application/json', JSON.stringify({
-                          type: 'add-node',
-                          nodeType: selectedNodeTypeForDrag,
-                        }));
-                      }
+                      // Always use the first node type of this category for drag
+                      const nodeTypeForDrag = layout.nodeTypes[0];
+
+                      e.dataTransfer.effectAllowed = 'copy';
+                      e.dataTransfer.setData('application/json', JSON.stringify({
+                        type: 'add-node',
+                        nodeType: nodeTypeForDrag,
+                      }));
                     }}
                     onClick={() => {
                       if (hasMultipleTypes) {
                         setOpenCategoryDropdown(isOpen ? null : layout.category);
-                      } else {
-                        handleSelectNodeType(nodeTypesInCategory[0]);
                       }
                     }}
                     className="px-2.5 py-1.5 rounded transition-all flex items-center gap-1.5 text-xs font-medium"
@@ -604,9 +568,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                       backgroundColor: isSelected ? layout.color + '80' : layout.color + '20',
                       border: `1px solid ${layout.color}`,
                       color: isSelected ? '#000000' : layout.color,
-                      cursor: selectedNodeTypeForDrag ? 'grab' : 'pointer',
+                      cursor: 'grab',
                     }}
-                    title={isSelected ? `拖拽添加 ${layout.label} 节点` : `点击选择 ${layout.label} 类型`}
+                    title={`拖拽添加 ${layout.label} 节点${hasMultipleTypes ? '（点击选择具体类型）' : ''}`}
                   >
                     <span>{layout.label}</span>
                     {hasMultipleTypes && (

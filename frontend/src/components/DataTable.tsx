@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ChevronLeft, ChevronRight, Code, FileText, X, Play, AlertCircle, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Code, FileText, X, Play, AlertCircle, Loader2, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import {
@@ -52,6 +52,7 @@ interface DataTableProps {
   onNodeDeselect?: () => void;
   currentDatasetId?: string;
   onProjectUpdate?: () => void;
+  onNodeDelete?: (nodeId: string) => void;
 }
 
 /**
@@ -3371,7 +3372,7 @@ function renderChart(chartType: string | undefined, data: DataRow[]) {
   }
 }
 
-export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'ecommerce_analytics', onProjectUpdate }: DataTableProps) {
+export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'ecommerce_analytics', onProjectUpdate, onNodeDelete }: DataTableProps) {
   const [apiData, setApiData] = useState<PaginatedData<any> | null>(null);
   const [dictResult, setDictResult] = useState<any | null>(null);
   const [apiCode, setApiCode] = useState<string>('');
@@ -4007,7 +4008,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         <h3 className="text-sm font-semibold text-foreground">
           {currentData.title}
         </h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           {/* Code toggle button - hidden for formats like pkl that don't have result tables */}
           {shouldShowCodePanel(effectiveNodeResultFormat) && (
             <Button
@@ -4049,6 +4050,29 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             disabled={!hasConclusion && (effectiveNodeExecutionStatus === 'not_executed' || effectiveNodeExecutionStatus === 'pending_validation')}
           >
             <FileText className="h-4 w-4" />
+          </Button>
+
+          {/* Delete button - appears after md toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+            onClick={() => {
+              if (!displayedNodeId) return;
+
+              const needsConfirmation = effectiveNodeExecutionStatus !== 'not_executed';
+              if (needsConfirmation) {
+                const confirmed = window.confirm(`确定删除节点 ${displayedNodeId} 吗？此操作不可撤销。`);
+                if (!confirmed) return;
+              }
+
+              // Call the delete callback and deselect
+              onNodeDelete?.(displayedNodeId);
+              onNodeDeselect?.();
+            }}
+            title="删除此节点"
+          >
+            <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
