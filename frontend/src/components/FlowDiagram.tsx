@@ -75,17 +75,26 @@ function NodeWithEyeIcon({ id, data }: NodeProps<FlowNodeData>) {
           </button>
         </div>
 
-        {/* Delete button on hover */}
+        {/* Delete button - always visible but subtle */}
         <button
           onClick={handleDelete}
-          className="absolute bottom-1 right-1 p-1 rounded opacity-0 hover:opacity-100 transition-opacity"
-          title="删除节点（右键菜单）"
+          className="absolute bottom-1 right-1 p-1 rounded hover:bg-red-100 transition-all"
+          title="删除此节点"
           style={{
-            background: 'rgba(239, 68, 68, 0.1)',
+            background: 'transparent',
             color: '#ef4444',
+            opacity: 0.6,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = '1';
+            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = '0.6';
+            e.currentTarget.style.background = 'transparent';
           }}
         >
-          <span className="text-sm font-bold">×</span>
+          <span className="text-sm font-bold leading-none">×</span>
         </button>
       </div>
       <Handle position={Position.Bottom} type="source" />
@@ -537,87 +546,10 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
   return (
     <div className="h-full w-full bg-card rounded-lg border border-border overflow-hidden flex flex-col">
-      {/* 筛选条和节点添加器 */}
+      {/* 顶部工具栏：左侧过滤条 + 右侧节点添加面板 */}
       <div className="flex items-center justify-between gap-3 p-3 border-b border-border bg-muted/50">
-        {/* 左侧：节点类型选择器（可拖拽） */}
-        <div className="flex gap-2 relative">
-          {Object.values(CATEGORY_LAYOUTS).map((layout) => {
-            const nodeTypesInCategory = layout.nodeTypes;
-            const hasMultipleTypes = nodeTypesInCategory.length > 1;
-            const isOpen = openCategoryDropdown === layout.category;
-            const isSelected = selectedNodeTypeForDrag &&
-              nodeTypesInCategory.includes(selectedNodeTypeForDrag as NodeType);
-
-            return (
-              <div key={layout.category} className="relative">
-                {/* 主按钮 */}
-                <button
-                  draggable={selectedNodeTypeForDrag !== null}
-                  onDragStart={(e) => {
-                    if (selectedNodeTypeForDrag) {
-                      e.dataTransfer.effectAllowed = 'copy';
-                      e.dataTransfer.setData('application/json', JSON.stringify({
-                        type: 'add-node',
-                        nodeType: selectedNodeTypeForDrag,
-                      }));
-                    }
-                  }}
-                  onClick={() => {
-                    if (hasMultipleTypes) {
-                      setOpenCategoryDropdown(isOpen ? null : layout.category);
-                    } else {
-                      handleSelectNodeType(nodeTypesInCategory[0]);
-                    }
-                  }}
-                  className="px-3 py-2 rounded transition-all flex items-center gap-2"
-                  style={{
-                    backgroundColor: isSelected ? layout.color + '80' : layout.color + '08',
-                    border: `1px solid ${layout.color}`,
-                    color: isSelected ? '#000000' : layout.color,
-                    opacity: isSelected ? 0.9 : 0.5,
-                    cursor: selectedNodeTypeForDrag ? 'grab' : 'pointer',
-                  }}
-                  title={isSelected ? `拖拽添加 ${layout.label} 节点` : `点击选择 ${layout.label} 类型`}
-                >
-                  <span className="text-xs font-medium">{layout.label}</span>
-                  {hasMultipleTypes && (
-                    <span className="text-xs">▼</span>
-                  )}
-                </button>
-
-                {/* 下拉菜单 */}
-                {hasMultipleTypes && isOpen && (
-                  <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded shadow-lg z-50">
-                    {nodeTypesInCategory.map((nodeType) => {
-                      const config = getNodeTypeConfig(nodeType);
-                      if (!config) return null;
-                      const isThisTypeSelected = selectedNodeTypeForDrag === nodeType;
-
-                      return (
-                        <button
-                          key={nodeType}
-                          onClick={() => handleSelectNodeType(nodeType)}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors flex items-center gap-2"
-                          style={{
-                            backgroundColor: isThisTypeSelected ? layout.color + '20' : 'transparent',
-                            color: layout.color,
-                          }}
-                        >
-                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: config.color }}></span>
-                          {config.description}
-                          {isThisTypeSelected && ' ✓'}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 右侧：过滤条 */}
-        <div className="flex gap-3">
+        {/* 左侧：过滤条 */}
+        <div className="flex gap-2">
           {Object.values(CATEGORY_LAYOUTS).map((layout) => (
             <button
               key={`filter-${layout.category}`}
@@ -634,6 +566,101 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
               {layout.label}
             </button>
           ))}
+        </div>
+
+        {/* 右侧：节点添加和管理面板 */}
+        <div className="flex gap-1 bg-background/50 rounded p-2 border border-border/30">
+          {Object.values(CATEGORY_LAYOUTS).map((layout) => {
+            const nodeTypesInCategory = layout.nodeTypes;
+            const hasMultipleTypes = nodeTypesInCategory.length > 1;
+            const isOpen = openCategoryDropdown === layout.category;
+            const isSelected = selectedNodeTypeForDrag &&
+              nodeTypesInCategory.includes(selectedNodeTypeForDrag as NodeType);
+
+            return (
+              <div key={layout.category} className="relative">
+                {/* 节点类型按钮 - 可拖拽 */}
+                <div className="flex items-center gap-1">
+                  <button
+                    draggable={selectedNodeTypeForDrag !== null}
+                    onDragStart={(e) => {
+                      if (selectedNodeTypeForDrag) {
+                        e.dataTransfer.effectAllowed = 'copy';
+                        e.dataTransfer.setData('application/json', JSON.stringify({
+                          type: 'add-node',
+                          nodeType: selectedNodeTypeForDrag,
+                        }));
+                      }
+                    }}
+                    onClick={() => {
+                      if (hasMultipleTypes) {
+                        setOpenCategoryDropdown(isOpen ? null : layout.category);
+                      } else {
+                        handleSelectNodeType(nodeTypesInCategory[0]);
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded transition-all flex items-center gap-1.5 text-xs font-medium"
+                    style={{
+                      backgroundColor: isSelected ? layout.color + '80' : layout.color + '20',
+                      border: `1px solid ${layout.color}`,
+                      color: isSelected ? '#000000' : layout.color,
+                      cursor: selectedNodeTypeForDrag ? 'grab' : 'pointer',
+                    }}
+                    title={isSelected ? `拖拽添加 ${layout.label} 节点` : `点击选择 ${layout.label} 类型`}
+                  >
+                    <span>{layout.label}</span>
+                    {hasMultipleTypes && (
+                      <span className="text-xs leading-none">▼</span>
+                    )}
+                  </button>
+
+                  {/* 眼睛图标 - 隐显已添加的节点 */}
+                  <button
+                    onClick={() => toggleNodeTypeFilter(layout.category)}
+                    className="px-1.5 py-1.5 rounded hover:bg-muted transition-all"
+                    style={{
+                      backgroundColor: nodeTypeFilter.has(layout.category) ? 'transparent' : 'rgba(0,0,0,0.05)',
+                      border: `1px solid ${layout.color}40`,
+                    }}
+                    title={`${nodeTypeFilter.has(layout.category) ? '隐藏' : '显示'} ${layout.label} 节点`}
+                  >
+                    {nodeTypeFilter.has(layout.category) ? (
+                      <Eye className="h-3.5 w-3.5" style={{ color: layout.color }} />
+                    ) : (
+                      <EyeOff className="h-3.5 w-3.5" style={{ color: layout.color, opacity: 0.5 }} />
+                    )}
+                  </button>
+                </div>
+
+                {/* 下拉菜单 */}
+                {hasMultipleTypes && isOpen && (
+                  <div className="absolute top-full left-0 mt-1 bg-card border border-border rounded shadow-lg z-50 min-w-max">
+                    {nodeTypesInCategory.map((nodeType) => {
+                      const config = getNodeTypeConfig(nodeType);
+                      if (!config) return null;
+                      const isThisTypeSelected = selectedNodeTypeForDrag === nodeType;
+
+                      return (
+                        <button
+                          key={nodeType}
+                          onClick={() => handleSelectNodeType(nodeType)}
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors flex items-center gap-2"
+                          style={{
+                            backgroundColor: isThisTypeSelected ? layout.color + '20' : 'transparent',
+                            color: layout.color,
+                          }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: config.color }}></span>
+                          <span className="truncate">{config.description}</span>
+                          {isThisTypeSelected && <span className="ml-auto">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
