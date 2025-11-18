@@ -56,10 +56,33 @@ export function TableDisplay({
     if (value === null || value === undefined) {
       return "-";
     }
-    if (typeof value === "object") {
-      return JSON.stringify(value).substring(0, 50) + "...";
+
+    // Convert all values to string
+    const strValue = String(value);
+
+    // Check if it looks like JSON format and try to prettify it
+    if (
+      (strValue.startsWith("{") && strValue.endsWith("}")) ||
+      (strValue.startsWith("[") && strValue.endsWith("]"))
+    ) {
+      try {
+        // Try to parse and re-stringify with indentation
+        const parsed = JSON.parse(strValue);
+        const prettified = JSON.stringify(parsed, null, 2);
+
+        // Display with limit, add ellipsis if too long
+        if (prettified.length > 200) {
+          return prettified.substring(0, 200) + "\n...";
+        }
+        return prettified;
+      } catch {
+        // If JSON parsing fails, just return as is
+        return strValue.substring(0, 100);
+      }
     }
-    return String(value).substring(0, 100);
+
+    // For non-JSON strings, show first 100 chars
+    return strValue.substring(0, 100);
   };
 
   const handlePrevPage = () => {

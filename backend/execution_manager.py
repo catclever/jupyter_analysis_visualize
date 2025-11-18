@@ -230,7 +230,13 @@ class ExecutionManager:
                 try:
                     var_value = self.kernel_manager.get_variable(project_id, node_id)
                     # Auto-save result
-                    saved_path = self.project_manager.save_node_result(node_id, var_value)
+                    # Chart and image nodes save to visualizations/ directory
+                    is_visualization = node.get('type') in ['image', 'chart']
+                    saved_path = self.project_manager.save_node_result(
+                        node_id,
+                        var_value,
+                        is_visualization=is_visualization
+                    )
                     execution.complete(result=var_value)
                 except Exception as e:
                     # Log the error for debugging purposes

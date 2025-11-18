@@ -331,7 +331,27 @@ class ProjectManager:
         # Auto-detect format and save
         if isinstance(result, pd.DataFrame):
             result_path = target_dir / f"{node_id}.parquet"
-            result.to_parquet(result_path)
+            try:
+                # Handle non-numeric data types by converting to compatible types
+                df_to_save = result.copy()
+
+                # Convert object types that might not be parquet-compatible
+                for col in df_to_save.columns:
+                    if df_to_save[col].dtype == 'object':
+                        try:
+                            # Try to keep as string for object columns
+                            df_to_save[col] = df_to_save[col].astype(str)
+                        except Exception:
+                            # If conversion fails, keep original
+                            pass
+
+                df_to_save.to_parquet(result_path, engine='pyarrow')
+            except Exception as e:
+                # Fallback to JSON if parquet fails
+                import traceback
+                print(f"Warning: Parquet save failed, falling back to JSON: {e}")
+                result_path = target_dir / f"{node_id}.json"
+                result.to_json(str(result_path), orient='records', force_ascii=False)
 
         elif isinstance(result, dict):
             result_path = target_dir / f"{node_id}.json"

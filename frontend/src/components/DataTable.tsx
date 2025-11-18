@@ -63,6 +63,8 @@ interface DataTableProps {
  * # @node_id: report
  * # ...
  * # ===== End of system-managed metadata =====
+ *
+ * Only removes comment lines within metadata block, preserves all empty lines.
  */
 function stripMetadataComments(code: string): string {
   const lines = code.split('\n');
@@ -84,16 +86,8 @@ function stripMetadataComments(code: string): string {
     if (inMetadataBlock) {
       continue;
     }
-    // Keep all other lines
+    // Keep all other lines (including empty lines)
     result.push(line);
-  }
-
-  // Remove leading/trailing empty lines
-  while (result.length > 0 && result[0].trim() === '') {
-    result.shift();
-  }
-  while (result.length > 0 && result[result.length - 1].trim() === '') {
-    result.pop();
   }
 
   return result.join('\n');
@@ -3561,13 +3555,12 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         // 加载代码
         try {
           const codeData = await getNodeCode(projectId, displayedNodeId);
-          // Save original code with metadata for viewing
+          // Keep full code with metadata for reference
           setApiCodeWithMetadata(codeData.code);
-          // Strip metadata comments for editing
+          // Strip metadata comments and clean empty lines for editing
           const cleanedCode = stripMetadataComments(codeData.code);
           setApiCode(cleanedCode);
-          // Initialize editingCode with the cleaned code so it's ready for editing
-          // This ensures editingCode has the correct value even when entering edit mode automatically
+          // Initialize editingCode with cleaned code
           setEditingCode(cleanedCode);
         } catch (err) {
           console.log('No code available for node', displayedNodeId);
@@ -3764,13 +3757,17 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         return;
       }
 
-      const result = await updateNodeCode(projectId, displayedNodeId, codeToSave);
+      // Save without metadata comments and with cleaned empty lines
+      const cleanedCodeToSave = stripMetadataComments(codeToSave);
+      const result = await updateNodeCode(projectId, displayedNodeId, cleanedCodeToSave);
 
       // Backend returns code with updated metadata comments
-      const fullCode = result.code || codeToSave;
+      const fullCode = result.code || cleanedCodeToSave;
       const cleanedCode = stripMetadataComments(fullCode);
 
+      // Display: show full code with metadata
       setApiCodeWithMetadata(fullCode);
+      // Edit: show cleaned code without metadata
       setApiCode(cleanedCode);
       setEditingCode(cleanedCode);
       setIsEditingCode(false);
