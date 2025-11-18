@@ -706,9 +706,13 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         selectNodesOnDrag={true}
         multiSelectionKeyCode={null}
         deleteKeyCode={null}
+        zoomOnDoubleClick={false}
+        zoomOnPinch={false}
+        panOnScroll={false}
+        panOnDrag={true}
       >
         <Background />
-        <Controls />
+        {/* <Controls /> */}  {/* 禁用控制条，以免有额外的点击操作 */}
         {localMinimapOpen && <MiniMap />}
         <div className="absolute bottom-4 right-4 z-40">
           <button
