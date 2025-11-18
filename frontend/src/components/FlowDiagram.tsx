@@ -277,47 +277,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   };
 
   const handleNodeClick = (_event: React.MouseEvent | any, node: Node) => {
-    console.log('✅ handleNodeClick FIRED for node:', node.id);
-    _event?.stopPropagation?.();
-
-    const debugMsg = `✅ SELECTED: ${node.id}`;
-    setDebugInfo(debugMsg);
-
     // 调用点击回调让父组件更新选择状态
     onNodeClick(node.id);
   };
-
-  // 添加全局点击监听器来诊断丢失的点击事件
-  React.useEffect(() => {
-    const handleGlobalClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const tagName = target.tagName;
-      const className = target.className || '';
-
-      // 检查是否点击了节点相关元素
-      const isNodeClick = className &&
-        (typeof className === 'string' &&
-         (className.includes('flow-node-') ||
-          className.includes('react-flow__node')));
-
-      // 记录所有点击信息
-      const clickInfo = `${tagName} (${className.substring(0, 30)})`;
-
-      if (isNodeClick) {
-        console.log('🌐 Global: Click on node element:', clickInfo);
-        setDebugInfo(`🌐 Node: ${clickInfo}`);
-      } else {
-        // 记录非节点点击，用于诊断
-        console.log('📍 Click on:', clickInfo);
-        setDebugInfo(`📍 Click on: ${clickInfo}`);
-      }
-    };
-
-    document.addEventListener('click', handleGlobalClick, true); // 使用捕获阶段
-    return () => {
-      document.removeEventListener('click', handleGlobalClick, true);
-    };
-  }, []);
 
 
   const toggleNodeTypeFilter = (type: 'data' | 'compute' | 'chart') => {
