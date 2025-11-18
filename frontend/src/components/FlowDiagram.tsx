@@ -278,6 +278,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
   const handleNodeClick = (_event: React.MouseEvent | any, node: Node) => {
     console.log('✅ handleNodeClick FIRED for node:', node.id);
+    _event?.stopPropagation?.();
 
     const debugMsg = `✅ SELECTED: ${node.id}`;
     setDebugInfo(debugMsg);
@@ -285,6 +286,26 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     // 调用点击回调让父组件更新选择状态
     onNodeClick(node.id);
   };
+
+  // 添加全局点击监听器来诊断丢失的点击事件
+  React.useEffect(() => {
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isNodeClick = target.className &&
+        (typeof target.className === 'string' &&
+         (target.className.includes('flow-node-') ||
+          target.className.includes('react-flow__node')));
+
+      if (isNodeClick) {
+        console.log('🌐 Global: Click on node element (class:', target.className, ')');
+      }
+    };
+
+    document.addEventListener('click', handleGlobalClick, true); // 使用捕获阶段
+    return () => {
+      document.removeEventListener('click', handleGlobalClick, true);
+    };
+  }, []);
 
 
   const toggleNodeTypeFilter = (type: 'data' | 'compute' | 'chart') => {
