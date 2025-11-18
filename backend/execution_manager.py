@@ -182,35 +182,26 @@ class ExecutionManager:
         execution = NodeExecution(node_id, node['type'])
         execution.start()
 
-        # Tool nodes always execute (to load functions)
-        # Data nodes skip if results exist
-        if skip_existing and node['type'] in ["data_source", "compute"]:
+        # If node is already validated and we can skip, try loading from cache first
+        if skip_existing and node.get('execution_status') == 'validated':
             try:
-                result = self.project_manager.load_node_result(node_id)
+                # This applies to data_source, compute, and tool nodes
+                result = self.project_manager.load_node_result(project_id, node_id)
                 execution.skip()
                 execution.result = result
                 execution.end_time = datetime.now()
                 return execution
             except FileNotFoundError:
-                pass  # Proceed with execution
+                # If pkl/parquet is missing for a validated node, re-execute to regenerate
+                pass
 
         # Get node code from notebook
-        notebook_cells = self.project_manager.notebook_manager.get_cells()
-        node_cell = None
+        notebook_path = self.project_manager.get_notebook_path(project_id)
+        code = self.project_manager.notebook_manager.get_node_code(notebook_path, node_id)
 
-        for cell in notebook_cells:
-            metadata = cell.get('metadata', {})
-            if metadata.get('node_id') == node_id:
-                node_cell = cell
-                break
-
-        if not node_cell:
+        if code is None:
             execution.complete(error=f"Node code not found for {node_id}")
             return execution
-
-        code = node_cell.get('source', '')
-        if isinstance(code, list):
-            code = ''.join(code)
 
         # Execute code
         result = self.kernel_manager.execute_code(project_id, code, timeout=timeout)
@@ -221,30 +212,33 @@ class ExecutionManager:
         elif result['status'] == 'timeout':
             execution.complete(error=f"Timeout after {timeout}s")
         else:
-            # For tool nodes, no result to save
-            if node['type'] == 'tool':
-                execution.complete(result=None)
-            else:
-                # For data/compute/chart nodes, try to retrieve result from kernel
-                # Try to get variable with node_id
-                try:
-                    var_value = self.kernel_manager.get_variable(project_id, node_id)
-                    # Auto-save result
-                    # Chart and image nodes save to visualizations/ directory
-                    is_visualization = node.get('type') in ['image', 'chart']
-                    saved_path = self.project_manager.save_node_result(
-                        node_id,
-                        var_value,
-                        is_visualization=is_visualization
-                    )
-                    execution.complete(result=var_value)
-                except Exception as e:
-                    # Log the error for debugging purposes
-                    import logging
-                    logger = logging.getLogger(__name__)
-                    logger.warning(f"Failed to retrieve/save result for node {node_id}: {type(e).__name__}: {e}")
-                    # Mark as error instead of silently failing
-                    execution.complete(error=f"Failed to save result: {type(e).__name__}: {str(e)}")
+            # For all successful node types (data, compute, chart, tool), retrieve the result.
+            try:
+                # The result variable in the kernel should have the same name as the node_id.
+                var_value = self.kernel_manager.get_variable(project_id, node_id)
+
+                # Auto-save the result. ProjectManager handles the format (.pkl, .parquet, etc.)
+                # based on the node type.
+                is_visualization = node.get('type') in ['image', 'chart']
+                saved_path = self.project_manager.save_node_result(
+                    project_id,
+                    node_id,
+                    var_value,
+                    node_type=node.get('type'),
+                    is_visualization=is_visualization
+                )
+                execution.complete(result=var_value)
+                # After successful execution and saving, update the status in project.json
+                self.project_manager.update_node_status(node_id, 'validated', result_path=saved_path)
+            except Exception as e:
+                # Log the error for debugging purposes
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Failed to retrieve/save result for node {node_id}: {type(e).__name__}: {e}")
+                # Mark as error instead of silently failing
+                error_message = f"Failed to save result: {type(e).__name__}: {str(e)}"
+                execution.complete(error=error_message)
+                self.project_manager.update_node_status(node_id, 'error', error=error_message)
 
         return execution
 

@@ -341,11 +341,11 @@ class CodeExecutor:
             node_type = node.get('type', 'compute')
             # Determine default result_format based on node type
             if node_type == 'tool':
-                result_format = node.get('result_format', 'pkl')
+                result_format = node.get('result_format') or 'pkl'
             elif node_type == 'chart':
-                result_format = node.get('result_format', 'json')
+                result_format = node.get('result_format') or 'json'
             else:
-                result_format = node.get('result_format', 'parquet')
+                result_format = node.get('result_format') or 'parquet'
 
             try:
                 # Get result path based on node type
@@ -1030,11 +1030,11 @@ with open(r'{full_path}', 'rb') as f:
             node_type = node.get('type', 'compute')
             # Determine default result_format based on node type
             if node_type == 'tool':
-                result_format = node.get('result_format', 'pkl')
+                result_format = node.get('result_format') or 'pkl'
             elif node_type == 'chart':
-                result_format = node.get('result_format', 'json')
+                result_format = node.get('result_format') or 'json'
             else:
-                result_format = node.get('result_format', 'parquet')
+                result_format = node.get('result_format') or 'parquet'
 
             print(f"[RecursiveExec] Processing dependency: {node_id} (status: {status})")
 
@@ -1246,11 +1246,11 @@ with open(r'{full_path}', 'rb') as f:
             # - chart nodes default to 'json' (for plotly/echarts serialization)
             # - other nodes default to 'parquet' (for dataframe serialization)
             if node_type == 'tool':
-                result_format = node.get('result_format', 'pkl')
+                result_format = node.get('result_format') or 'pkl'
             elif node_type == 'chart':
-                result_format = node.get('result_format', 'json')
+                result_format = node.get('result_format') or 'json'
             else:
-                result_format = node.get('result_format', 'parquet')
+                result_format = node.get('result_format') or 'parquet'
 
             # Always append save code to ensure results are persisted for frontend display
             # (except for tool nodes - they define functions that stay in kernel)
@@ -1485,9 +1485,9 @@ with open(r'{full_path}', 'rb') as f:
             if node_type != 'tool':
                 # Determine default result_format based on node type
                 if node_type == 'chart':
-                    result_format = node.get('result_format', 'json')
+                    result_format = node.get('result_format') or 'json'
                 else:
-                    result_format = node.get('result_format', 'parquet')
+                    result_format = node.get('result_format') or 'parquet'
                 is_visualization = node.get('type') in ['image', 'chart']
                 target_dir = 'visualizations' if is_visualization else 'parquets'
 

@@ -128,6 +128,7 @@ class ProjectManager:
         self.parquets_path = self.project_path / "parquets"
         self.visualizations_path = self.project_path / "visualizations"
         self.nodes_path = self.project_path / "nodes"
+        self.functions_path = self.project_path / "functions"
 
         self.metadata: Optional[ProjectMetadata] = None
         self.notebook_manager: Optional[NotebookManager] = None
@@ -159,6 +160,7 @@ class ProjectManager:
         self.parquets_path.mkdir(parents=True, exist_ok=True)
         self.visualizations_path.mkdir(parents=True, exist_ok=True)
         self.nodes_path.mkdir(parents=True, exist_ok=True)
+        self.functions_path.mkdir(parents=True, exist_ok=True)
 
         # Create metadata
         self.metadata = ProjectMetadata(
@@ -303,93 +305,125 @@ class ProjectManager:
 
     def save_node_result(
         self,
+        project_id: str,
         node_id: str,
         result: Any,
-        result_type: str = "parquet",
+        node_type: str,
         is_visualization: bool = False
     ) -> str:
         """
-        Save node execution result to file
+        Save node execution result to file, respecting the node type.
 
         Args:
-            node_id: Node ID
-            result: Result object (DataFrame, dict, list, etc.)
-            result_type: Type of result (parquet, json, pickle, image, visualization)
-            is_visualization: Whether to save to visualizations/ instead of parquets/
+            project_id: The ID of the project.
+            node_id: Node ID.
+            result: Result object (DataFrame, dict, list, function, etc.).
+            node_type: The type of the node ('data_source', 'compute', 'tool', etc.).
+            is_visualization: Whether to save to visualizations/ directory.
 
         Returns:
-            Path to saved file
+            Path to saved file.
         """
         if not self.loaded:
             raise RuntimeError("Project not loaded")
 
         import pandas as pd
+        import pickle
 
-        # Determine target directory
-        target_dir = self.visualizations_path if is_visualization else self.parquets_path
+        # Determine target directory based on node type
+        if node_type == 'tool':
+            target_dir = self.functions_path
+        else:
+            target_dir = self.visualizations_path if is_visualization else self.parquets_path
+        
+        target_dir.mkdir(parents=True, exist_ok=True)
 
-        # Auto-detect format and save
+        # Tool nodes are always saved as pickle files
+        if node_type == 'tool':
+            result_path = target_dir / f"{node_id}.pkl"
+            with open(result_path, 'wb') as f:
+                pickle.dump(result, f)
+            return str(result_path.relative_to(self.project_path))
+
+        # For other nodes, auto-detect format
         if isinstance(result, pd.DataFrame):
             result_path = target_dir / f"{node_id}.parquet"
             try:
-                # Handle non-numeric data types by converting to compatible types
-                df_to_save = result.copy()
-
-                # Convert object types that might not be parquet-compatible
-                for col in df_to_save.columns:
-                    if df_to_save[col].dtype == 'object':
-                        try:
-                            # Try to keep as string for object columns
-                            df_to_save[col] = df_to_save[col].astype(str)
-                        except Exception:
-                            # If conversion fails, keep original
-                            pass
-
-                df_to_save.to_parquet(result_path, engine='pyarrow')
+                result.to_parquet(result_path, engine='pyarrow')
             except Exception as e:
-                # Fallback to JSON if parquet fails
-                import traceback
-                print(f"Warning: Parquet save failed, falling back to JSON: {e}")
+                print(f"Warning: Parquet save failed for {node_id}, falling back to JSON: {e}")
                 result_path = target_dir / f"{node_id}.json"
                 result.to_json(str(result_path), orient='records', force_ascii=False)
-
-        elif isinstance(result, dict):
+        elif isinstance(result, (dict, list, tuple)):
             result_path = target_dir / f"{node_id}.json"
             with open(result_path, 'w', encoding='utf-8') as f:
                 json.dump(result, f, ensure_ascii=False, indent=2)
-
-        elif isinstance(result, (list, tuple)):
-            result_path = target_dir / f"{node_id}.json"
-            with open(result_path, 'w', encoding='utf-8') as f:
-                json.dump(list(result), f, ensure_ascii=False, indent=2)
-
         else:
-            # Fallback to pickle for other types
-            import pickle
+            # Fallback to pickle for any other type in non-tool nodes
             result_path = target_dir / f"{node_id}.pkl"
             with open(result_path, 'wb') as f:
                 pickle.dump(result, f)
 
-        return str(result_path)
+        return str(result_path.relative_to(self.project_path))
 
-    def load_node_result(self, node_id: str) -> Any:
+    def load_node_result(self, project_id: str, node_id: str) -> Any:
         """
-        Load node result from file
+        Load node result from file, prioritizing the path from project.json.
 
         Args:
-            node_id: Node ID
+            project_id: The ID of the project.
+            node_id: Node ID.
 
         Returns:
-            Loaded result object
+            Loaded result object.
         """
         if not self.loaded:
             raise RuntimeError("Project not loaded")
 
-        import pandas as pd
+        node = self.get_node(node_id)
+        if not node:
+            raise FileNotFoundError(f"Metadata for node {node_id} not found in project.json")
 
-        # Try to find file in both parquets and visualizations directories
+        import pandas as pd
+        import pickle
+
+        # Tool nodes are always stored as pickle files in the functions/ directory
+        if node_type == 'tool':
+            # Prioritize result_path from project.json
+            if node.get('result_path'):
+                result_file = self.project_path / node['result_path']
+                if result_file.exists() and result_file.suffix == '.pkl':
+                    with open(result_file, 'rb') as f:
+                        return pickle.load(f)
+            
+            # Fallback to convention-based search in functions/ dir
+            result_path = self.functions_path / f"{node_id}.pkl"
+            if result_path.exists():
+                with open(result_path, 'rb') as f:
+                    return pickle.load(f)
+            
+            raise FileNotFoundError(f"No .pkl result found for tool node {node_id} in functions/ directory or at specified result_path.")
+
+        # For other nodes, try parquet and json using the primary/fallback strategy
+        if node.get('result_path'):
+            result_file = self.project_path / node['result_path']
+            if result_file.exists():
+                ext = result_file.suffix
+                if ext == '.parquet':
+                    return pd.read_parquet(result_file)
+                elif ext == '.json':
+                    with open(result_file, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+                # Note: non-tool .pkl files might be handled here if needed
+                elif ext == '.pkl':
+                     with open(result_file, 'rb') as f:
+                        return pickle.load(f)
+                else:
+                    raise NotImplementedError(f"Unsupported file extension '{ext}' for result loading.")
+        
+        # Fallback for other nodes if result_path is missing
         for target_dir in [self.parquets_path, self.visualizations_path]:
-            for ext in ['parquet', 'json', 'pkl']:
+            for ext in ['parquet', 'json']:
                 result_path = target_dir / f"{node_id}.{ext}"
                 if result_path.exists():
                     if ext == 'parquet':
@@ -397,12 +431,8 @@ class ProjectManager:
                     elif ext == 'json':
                         with open(result_path, 'r', encoding='utf-8') as f:
                             return json.load(f)
-                    elif ext == 'pkl':
-                        import pickle
-                        with open(result_path, 'rb') as f:
-                            return pickle.load(f)
-
-        raise FileNotFoundError(f"No result found for node {node_id}")
+        
+        raise FileNotFoundError(f"No result found for node {node_id} (and no result_path in project.json)")
 
     def list_results(self) -> List[Dict[str, str]]:
         """List all saved results from both parquets and visualizations directories"""
@@ -450,6 +480,35 @@ class ProjectManager:
             "node_cells": len(self.notebook_manager.list_node_cells()) if self.notebook_manager else 0,
             "results": self.list_results()
         }
+
+    def update_node_status(self, node_id: str, status: str, result_path: Optional[str] = None, error: Optional[str] = None) -> None:
+        """
+        Update the execution status and result path of a node in project.json.
+
+        Args:
+            node_id: The ID of the node to update.
+            status: The new execution status (e.g., 'validated', 'error').
+            result_path: The path to the saved result file, if successful.
+            error: The error message, if execution failed.
+        """
+        if not self.loaded or self.metadata is None:
+            raise RuntimeError("Project not loaded")
+
+        if node_id in self.metadata.nodes:
+            node = self.metadata.nodes[node_id]
+            node['execution_status'] = status
+            node['last_execution_time'] = datetime.now().isoformat()
+            if status == 'validated':
+                node['result_path'] = result_path
+                node['error_message'] = None
+            elif status == 'error':
+                node['error_message'] = error
+            
+            self.metadata.updated_at = datetime.now().isoformat()
+            self._save_metadata()
+        else:
+            # This should ideally not happen in a normal flow
+            print(f"Warning: Attempted to update status for non-existent node {node_id}")
 
     def export_metadata_json(self, filepath: str) -> None:
         """Export project metadata to JSON file"""
