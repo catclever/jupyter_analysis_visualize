@@ -3,7 +3,6 @@ import { DataSourceSidebar } from "@/components/DataSourceSidebar";
 import { FlowDiagram } from "@/components/FlowDiagram";
 import { DataTable } from "@/components/DataTable";
 import { AnalysisSidebar } from "@/components/AnalysisSidebar";
-import { NodeSidebar } from "@/components/NodeSidebar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -96,7 +95,7 @@ const Index = () => {
             {selectedNodeId ? (
               <ResizablePanelGroup direction="vertical" className="h-full">
                 <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 33.33 : 50} minSize={20}>
-                  <div className="h-full w-full overflow-hidden relative">
+                  <div className="h-full w-full overflow-hidden">
                     <FlowDiagram
                       key={projectRefreshKey}
                       onNodeClick={setSelectedNodeId}
@@ -104,10 +103,6 @@ const Index = () => {
                       minimapOpen={minimapOpen}
                       currentDatasetId={currentDatasetId}
                     />
-                    {/* Node Sidebar - floating on the right */}
-                    <div className="absolute top-0 right-0 h-full z-20 border-l border-border">
-                      <NodeSidebar />
-                    </div>
                   </div>
                 </ResizablePanel>
 
@@ -125,7 +120,7 @@ const Index = () => {
                 </ResizablePanel>
               </ResizablePanelGroup>
             ) : (
-              <div className="h-full w-full overflow-hidden relative">
+              <div className="h-full w-full overflow-hidden">
                 <FlowDiagram
                   key={projectRefreshKey}
                   onNodeClick={setSelectedNodeId}
@@ -133,10 +128,6 @@ const Index = () => {
                   minimapOpen={minimapOpen}
                   currentDatasetId={currentDatasetId}
                 />
-                {/* Node Sidebar - floating on the right */}
-                <div className="absolute top-0 right-0 h-full z-20 border-l border-border">
-                  <NodeSidebar />
-                </div>
               </div>
             )}
           </div>
