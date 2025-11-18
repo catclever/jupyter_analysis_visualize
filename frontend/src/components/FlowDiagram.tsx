@@ -286,9 +286,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     onNodeClick(node.id);
   };
 
-  // 禁用画布点击事件 - 完全不处理任何画布点击操作
-  // 这样可以避免点击节点时被误识别为画布点击
-  const handlePaneClick = undefined;
 
   const toggleNodeTypeFilter = (type: 'data' | 'compute' | 'chart') => {
     const newFilter = new Set(nodeTypeFilter);
@@ -686,7 +683,6 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onNodeClick={handleNodeClick}
-        onPaneClick={handlePaneClick}
         connectionMode={ConnectionMode.Loose}
         fitView
         attributionPosition="bottom-left"
