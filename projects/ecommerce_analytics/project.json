@@ -11,10 +11,10 @@
       "node_type": "data_source",
       "name": "Load Orders Data",
       "depends_on": [],
-      "execution_status": "validated",
+      "execution_status": "pending_validation",
       "result_format": "parquet",
       "result_path": "parquets/load_orders_data.parquet",
-      "error_message": null,
+      "error_message": "Form validation error: Code must assign variable 'load_orders_data'",
       "execution_time": 0.023885,
       "last_execution_time": "2025-11-17T11:02:06.754702",
       "output_type": "dataframe"

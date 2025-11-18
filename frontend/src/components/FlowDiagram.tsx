@@ -316,7 +316,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     if (startInfo && startInfo.nodeId === node.id && clientX !== undefined && clientY !== undefined) {
       const distanceMoved = Math.hypot(clientX - startInfo.x, clientY - startInfo.y);
 
-      if (distanceMoved < 20) {
+      if (distanceMoved < 80) {
         shouldSelect = true;
         console.log('[FlowDiagram] Node clicked:', node.id, `distance: ${distanceMoved.toFixed(1)}px`);
       } else {

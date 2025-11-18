@@ -3782,7 +3782,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
     // First, save code changes if any
     if (codeChanges.hasChanges && isEditingCode) {
       try {
-        await updateNodeCode(projectId, displayedNodeId, apiCode);
+        await updateNodeCode(projectId, displayedNodeId, editingCode);
         codeChanges.markAsSaved();
       } catch (error) {
         toast({

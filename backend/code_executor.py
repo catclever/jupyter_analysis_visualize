@@ -398,7 +398,7 @@ class CodeExecutor:
             return True, f"Code assigns variable '{node_id}'"
         return False, f"Code does NOT assign variable '{node_id}' - will be auto-appended"
 
-    def _auto_append_save_code(self, code: str, node_id: str, result_format: str) -> str:
+    def _auto_append_save_code(self, code: str, node_id: str, result_format: str, node_type: str = None) -> str:
         """
         Auto-append result-saving code to persist execution results.
 
@@ -410,7 +410,16 @@ class CodeExecutor:
 
         Note: Saves regardless of whether the code already assigns the variable.
         This ensures results are always persisted for display in the frontend.
+
+        Exception: Tool nodes don't get auto-save code because:
+        - Tool nodes define functions (not variables)
+        - Functions stay in kernel namespace and get reused
+        - There's nothing to "save" - the function IS the result
         """
+        # Tool nodes: Skip auto-append save code
+        if node_type == "tool":
+            return code
+
         # Use absolute paths for parquets directory
         parquets_dir = str(self.pm.parquets_path)
 
@@ -986,7 +995,8 @@ with open(r'{full_path}', 'rb') as f:
                 result_format = node.get('result_format', 'parquet')
 
             # Always append save code to ensure results are persisted for frontend display
-            code = self._auto_append_save_code(code, node_id, result_format)
+            # (except for tool nodes - they define functions that stay in kernel)
+            code = self._auto_append_save_code(code, node_id, result_format, node_type)
 
             # Step 6: Execute current node code
             try:
@@ -1203,8 +1213,8 @@ with open(r'{full_path}', 'rb') as f:
             except Exception as e:
                 print(f"[Warning] Failed to sync notebook after updating depends_on: {e}")
 
-            # Final: Generate markdown documentation for execution completion
-            self._generate_execution_markdown(node_id, node, start_time)
+            # Final: Generate markdown documentation for execution completion (with output)
+            self._generate_execution_markdown(node_id, node, start_time, execution_output)
 
             result["status"] = "success"
             result["execution_time"] = (datetime.now() - start_time).total_seconds()
@@ -1397,7 +1407,7 @@ with open(r'{full_path}', 'rb') as f:
 
         return loaded_names - builtins
 
-    def _generate_execution_markdown(self, node_id: str, node: Dict[str, Any], start_time: datetime) -> None:
+    def _generate_execution_markdown(self, node_id: str, node: Dict[str, Any], start_time: datetime, execution_output: Dict = None) -> None:
         """
         Generate or update markdown documentation for execution completion.
 
@@ -1405,6 +1415,13 @@ with open(r'{full_path}', 'rb') as f:
         - Execution completion timestamp
         - Execution duration
         - Basic execution summary
+        - Execution output (print statements and results)
+
+        Args:
+            node_id: ID of the executed node
+            node: Node metadata
+            start_time: Start time of execution
+            execution_output: Dict with 'status', 'output', 'error' from kernel execution
 
         Future: Can be extended with AI-generated summaries
         """
@@ -1413,7 +1430,7 @@ with open(r'{full_path}', 'rb') as f:
             completion_time = datetime.now().isoformat()
             node_name = node.get('name', node_id)
 
-            # Generate markdown content with execution details
+            # Build markdown content with execution details
             markdown_content = f"""## ✓ Execution Complete: {node_name}
 
 **Completed at:** {completion_time}
@@ -1421,6 +1438,27 @@ with open(r'{full_path}', 'rb') as f:
 **Execution time:** {execution_time:.2f}s
 
 **Status:** ✅ Success
+
+### Execution Output"""
+
+            # Add execution output if available
+            if execution_output:
+                output_text = execution_output.get('output', '')
+                if output_text and output_text.strip():
+                    # Format output in a code block for better readability
+                    markdown_content += f"""
+
+```
+{output_text}
+```"""
+                else:
+                    # If no output, add a note
+                    markdown_content += "\n\n_(No output generated)_"
+            else:
+                markdown_content += "\n\n_(No output available)_"
+
+            # Add footer note
+            markdown_content += """
 
 ---
 
