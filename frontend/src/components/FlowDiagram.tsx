@@ -679,22 +679,22 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
         /* 数据源节点 (data_source) - 莫兰迪蓝 */
         .flow-node-data_source {
-          background: #a8c5da !important;
+          background: #8db4cc !important;
           opacity: 1;
         }
 
         .flow-node-data_source > div {
-          color: #3d4a5a !important;
+          color: #2c3a48 !important;
         }
 
         .flow-node-data_source.selected {
-          background: #a8c5da;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 197, 218, 0.8);
+          background: #8db4cc;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(141, 180, 204, 0.8);
           opacity: 1;
         }
 
         .flow-node-data_source.parent {
-          background: #a8c5da;
+          background: #8db4cc;
           opacity: 1;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
@@ -711,22 +711,22 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
         /* 计算节点 (compute) - 莫兰迪紫 */
         .flow-node-compute {
-          background: #c4a8d4 !important;
+          background: #b390c8 !important;
           opacity: 1;
         }
 
         .flow-node-compute > div {
-          color: #4a3d53 !important;
+          color: #39283f !important;
         }
 
         .flow-node-compute.selected {
-          background: #c4a8d4 !important;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(196, 168, 212, 0.8) !important;
+          background: #b390c8 !important;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(179, 144, 200, 0.8) !important;
           opacity: 1;
         }
 
         .flow-node-compute.parent {
-          background: #c4a8d4 !important;
+          background: #b390c8 !important;
           opacity: 1;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
@@ -744,25 +744,25 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         /* 图表节点 (chart & image) - 莫兰迪棕 */
         .flow-node-chart,
         .flow-node-image {
-          background: #d4c4a8 !important;
+          background: #c4ad8a !important;
           opacity: 1;
         }
 
         .flow-node-chart > div,
         .flow-node-image > div {
-          color: #524a3a !important;
+          color: #42372a !important;
         }
 
         .flow-node-chart.selected,
         .flow-node-image.selected {
-          background: #d4c4a8 !important;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(212, 196, 168, 0.8) !important;
+          background: #c4ad8a !important;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(196, 173, 138, 0.8) !important;
           opacity: 1;
         }
 
         .flow-node-chart.parent,
         .flow-node-image.parent {
-          background: #d4c4a8 !important;
+          background: #c4ad8a !important;
           opacity: 1;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
@@ -781,22 +781,22 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
         /* 工具节点 (tool) - 莫兰迪青 */
         .flow-node-tool {
-          background: #a8d4c4 !important;
+          background: #8ec0b0 !important;
           opacity: 1;
         }
 
         .flow-node-tool > div {
-          color: #3a524a !important;
+          color: #293a35 !important;
         }
 
         .flow-node-tool.selected {
-          background: #a8d4c4 !important;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 212, 196, 0.8) !important;
+          background: #8ec0b0 !important;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(142, 192, 176, 0.8) !important;
           opacity: 1;
         }
 
         .flow-node-tool.parent {
-          background: #a8d4c4 !important;
+          background: #8ec0b0 !important;
           opacity: 1;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
         }
