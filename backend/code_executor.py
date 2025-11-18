@@ -1098,11 +1098,14 @@ with open(r'{full_path}', 'rb') as f:
         """
         Get the source code for a node from the notebook.
 
+        This method returns the actual code WITHOUT system-managed metadata comments.
+        The metadata comments will be regenerated on sync to ensure they're always up-to-date.
+
         Args:
             node_id: Node identifier
 
         Returns:
-            Source code string, or empty string if not found
+            Source code string (without metadata comments), or empty string if not found
         """
         notebook = self.nm.notebook
         if not notebook:
@@ -1114,8 +1117,12 @@ with open(r'{full_path}', 'rb') as f:
                 if metadata.get('node_id') == node_id and not metadata.get('result_cell'):
                     source = cell.get('source', '')
                     if isinstance(source, list):
-                        return ''.join(source)
-                    return source
+                        source = ''.join(source)
+
+                    # Extract actual code after system-managed metadata
+                    # This ensures we always get clean code without duplicate metadata comments
+                    code = self.nm._extract_code_after_metadata(source)
+                    return code
 
         return ""
 
@@ -1174,12 +1181,15 @@ with open(r'{full_path}', 'rb') as f:
                 result["error_message"] = f"No code cell found for node {node_id}"
                 return result
 
-            # Get code source
+            # Get code source (without system-managed metadata comments)
             source = code_cell.get('source', '')
             if isinstance(source, list):
-                code = ''.join(source)
-            else:
-                code = source
+                source = ''.join(source)
+
+            # OPTIMIZATION: Extract actual code without metadata comments
+            # This prevents duplicate metadata from accumulating on repeated executions
+            # The metadata will be regenerated during sync_metadata_comments() with the latest values
+            code = self.nm._extract_code_after_metadata(source)
 
             # Step 1: Form validation - check if code assigns correct variable/function with correct type
             # 关键修复: 优先从 notebook 元数据注释里读取节点类型，而不是从 project.json
@@ -1321,36 +1331,48 @@ with open(r'{full_path}', 'rb') as f:
             code = self._auto_append_save_code(code, node_id, result_format, node_type)
 
             print(f"[Phase|NodeExec] ▶ Execute current node '{node_id}'")
-            # Step 6: Execute current node code
             try:
                 output = self.km.execute_code(self.pm.project_id, code, timeout=30)
                 execution_output = output
 
-                # 问题4修复: 检查Kernel执行结果的状态字段
-                # execute_code() 返回字典，不抛出异常，需要检查 status 字段
                 if output.get("status") != "success":
-                    execution_successful = False
+                    import re
                     error_msg = output.get("error", f"Execution failed with status: {output.get('status')}")
-                    # 如果是超时，保留原始错误信息
-                    if output.get("status") == "timeout":
-                        error_msg = output.get("error", "Execution timeout")
-                    result["error_message"] = f"Kernel execution error: {error_msg}"
-                    result["status"] = "pending_validation"
-                    node['execution_status'] = 'pending_validation'
-                    node['error_message'] = result["error_message"]
-                    self.pm._save_metadata()
+                    m = re.search(r"NameError: name '([A-Za-z_][A-Za-z0-9_]*)' is not defined", error_msg or "")
+                    all_node_ids = set(self.pm.metadata.nodes.keys()) if self.pm.metadata else set()
+                    if m:
+                        missing_id = m.group(1)
+                        if missing_id in all_node_ids and missing_id != node_id:
+                            dep_res = self.execute_node(missing_id, (execution_stack or []) + [missing_id], skip_dependency_resolution=False)
+                            if dep_res.get('status') == 'success':
+                                output_retry = self.km.execute_code(self.pm.project_id, code, timeout=30)
+                                execution_output = output_retry
+                                if output_retry.get("status") == "success":
+                                    execution_successful = True
+                                else:
+                                    execution_successful = False
+                            else:
+                                execution_successful = False
+                        else:
+                            execution_successful = False
+                    else:
+                        execution_successful = False
 
-                    # 同步到 notebook (失败时也要同步)
-                    try:
-                        self.nm.update_execution_status(node_id, 'pending_validation')
-                        self.nm.sync_metadata_comments()
-                        self.nm.save()
-                    except Exception as e:
-                        print(f"[Warning] Failed to sync notebook metadata on failure: {e}")
-
-                    return result
-
-                execution_successful = True
+                    if not execution_successful:
+                        result["error_message"] = f"Kernel execution error: {error_msg}"
+                        result["status"] = "pending_validation"
+                        node['execution_status'] = 'pending_validation'
+                        node['error_message'] = result["error_message"]
+                        self.pm._save_metadata()
+                        try:
+                            self.nm.update_execution_status(node_id, 'pending_validation')
+                            self.nm.sync_metadata_comments()
+                            self.nm.save()
+                        except Exception as e:
+                            print(f"[Warning] Failed to sync notebook metadata on failure: {e}")
+                        return result
+                else:
+                    execution_successful = True
             except Exception as e:
                 execution_successful = False
                 execution_output = str(e)
