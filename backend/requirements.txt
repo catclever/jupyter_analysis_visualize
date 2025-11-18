@@ -12,3 +12,6 @@ nbformat
 plotly
 pyecharts
 cloudpickle
+Pillow
+matplotlib
+kaleido

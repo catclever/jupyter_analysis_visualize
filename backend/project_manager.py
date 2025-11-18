@@ -11,6 +11,8 @@ Handles:
 
 import json
 import os
+import pandas as pd
+import cloudpickle
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -326,9 +328,6 @@ class ProjectManager:
         """
         if not self.loaded:
             raise RuntimeError("Project not loaded")
-
-        import pandas as pd
-        import cloudpickle
 
         # Determine target directory based on node type
         if node_type == 'tool':
