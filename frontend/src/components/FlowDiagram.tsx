@@ -638,6 +638,15 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           color: #999;
         }
 
+        /* 确保节点层级高于pane_draggable，这样点击节点优先被识别 */
+        .react-flow__node {
+          z-index: 10 !important;
+        }
+
+        /* pane_draggable层级要低于节点，但要允许拖拽 */
+        .react-flow__pane {
+          z-index: 1 !important;
+        }
       `}</style>
       
       <ReactFlow
