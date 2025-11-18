@@ -50,12 +50,21 @@ export function DataSourceSidebar({
         const projectList = await listProjects();
         setProjects(projectList);
 
-
-        // 当项目列表加载完成后，如果当前dataset不在列表中，选择第一个项目
+        // 当项目列表加载完成后，检查当前项目是否存在
         if (projectList.length > 0) {
           const currentProjectExists = projectList.some(p => p.id === currentDatasetId);
           if (!currentProjectExists) {
-            onDatasetChange(projectList[0].id);
+            // 当前项目不存在列表中，尝试使用保存的默认项目
+            const savedProjectId = localStorage.getItem('defaultProjectId');
+            const savedProjectExists = projectList.some(p => p.id === savedProjectId);
+
+            if (savedProjectExists && savedProjectId) {
+              // 保存的项目仍然存在，使用它
+              onDatasetChange(savedProjectId);
+            } else {
+              // 保存的项目也不存在，使用列表第一个项目
+              onDatasetChange(projectList[0].id);
+            }
           }
         }
       } catch (error) {
@@ -149,7 +158,12 @@ export function DataSourceSidebar({
             <div className="flex-1">
               <select
                 value={currentDatasetId}
-                onChange={(e) => onDatasetChange(e.target.value)}
+                onChange={(e) => {
+                  const newProjectId = e.target.value;
+                  // 保存当前项目为默认项目
+                  localStorage.setItem('defaultProjectId', newProjectId);
+                  onDatasetChange(newProjectId);
+                }}
                 disabled={isLoadingProjects || projects.length === 0}
                 className="w-full px-2 py-1.5 text-xs bg-background border border-input rounded-md text-foreground disabled:opacity-50"
               >

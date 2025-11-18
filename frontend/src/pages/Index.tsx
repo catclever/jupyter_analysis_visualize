@@ -20,15 +20,24 @@ const Index = () => {
   // Use project cache hook for efficient data loading
   const { loadProject } = useProjectCache();
 
-  // 初始化时加载项目列表，选择第一个项目
+  // 初始化时加载项目列表，选择之前保存的默认项目或第一个项目
   useEffect(() => {
     const loadProjects = async () => {
       try {
         const response = await fetch('/api/projects');
         const data = await response.json();
         if (data.projects && data.projects.length > 0) {
-          // 选择第一个项目作为默认项目
-          setCurrentDatasetId(data.projects[0].id);
+          // 尝试恢复之前保存的默认项目
+          const savedProjectId = localStorage.getItem('defaultProjectId');
+          const projectExists = data.projects.some(p => p.id === savedProjectId);
+
+          if (projectExists && savedProjectId) {
+            // 恢复之前保存的项目
+            setCurrentDatasetId(savedProjectId);
+          } else {
+            // 保存的项目不存在，使用列表第一个
+            setCurrentDatasetId(data.projects[0].id);
+          }
         } else {
           console.warn('No projects available');
         }
