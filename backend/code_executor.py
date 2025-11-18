@@ -1483,11 +1483,7 @@ with open(r'{full_path}', 'rb') as f:
             is_dict_result = False
 
             if node_type != 'tool':
-                # Determine default result_format based on node type
-                if node_type == 'chart':
-                    result_format = node.get('result_format') or 'json'
-                else:
-                    result_format = node.get('result_format') or 'parquet'
+                result_format = node.get('result_format', 'parquet')
                 is_visualization = node.get('type') in ['image', 'chart']
                 target_dir = 'visualizations' if is_visualization else 'parquets'
 
@@ -1495,18 +1491,12 @@ with open(r'{full_path}', 'rb') as f:
                 # by checking if the auto-appended code saved it as a directory
                 if result_format == 'parquet':
                     from pathlib import Path
-                    # Check if a directory was created (dict of DataFrames) or a single file
                     parquets_path = Path(self.pm.parquets_path)
                     node_dir = parquets_path / node_id
-                    node_file = parquets_path / f"{node_id}.parquet"
-
                     if node_dir.is_dir() and (node_dir / '_metadata.json').exists():
-                        # Dict of DataFrames - saved as directory with metadata
                         is_dict_result = True
                         result_path = f"{target_dir}/{node_id}"
-                        print(f"[Execution] Detected dict of DataFrames result - saved as directory")
                     else:
-                        # Single DataFrame - saved as file
                         result_path = f"{target_dir}/{node_id}.parquet"
                 else:
                     # Determine file extension based on format
