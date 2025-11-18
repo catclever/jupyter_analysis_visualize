@@ -1127,6 +1127,20 @@ with open(r'{full_path}', 'rb') as f:
 
         return ""
 
+    def _build_code_dependency_graph(self) -> Dict[str, Dict[str, Any]]:
+        nodes = self.pm.list_nodes()
+        all_ids = {n['node_id'] for n in nodes}
+        graph = {}
+        for n in nodes:
+            nid = n['node_id']
+            code = self._get_node_code(nid)
+            deps = []
+            if code:
+                used = self._extract_variable_names(code)
+                deps = sorted([d for d in used if d in all_ids and d != nid])
+            graph[nid] = {"node_id": nid, "depends_on": deps}
+        return graph
+
     def execute_node(self, node_id: str, execution_stack: List[str] = None, skip_dependency_resolution: bool = False) -> Dict[str, Any]:
         """
         Execute a node with new 9-step recursive dependency workflow:
@@ -1242,77 +1256,54 @@ with open(r'{full_path}', 'rb') as f:
 
                 return result
 
-            # Step 2: Analyze dependencies (single-pass recursive plan)
+            # Step 2: Analyze dependencies and pre-execute in topo order (no kernel checks)
             if not skip_dependency_resolution:
-                print(f"\n[Phase|DepsPlan] ▶ Node '{node_id}': analyzing dependencies (single-pass)")
                 analyzed_deps = self._analyze_dependencies_pre_execution(node_id)
-                print(f"[Phase|DepsPlan] analyzed_deps={analyzed_deps}")
 
-                analyzer = DependencyAnalyzer(self.pm.metadata.nodes)
+                code_graph = self._build_code_dependency_graph()
+                analyzer = DependencyAnalyzer(code_graph)
                 dep_info = analyzer.get_dependencies(node_id)
                 all_deps = dep_info.get('all_dependencies', [])
                 execution_order = dep_info.get('execution_order', [])
-                if not all_deps:
-                    all_deps = analyzed_deps
+                if not execution_order:
                     execution_order = analyzed_deps + [node_id]
-                print(f"[Phase|DepsPlan] all_deps={all_deps}")
-                print(f"[Phase|DepsPlan] execution_order={execution_order}")
 
-                print(f"[Phase|KernelCheck] ▶ Batch checking {len(all_deps)} deps in Kernel")
-                existing_vars, _ = [], []
-                deps_exist_map = self.km.check_variables_batch(self.pm.project_id, list(all_deps)) if all_deps else {}
-                for var_name, exists in deps_exist_map.items():
-                    if exists:
-                        existing_vars.append(var_name)
-                deps_missing = [d for d in all_deps if not deps_exist_map.get(d, False)]
-                print(f"[Phase|KernelCheck] existing={existing_vars}")
-                print(f"[Phase|KernelCheck] missing={deps_missing}")
-
-                to_execute = []
-                loaded_ok = []
-                for dep_id in deps_missing:
-                    dep_node = self.pm.get_node(dep_id)
-                    if not dep_node:
-                        result["error_message"] = f"Missing dependency node metadata: {dep_id}"
-                        result["status"] = "pending_validation"
-                        return result
-                    dep_type = dep_node.get('type', 'compute')
-                    if dep_type == 'tool':
-                        dep_format = dep_node.get('result_format', 'pkl')
-                    elif dep_type == 'chart':
-                        dep_format = dep_node.get('result_format', 'json')
-                    else:
-                        dep_format = dep_node.get('result_format', 'parquet')
-
-                    dep_status = dep_node.get('execution_status', 'not_executed')
-                    dep_result_path = dep_node.get('result_path')
-
-                    if dep_status == 'validated' and dep_result_path:
-                        print(f"[Phase|TopoExec] try load validated dep '{dep_id}' from '{dep_result_path}' ({dep_format})")
-                        ok = self._load_variable_from_file(dep_id, dep_result_path, dep_format)
-                        if ok:
-                            loaded_ok.append(dep_id)
-                        else:
-                            to_execute.append(dep_id)
-                    else:
-                        to_execute.append(dep_id)
-
-                if to_execute:
-                    print(f"[Phase|TopoExec] ▶ Execute {len(to_execute)} missing deps in topo order: {to_execute}")
+                if execution_order:
                     for exec_id in execution_order:
                         if exec_id == node_id:
                             continue
-                        if exec_id in to_execute:
-                            print(f"[Phase|TopoExec] exec dep '{exec_id}'")
-                            dep_res = self.execute_node(exec_id, (execution_stack or []) + [exec_id], skip_dependency_resolution=False)
-                            if dep_res.get('status') != 'success':
-                                dep_err = dep_res.get('error_message', 'Unknown error')
-                                result["error_message"] = f"Dependency execution failed: node '{exec_id}': {dep_err}"
-                                result["status"] = "pending_validation"
-                                return result
-                    print(f"[Phase|TopoExec] ✓ All dependencies resolved")
-                else:
-                    print(f"[Phase|TopoExec] No missing dependencies after batch check")
+                        # Reuse in-memory variable if exists
+                        try:
+                            if self.km.variable_exists(self.pm.project_id, exec_id):
+                                continue
+                        except Exception:
+                            pass
+
+                        # Try to load from file if validated
+                        dep_node = self.pm.get_node(exec_id)
+                        if dep_node:
+                            dep_type = dep_node.get('type', 'compute')
+                            if dep_type == 'tool':
+                                dep_format = dep_node.get('result_format', 'pkl')
+                            elif dep_type == 'chart':
+                                dep_format = dep_node.get('result_format', 'json')
+                            else:
+                                dep_format = dep_node.get('result_format', 'parquet')
+
+                            dep_status = dep_node.get('execution_status', 'not_executed')
+                            dep_result_path = dep_node.get('result_path')
+                            if dep_status == 'validated' and dep_result_path:
+                                ok = self._load_variable_from_file(exec_id, dep_result_path, dep_format)
+                                if ok:
+                                    continue
+
+                        # Fallback: execute dependency
+                        dep_res = self.execute_node(exec_id, (execution_stack or []) + [exec_id], skip_dependency_resolution=True)
+                        if dep_res.get('status') != 'success':
+                            dep_err = dep_res.get('error_message', 'Unknown error')
+                            result["error_message"] = f"Dependency execution failed: node '{exec_id}': {dep_err}"
+                            result["status"] = "pending_validation"
+                            return result
 
             # Step 5: Auto-append save code to persist results
             # Default result_format depends on node type:

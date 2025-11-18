@@ -370,8 +370,41 @@ def get_node_dependencies(project_id: str, node_id: str) -> Dict[str, Any]:
         if node_id not in pm.metadata.nodes:
             raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
 
-        # Create dependency analyzer
-        analyzer = DependencyAnalyzer(pm.metadata.nodes)
+        nodes = pm.list_nodes()
+        all_ids = {n['node_id'] for n in nodes}
+        notebook = pm.notebook_manager.notebook
+        code_map = {}
+        for cell in notebook.get('cells', []):
+            if cell.get('cell_type') == 'code':
+                meta = cell.get('metadata', {})
+                nid = meta.get('node_id')
+                if nid and not meta.get('result_cell'):
+                    src = cell.get('source', '')
+                    code = ''.join(src) if isinstance(src, list) else src
+                    code_map[nid] = code
+        nodes_meta = {}
+        for n in nodes:
+            nid = n['node_id']
+            used = set()
+            code = code_map.get(nid, '')
+            if code:
+                try:
+                    import ast
+                    tree = ast.parse(code)
+                    class V(ast.NodeVisitor):
+                        def visit_Name(self, node):
+                            if isinstance(node.ctx, ast.Load):
+                                used.add(node.id)
+                            self.generic_visit(node)
+                    V().visit(tree)
+                except SyntaxError:
+                    used = set()
+                    import re
+                    for m in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", code):
+                        used.add(m.group(1))
+            deps = sorted([d for d in used if d in all_ids and d != nid])
+            nodes_meta[nid] = {"node_id": nid, "depends_on": deps}
+        analyzer = DependencyAnalyzer(nodes_meta)
 
         # Get dependency info
         dep_info = analyzer.get_dependencies(node_id)
@@ -430,8 +463,41 @@ def get_execution_plan(
         if already_executed:
             already_executed_set = set(already_executed.split(","))
 
-        # Create dependency analyzer
-        analyzer = DependencyAnalyzer(pm.metadata.nodes)
+        nodes = pm.list_nodes()
+        all_ids = {n['node_id'] for n in nodes}
+        notebook = pm.notebook_manager.notebook
+        code_map = {}
+        for cell in notebook.get('cells', []):
+            if cell.get('cell_type') == 'code':
+                meta = cell.get('metadata', {})
+                nid = meta.get('node_id')
+                if nid and not meta.get('result_cell'):
+                    src = cell.get('source', '')
+                    code = ''.join(src) if isinstance(src, list) else src
+                    code_map[nid] = code
+        nodes_meta = {}
+        for n in nodes:
+            nid = n['node_id']
+            used = set()
+            code = code_map.get(nid, '')
+            if code:
+                try:
+                    import ast
+                    tree = ast.parse(code)
+                    class V(ast.NodeVisitor):
+                        def visit_Name(self, node):
+                            if isinstance(node.ctx, ast.Load):
+                                used.add(node.id)
+                            self.generic_visit(node)
+                    V().visit(tree)
+                except SyntaxError:
+                    used = set()
+                    import re
+                    for m in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", code):
+                        used.add(m.group(1))
+            deps = sorted([d for d in used if d in all_ids and d != nid])
+            nodes_meta[nid] = {"node_id": nid, "depends_on": deps}
+        analyzer = DependencyAnalyzer(nodes_meta)
 
         # Get execution plan
         plan = analyzer.get_execution_plan(node_id, already_executed_set)
