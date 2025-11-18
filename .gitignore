@@ -87,13 +87,9 @@ view_notebook_metadata.py
 README_METADATA.md
 # # All ipynb files except those in version control
 # *.ipynb
-# But specifically ignore test-generated notebooks
-backend/test/*.ipynb
-backend/test/*.parquet
-backend/test/*.json
-backend/test/temp/
-backend/test/*.pkl
-backend/test/generate_*
+
+# test
+test/
 
 # Editor directories and files
 .vscode/*

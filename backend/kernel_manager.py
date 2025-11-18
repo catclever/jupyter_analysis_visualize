@@ -318,6 +318,41 @@ class KernelManager:
 
             var_type = var_type.strip()
 
+            # For DataFrame, use pickle serialization for reliable data retrieval
+            if var_type == 'DataFrame':
+                code_pickle = f"""
+import pickle
+import base64
+__pickled = base64.b64encode(pickle.dumps({var_name})).decode('utf-8')
+print(__pickled)
+"""
+                msg_id = client.execute(code_pickle)
+                output = ""
+
+                while True:
+                    try:
+                        msg = client.get_iopub_msg(timeout=1)
+                        msg_type = msg.get("msg_type", "")
+
+                        if msg_type == "stream":
+                            output += msg.get("content", {}).get("text", "")
+                        elif msg_type == "status":
+                            if msg.get("content", {}).get("execution_state") == "idle":
+                                break
+                    except:
+                        continue
+
+                client.stop_channels()
+                kernel.update_activity()
+
+                # Unpickle the DataFrame
+                try:
+                    import pickle
+                    pickled_data = base64.b64decode(output.strip())
+                    return pickle.loads(pickled_data)
+                except Exception as e:
+                    raise RuntimeError(f"Failed to unpickle DataFrame {var_name}: {e}")
+
             # For functions and other non-JSON objects, try cloudpickle/pickle
             if var_type in ['function', 'method', 'type', 'builtin_function_or_method']:
                 code_pickle = f"""

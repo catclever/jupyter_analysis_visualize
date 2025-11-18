@@ -233,8 +233,12 @@ class ExecutionManager:
                     saved_path = self.project_manager.save_node_result(node_id, var_value)
                     execution.complete(result=var_value)
                 except Exception as e:
-                    # If variable retrieval fails, save output instead
-                    execution.complete(result=result['output'])
+                    # Log the error for debugging purposes
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.warning(f"Failed to retrieve/save result for node {node_id}: {type(e).__name__}: {e}")
+                    # Mark as error instead of silently failing
+                    execution.complete(error=f"Failed to save result: {type(e).__name__}: {str(e)}")
 
         return execution
 

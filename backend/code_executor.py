@@ -461,10 +461,14 @@ else:
     # Single DataFrame - save directly
     save_path = parquets_dir / '{node_id}.parquet'
     try:
-        {node_id}.to_parquet(str(save_path), index=False)
+        # Ensure we have a copy, not a view
+        df_to_save = {node_id}.copy() if hasattr({node_id}, 'copy') else {node_id}
+        df_to_save.to_parquet(str(save_path), index=False)
         print(f"✓ Saved parquet: {{save_path}}")
     except Exception as e:
+        import traceback
         print(f"ERROR saving parquet: {{e}}")
+        traceback.print_exc()
         raise"""
 
         elif result_format == "json":
