@@ -1575,7 +1575,9 @@ with open(r'{full_path}', 'rb') as f:
                     result_format = node.get('result_format') or 'json'
                 else:
                     result_format = node.get('result_format') or 'parquet'
-                is_visualization = node.get('type') in ['image', 'chart']
+                # Choose directory based on result_format, not node_type
+                # Image and visualization formats go to visualizations/
+                is_visualization = result_format in ['image', 'visualization', 'json']
                 target_dir = 'visualizations' if is_visualization else 'parquets'
 
                 # Check if result is a dict of DataFrames
