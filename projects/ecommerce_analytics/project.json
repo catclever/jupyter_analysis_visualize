@@ -11,7 +11,7 @@
       "node_type": "data_source",
       "name": "Load Orders Data",
       "depends_on": [],
-      "execution_status": "pending_validation",
+      "execution_status": "not_executed",
       "result_format": "parquet",
       "result_path": "parquets/load_orders_data.parquet",
       "error_message": "Form validation error: Code must assign variable 'load_orders_data'",

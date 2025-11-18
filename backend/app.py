@@ -883,9 +883,10 @@ def update_node_code(project_id: str, node_id: str, body: Dict[str, Any] = Body(
         # Save notebook
         pm.notebook_manager.save()
 
+        # Return the full code with metadata comments so frontend can display it correctly
         return {
             "node_id": node_id,
-            "code": code_content,
+            "code": full_code,  # Return full code with header, not just code_content
             "language": "python",
             "execution_status": "not_executed",
             "depends_on": new_depends
