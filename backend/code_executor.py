@@ -905,12 +905,6 @@ with open(r'{full_path}', 'rb') as f:
             else:
                 code = source
 
-            # DEBUG: Log code preview
-            print(f"\n[CodeDebug] Node {node_id}, type {node_type}:")
-            print(f"[CodeDebug] Code length: {len(code)}")
-            print(f"[CodeDebug] Code preview (first 200 chars):\n{code[:200]}")
-            print(f"[CodeDebug] Code ends with: ...{code[-100:] if len(code) > 100 else code}")
-
             # Step 1: Form validation - check if code assigns correct variable/function with correct type
             # 关键修复: 优先从 notebook 元数据注释里读取节点类型，而不是从 project.json
             # 这样确保前端修改的节点类型能被立即识别，即使 project.json 还没更新
@@ -934,6 +928,12 @@ with open(r'{full_path}', 'rb') as f:
 
             print(f"[NodeTypeDebug] Final node_type for validation: '{node_type}'")
             print(f"[NodeTypeDebug] Code preview: {code[:100]}...\n")
+
+            # DEBUG: Log code preview (after node_type is defined)
+            print(f"\n[CodeDebug] Node {node_id}, type {node_type}:")
+            print(f"[CodeDebug] Code length: {len(code)}")
+            print(f"[CodeDebug] Code preview (first 200 chars):\n{code[:200]}")
+            print(f"[CodeDebug] Code ends with: ...{code[-100:] if len(code) > 100 else code}")
 
             is_valid, validation_msg, inferred_type = CodeValidator.validate_node_form(code, node_id, node_type)
 
