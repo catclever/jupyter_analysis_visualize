@@ -328,7 +328,7 @@ class ProjectManager:
             raise RuntimeError("Project not loaded")
 
         import pandas as pd
-        import pickle
+        import cloudpickle
 
         # Determine target directory based on node type
         if node_type == 'tool':
@@ -342,7 +342,7 @@ class ProjectManager:
         if node_type == 'tool':
             result_path = target_dir / f"{node_id}.pkl"
             with open(result_path, 'wb') as f:
-                pickle.dump(result, f)
+                cloudpickle.dump(result, f)
             return str(result_path.relative_to(self.project_path))
 
         # For other nodes, auto-detect format
@@ -385,7 +385,7 @@ class ProjectManager:
             raise FileNotFoundError(f"Metadata for node {node_id} not found in project.json")
 
         import pandas as pd
-        import pickle
+        import cloudpickle
 
         # Tool nodes are always stored as pickle files in the functions/ directory
         if node_type == 'tool':
@@ -394,13 +394,13 @@ class ProjectManager:
                 result_file = self.project_path / node['result_path']
                 if result_file.exists() and result_file.suffix == '.pkl':
                     with open(result_file, 'rb') as f:
-                        return pickle.load(f)
+                        return cloudpickle.load(f)
             
             # Fallback to convention-based search in functions/ dir
             result_path = self.functions_path / f"{node_id}.pkl"
             if result_path.exists():
                 with open(result_path, 'rb') as f:
-                    return pickle.load(f)
+                    return cloudpickle.load(f)
             
             raise FileNotFoundError(f"No .pkl result found for tool node {node_id} in functions/ directory or at specified result_path.")
 
@@ -414,10 +414,9 @@ class ProjectManager:
                 elif ext == '.json':
                     with open(result_file, 'r', encoding='utf-8') as f:
                         return json.load(f)
-                # Note: non-tool .pkl files might be handled here if needed
                 elif ext == '.pkl':
                      with open(result_file, 'rb') as f:
-                        return pickle.load(f)
+                        return cloudpickle.load(f)
                 else:
                     raise NotImplementedError(f"Unsupported file extension '{ext}' for result loading.")
         

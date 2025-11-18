@@ -160,10 +160,12 @@ class CodeValidator:
         # Step 1: Check if same-named variable/function exists
         if node_type == 'tool':
             has_result = CodeValidator.has_function_definition(code, node_id)
+            func_defs = CodeValidator.extract_function_definitions(code)
             print(f"[ValidateDebug] Step 1 (tool): has_function_definition('{node_id}') = {has_result}")
-            if not has_result:
-                print(f"[ValidateDebug] ✗ FAILED: Tool node must define function '{node_id}'")
-                return False, f"Tool node must define function '{node_id}'", 'unknown'
+            print(f"[ValidateDebug] Step 1 (tool): extract_function_definitions -> {func_defs}")
+            if not has_result and not func_defs:
+                print(f"[ValidateDebug] ✗ FAILED: Tool node must define at least one function")
+                return False, f"Tool node must define at least one function (entry function)", 'unknown'
         else:
             has_result = CodeValidator.has_same_named_variable(code, node_id)
             print(f"[ValidateDebug] Step 1 (non-tool): has_same_named_variable('{node_id}') = {has_result}")
@@ -617,15 +619,29 @@ print(f"✓ Saved JSON to {{save_path}}")"""
 
         elif result_format == "pkl":
             functions_dir = str(self.pm.project_path / 'functions')
+            alias_code = ""
+            if node_type == 'tool':
+                alias_code = f"""
+# Auto-appended: Ensure alias for tool function
+import inspect
+try:
+    {node_id}
+except NameError:
+    _candidates = [name for name in dir() if not name.startswith('_') and inspect.isfunction(globals().get(name))]
+    if _candidates:
+        _entry = _candidates[-1]
+        {node_id} = globals().get(_entry)
+"""
             save_code = f"""
+{alias_code}
 # Auto-appended: Save result to pickle
-import pickle
+import cloudpickle
 from pathlib import Path
 functions_dir = Path(r'{functions_dir}')
 functions_dir.mkdir(parents=True, exist_ok=True)
 save_path = functions_dir / '{node_id}.pkl'
 with open(str(save_path), 'wb') as f:
-    pickle.dump({node_id}, f)
+    cloudpickle.dump({node_id}, f)
 print(f"✓ Saved pickle to {{save_path}}")"""
 
         elif result_format == "image":
