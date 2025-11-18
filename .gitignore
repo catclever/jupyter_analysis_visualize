@@ -64,7 +64,8 @@ backend/.env.local
 backend/whls/
 
 # Offline Package - Runtime artifacts
-1117_offline_package/backend/whls/
+*offline_package/
+*win_offline/
 
 # Projects - Generated Results (parquets, json, pkl are generated output)
 projects/*/parquets/
@@ -101,6 +102,7 @@ test/
 *.njsproj
 *.sln
 *.sw?
+.claude
 
 # OS
 Thumbs.db

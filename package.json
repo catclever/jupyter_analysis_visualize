@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "upgrade": "^1.1.0"
+  }
+}
