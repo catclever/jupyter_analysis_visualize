@@ -35,7 +35,7 @@ import { highlight, languages } from "prismjs";
 import "prismjs/components/prism-python";
 import "prismjs/themes/prism-tomorrow.css";
 import remarkGfm from "remark-gfm";
-import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, executeNode, getImageUrl, getProject, getDictResult, type PaginatedData } from "@/services/api";
+import { getNodeData, getNodeCode, getNodeMarkdown, updateNodeMarkdown, updateNodeCode, executeNode, getFileUrl, getProject, getDictResult, type PaginatedData } from "@/services/api";
 import { useProjectCache } from "@/hooks/useProjectCache";
 import { useUnsavedChanges } from "@/hooks/useUnsavedChanges";
 import { UnsavedChangesDialog } from "@/components/UnsavedChangesDialog";
@@ -3645,11 +3645,10 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
   // 优先使用缓存中的结果格式，如果没有则使用状态中的值
   const effectiveNodeResultFormat = cachedResultFormat !== null ? cachedResultFormat : nodeResultFormat;
 
-  // 对于image节点，自动显示markdown面板（即使用户未显式打开）
-  const isImageNode = effectiveNodeResultFormat === 'image' || effectiveNodeResultFormat === 'visualization';
+  // Get user's preference for showing markdown panel
   const nodeShowsConclusion = getNodeConclusionState(displayedNodeId);
-  // For dict results, only force show conclusion if it was explicitly opened, otherwise use user's preference
-  const effectiveShowConclusion = nodeShowsConclusion || isImageNode;
+  // Respect user's preference - don't force markdown panel for any node type
+  const effectiveShowConclusion = nodeShowsConclusion;
 
   // Get current node's viewMode
   const currentNodeViewMode = getNodeViewMode(displayedNodeId);
@@ -4220,9 +4219,13 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
               <div className="w-full h-full flex items-center justify-center p-4 bg-muted/10">
                 {currentData.result_format === 'image' || currentData.result_format === 'visualization' ? (
                   <img
-                    src={getImageUrl(projectId, displayedNodeId || '')}
+                    src={getFileUrl(projectId, displayedNodeId || '', currentData.result_format)}
                     alt={`${displayedNodeId} visualization`}
                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                    onError={(e) => {
+                      console.error(`Failed to load image for node ${displayedNodeId}:`, e);
+                      (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-size="14" fill="%23999"%3EImage not found%3C/text%3E%3C/svg%3E';
+                    }}
                   />
                 ) : (
                   renderChart(currentData.chartType, currentData.data)
@@ -4412,9 +4415,13 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
         <div className="w-full flex-1 flex items-center justify-center p-4 bg-muted/10">
           {currentData.result_format === 'image' || currentData.result_format === 'visualization' ? (
             <img
-              src={getImageUrl(projectId, displayedNodeId || '')}
+              src={getFileUrl(projectId, displayedNodeId || '', currentData.result_format)}
               alt={`${displayedNodeId} visualization`}
               style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+              onError={(e) => {
+                console.error(`Failed to load image for node ${displayedNodeId}:`, e);
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect width="200" height="200" fill="%23f0f0f0"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-size="14" fill="%23999"%3EImage not found%3C/text%3E%3C/svg%3E';
+              }}
             />
           ) : (
             renderChart(currentData.chartType, currentData.data)
