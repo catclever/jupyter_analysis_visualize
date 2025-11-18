@@ -1491,11 +1491,12 @@ with open(r'{full_path}', 'rb') as f:
                 is_visualization = node.get('type') in ['image', 'chart']
                 target_dir = 'visualizations' if is_visualization else 'parquets'
 
-                # Check if result is a dict of DataFrames (for parquet format)
+                # Check if result is a dict of DataFrames
                 # by checking if the auto-appended code saved it as a directory
+                from pathlib import Path
+
                 if result_format == 'parquet':
-                    from pathlib import Path
-                    # Check if a directory was created (dict of DataFrames) or a single file
+                    # For parquet format, check if directory with metadata exists
                     parquets_path = Path(self.pm.parquets_path)
                     node_dir = parquets_path / node_id
                     node_file = parquets_path / f"{node_id}.parquet"
@@ -1504,27 +1505,38 @@ with open(r'{full_path}', 'rb') as f:
                         # Dict of DataFrames - saved as directory with metadata
                         is_dict_result = True
                         result_path = f"{target_dir}/{node_id}"
-                        print(f"[Execution] Detected dict of DataFrames result - saved as directory")
+                        print(f"[Execution] ✓ Detected dict of DataFrames result - saved as directory")
                     else:
                         # Single DataFrame - saved as file
                         result_path = f"{target_dir}/{node_id}.parquet"
                 else:
-                    # Determine file extension based on format
+                    # For other formats (json, etc.), determine file extension
                     if result_format == 'json':
                         file_ext = 'json'
+                        # Also check for dict saved as JSON
+                        results_dir = Path(self.pm.parquets_path) / 'results'
+                        dict_path = results_dir / f'{node_id}_dict.json'
+                        if dict_path.exists():
+                            is_dict_result = True
+                            result_path = f"{target_dir}/results/{node_id}_dict.json"
+                            print(f"[Execution] ✓ Detected dict result saved as JSON")
+                        else:
+                            result_path = f"{target_dir}/{node_id}.{file_ext}"
                     elif result_format in ['image', 'visualization']:
                         file_ext = 'png'
+                        result_path = f"{target_dir}/{node_id}.{file_ext}"
                     elif result_format == 'pkl':
                         file_ext = 'pkl'
+                        result_path = f"{target_dir}/{node_id}.{file_ext}"
                     else:
                         file_ext = result_format
-
-                    result_path = f"{target_dir}/{node_id}.{file_ext}"
+                        result_path = f"{target_dir}/{node_id}.{file_ext}"
 
             # Call unified metadata sync method (Step 8: Update node status)
             print(f"[Execution] Step 8: Updating node status...")
             execution_result = {
                 'result_path': result_path,
+                'result_format': result_format if node_type != 'tool' else 'pkl',
                 'inferred_type': 'function' if node_type == 'tool' else inferred_type,
                 'is_dict_result': is_dict_result
             }
@@ -1650,13 +1662,17 @@ with open(r'{full_path}', 'rb') as f:
             node['execution_time'] = execution_time
             node['last_execution_time'] = datetime.now().isoformat()
 
+            # Store result_format (crucial for frontend to know how to load data)
+            if 'result_format' in execution_result:
+                node['result_format'] = execution_result['result_format']
+
             # Store inferred type if available
             if 'inferred_type' in execution_result:
                 node['output_type'] = execution_result['inferred_type']
 
             # Store is_dict_result flag if available
             if 'is_dict_result' in execution_result:
-                node['is_dict_result'] = execution_result['is_dict_result']
+                node['result_is_dict'] = execution_result['is_dict_result']
 
             # Save project.json
             self.pm._save_metadata()
