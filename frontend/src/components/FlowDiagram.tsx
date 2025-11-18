@@ -298,6 +298,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
 
       if (isNodeClick) {
         console.log('🌐 Global: Click on node element (class:', target.className, ')');
+        setDebugInfo(`🌐 Global click detected on: ${target.className}`);
       }
     };
 
