@@ -223,19 +223,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     new Set(Object.values(NodeCategory))
   );
   const [nodeIdCounter, setNodeIdCounter] = React.useState(0);
-  const [selectedNodeTypeForDrag, setSelectedNodeTypeForDrag] = React.useState<NodeType | null>(null);
   const [openCategoryDropdown, setOpenCategoryDropdown] = React.useState<string | null>(null);
-
-  // Initialize selectedNodeTypeForDrag with default types for each category
-  React.useEffect(() => {
-    if (!selectedNodeTypeForDrag) {
-      // Get the first node type from the first category as default
-      const firstCategory = Object.values(CATEGORY_LAYOUTS)[0];
-      if (firstCategory && firstCategory.nodeTypes.length > 0) {
-        setSelectedNodeTypeForDrag(firstCategory.nodeTypes[0]);
-      }
-    }
-  }, []);
+  const [selectedNodeTypeForDrag, setSelectedNodeTypeForDrag] = React.useState<NodeType | null>(null);
 
   // Handle node changes (including drag operations)
   const handleNodesChange = React.useCallback((changes: any) => {
@@ -441,39 +430,52 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     event.preventDefault();
 
     try {
-      // 如果有选择的节点类型，用它来创建节点
-      if (selectedNodeTypeForDrag) {
-        const nodeType = selectedNodeTypeForDrag;
-        const config = getNodeTypeConfig(nodeType);
-        if (!config) return;
-
-        // Generate unique node ID
-        const nodeId = `${nodeType}-${Date.now()}-${nodeIdCounter}`;
-        setNodeIdCounter((counter) => counter + 1);
-
-        // Get canvas position from drop event
-        const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-
-        // Create new node
-        const newNode: Node<FlowNodeData> = {
-          id: nodeId,
-          type: 'default',
-          position: { x, y },
-          data: {
-            label: `${config.label} 节点`,
-            type: nodeType,
-            executionStatus: 'not_executed',
-            isVisible: true,
-          },
-          className: `flow-node-${nodeType}`,
-          selectable: true,
-        };
-
-        setNodes((nds) => [...nds, newNode]);
-        console.log('[FlowDiagram] Added new node:', nodeId, 'at position', { x, y });
+      // Get the node type from the drag data
+      const dragData = event.dataTransfer.getData('application/json');
+      if (!dragData) {
+        console.warn('[FlowDiagram] No drag data found');
+        return;
       }
+
+      const data = JSON.parse(dragData);
+      if (data.type !== 'add-node' || !data.nodeType) {
+        console.warn('[FlowDiagram] Invalid drag data');
+        return;
+      }
+
+      const nodeType = data.nodeType;
+      const config = getNodeTypeConfig(nodeType);
+      if (!config) {
+        console.error('[FlowDiagram] No config found for node type:', nodeType);
+        return;
+      }
+
+      // Generate unique node ID
+      const nodeId = `${nodeType}-${Date.now()}-${nodeIdCounter}`;
+      setNodeIdCounter((counter) => counter + 1);
+
+      // Get canvas position from drop event
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      // Create new node
+      const newNode: Node<FlowNodeData> = {
+        id: nodeId,
+        type: 'default',
+        position: { x, y },
+        data: {
+          label: `${config.label} 节点`,
+          type: nodeType,
+          executionStatus: 'not_executed',
+          isVisible: true,
+        },
+        className: `flow-node-${nodeType}`,
+        selectable: true,
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+      console.log('[FlowDiagram] Added new node:', nodeId, 'at position', { x, y });
     } catch (error) {
       console.error('[FlowDiagram] Error handling drop:', error);
     }
@@ -539,7 +541,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
             const nodeTypesInCategory = layout.nodeTypes;
             const hasMultipleTypes = nodeTypesInCategory.length > 1;
             const isOpen = openCategoryDropdown === layout.category;
-            const isSelected = selectedNodeTypeForDrag &&
+            // Check if any type in this category is selected
+            const isAnyTypeSelected = selectedNodeTypeForDrag &&
               nodeTypesInCategory.includes(selectedNodeTypeForDrag as NodeType);
 
             return (
@@ -547,8 +550,14 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                 {/* 节点类型按钮 - 可拖拽 */}
                 <div className="flex items-center gap-1">
                   <button
-                    draggable={true}
+                    draggable={nodeTypeFilter.has(layout.category)}
                     onDragStart={(e) => {
+                      // Only allow drag if category is visible
+                      if (!nodeTypeFilter.has(layout.category)) {
+                        e.preventDefault();
+                        return;
+                      }
+
                       // Always use the first node type of this category for drag
                       const nodeTypeForDrag = layout.nodeTypes[0];
 
@@ -565,12 +574,13 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                     }}
                     className="px-2.5 py-1.5 rounded transition-all flex items-center gap-1.5 text-xs font-medium"
                     style={{
-                      backgroundColor: isSelected ? layout.color + '80' : layout.color + '20',
+                      backgroundColor: isAnyTypeSelected ? layout.color + '80' : layout.color + '20',
                       border: `1px solid ${layout.color}`,
-                      color: isSelected ? '#000000' : layout.color,
-                      cursor: 'grab',
+                      color: isAnyTypeSelected ? '#000000' : layout.color,
+                      cursor: nodeTypeFilter.has(layout.category) ? 'grab' : 'not-allowed',
+                      opacity: nodeTypeFilter.has(layout.category) ? 1 : 0.5,
                     }}
-                    title={`拖拽添加 ${layout.label} 节点${hasMultipleTypes ? '（点击选择具体类型）' : ''}`}
+                    title={nodeTypeFilter.has(layout.category) ? `拖拽添加 ${layout.label} 节点${hasMultipleTypes ? '（点击选择具体类型）' : ''}` : `${layout.label} 节点已隐藏，点击眼睛显示`}
                   >
                     <span>{layout.label}</span>
                     {hasMultipleTypes && (
@@ -589,9 +599,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                     title={`${nodeTypeFilter.has(layout.category) ? '隐藏' : '显示'} ${layout.label} 节点`}
                   >
                     {nodeTypeFilter.has(layout.category) ? (
-                      <Eye className="h-3.5 w-3.5" style={{ color: layout.color }} />
+                      <Eye className="h-3.5 w-3.5" style={{ color: layout.color, opacity: 1 }} />
                     ) : (
-                      <EyeOff className="h-3.5 w-3.5" style={{ color: layout.color, opacity: 0.5 }} />
+                      <EyeOff className="h-3.5 w-3.5" style={{ color: layout.color, opacity: 0.7 }} />
                     )}
                   </button>
                 </div>
@@ -602,21 +612,28 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                     {nodeTypesInCategory.map((nodeType) => {
                       const config = getNodeTypeConfig(nodeType);
                       if (!config) return null;
-                      const isThisTypeSelected = selectedNodeTypeForDrag === nodeType;
 
                       return (
                         <button
                           key={nodeType}
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.effectAllowed = 'copy';
+                            e.dataTransfer.setData('application/json', JSON.stringify({
+                              type: 'add-node',
+                              nodeType: nodeType,
+                            }));
+                          }}
                           onClick={() => handleSelectNodeType(nodeType)}
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors flex items-center gap-2"
+                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors flex items-center gap-2 cursor-grab"
                           style={{
-                            backgroundColor: isThisTypeSelected ? layout.color + '20' : 'transparent',
+                            backgroundColor: selectedNodeTypeForDrag === nodeType ? layout.color + '20' : 'transparent',
                             color: layout.color,
                           }}
                         >
                           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: config.color }}></span>
                           <span className="truncate">{config.description}</span>
-                          {isThisTypeSelected && <span className="ml-auto">✓</span>}
+                          {selectedNodeTypeForDrag === nodeType && <span className="ml-auto">✓</span>}
                         </button>
                       );
                     })}
