@@ -544,12 +544,17 @@ except ImportError:
             var_list = json.dumps(var_names)
             code = f"""
 import json
+try:
+    ip = get_ipython()
+    ns = set(ip.user_ns.keys()) if ip else set(globals().keys())
+except NameError:
+    ns = set(globals().keys())
 __vars_to_check = {var_list}
-__results = {{var: var in dir() for var in __vars_to_check}}
+__results = {{var: (var in ns) for var in __vars_to_check}}
 print(json.dumps(__results))
 """
 
-            result = self.execute_code(project_id, code, timeout=5)
+            result = self.execute_code(project_id, code, timeout=60)
 
             if result["status"] != "success":
                 # Fallback: assume all missing if execution fails
