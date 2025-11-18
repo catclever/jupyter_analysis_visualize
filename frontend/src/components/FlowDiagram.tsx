@@ -8,8 +8,11 @@ import {
   MiniMap,
   ConnectionMode,
   NodeProps,
+  Handle,
+  Position,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { Eye, EyeOff } from 'lucide-react';
 import { getProject, type ProjectNode, type ProjectEdge } from '@/services/api';
 import {
   getNodeColor,
@@ -26,6 +29,43 @@ interface FlowNodeData extends Record<string, unknown> {
   phase?: string;
   executionStatus?: string;  // 'validated' | 'pending_validation' | 'not_executed'
   errorMessage?: string;     // Error message if status is pending_validation
+  isVisible?: boolean;       // Visibility toggle for eye icon
+  onVisibilityToggle?: (nodeId: string) => void;  // Callback for visibility toggle
+}
+
+// Custom node component with eye icon
+function NodeWithEyeIcon({ id, data }: NodeProps<FlowNodeData>) {
+  const handleVisibilityToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    data.onVisibilityToggle?.(id);
+  };
+
+  const isVisible = data.isVisible ?? true;
+
+  return (
+    <div className="relative w-full h-full">
+      <Handle position={Position.Top} type="target" />
+      <div className="relative px-4 py-3">
+        <p className="text-sm font-medium text-center whitespace-nowrap">{data.label}</p>
+        {/* Eye icon in bottom-right corner */}
+        <button
+          onClick={handleVisibilityToggle}
+          className="absolute bottom-1 right-1 p-1.5 rounded hover:bg-black/10 transition-colors"
+          title={isVisible ? '隐藏节点' : '显示节点'}
+          style={{
+            background: isVisible ? 'transparent' : 'rgba(0,0,0,0.05)',
+          }}
+        >
+          {isVisible ? (
+            <Eye className="h-3.5 w-3.5 text-foreground/70" />
+          ) : (
+            <EyeOff className="h-3.5 w-3.5 text-foreground/40" />
+          )}
+        </button>
+      </div>
+      <Handle position={Position.Bottom} type="source" />
+    </div>
+  );
 }
 
 interface FlowDiagramProps {
@@ -84,7 +124,11 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
               id: node.id,
               type: 'default',
               position: { x: 0, y: 0 },
-              data: { label: node.label, type: node.type },
+              data: {
+                label: node.label,
+                type: node.type,
+                isVisible: true,
+              },
               className: `flow-node-${node.type}`,
               selectable: true,
             };
@@ -115,6 +159,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
               type: node.type,
               executionStatus: node.execution_status || 'not_executed',
               errorMessage: node.error_message || undefined,
+              isVisible: true,
             },
             className: `flow-node-${node.type}`,
             selectable: true,
@@ -169,6 +214,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   const [nodeTypeFilter, setNodeTypeFilter] = React.useState<Set<NodeCategory | string>>(
     new Set(Object.values(NodeCategory))
   );
+  const [nodeIdCounter, setNodeIdCounter] = React.useState(0);
 
   // Handle node changes (including drag operations)
   const handleNodesChange = React.useCallback((changes: any) => {
@@ -338,6 +384,74 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
     onNodeClick(node.id);
   };
 
+  // Handle visibility toggle for nodes
+  const toggleNodeVisibility = (nodeId: string) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId
+          ? {
+              ...node,
+              data: {
+                ...(node.data as FlowNodeData),
+                isVisible: !((node.data as FlowNodeData).isVisible ?? true)
+              }
+            }
+          : node
+      )
+    );
+  };
+
+  // Handle drop on canvas to add new node
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+
+    try {
+      const dragData = event.dataTransfer.getData('application/json');
+      if (!dragData) return;
+
+      const data = JSON.parse(dragData);
+      if (data.type !== 'add-node') return;
+
+      const nodeType = data.nodeType as NodeType;
+      const config = getNodeTypeConfig(nodeType);
+      if (!config) return;
+
+      // Generate unique node ID
+      const nodeId = `${nodeType}-${Date.now()}-${nodeIdCounter}`;
+      setNodeIdCounter((counter) => counter + 1);
+
+      // Get canvas position from drop event
+      // ReactFlow uses screen coordinates, so we need to calculate from the canvas
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      // Create new node
+      const newNode: Node<FlowNodeData> = {
+        id: nodeId,
+        type: 'default',
+        position: { x, y },
+        data: {
+          label: `${config.label} 节点`,
+          type: nodeType,
+          executionStatus: 'not_executed',
+          isVisible: true,
+        },
+        className: `flow-node-${nodeType}`,
+        selectable: true,
+      };
+
+      setNodes((nds) => [...nds, newNode]);
+      console.log('[FlowDiagram] Added new node:', nodeId, 'at position', { x, y });
+    } catch (error) {
+      console.error('[FlowDiagram] Error handling drop:', error);
+    }
+  };
 
   const toggleNodeTypeFilter = (type: 'data' | 'compute' | 'chart') => {
     const newFilter = new Set(nodeTypeFilter);
@@ -400,7 +514,11 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       </div>
 
       {/* Flow 区域 */}
-      <div className="flex-1 overflow-hidden flex flex-col relative">
+      <div
+        className="flex-1 overflow-hidden flex flex-col relative"
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         <style>{`
         /* 基础样式 */
         [class*="flow-node-"] {
@@ -705,6 +823,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                 data: {
                   ...node.data,
                   _executionStatus: status, // for CSS/styling reference
+                  onVisibilityToggle: toggleNodeVisibility, // Add visibility toggle callback
                 }
               };
             });

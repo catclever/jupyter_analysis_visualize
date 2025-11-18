@@ -3,6 +3,7 @@ import { DataSourceSidebar } from "@/components/DataSourceSidebar";
 import { FlowDiagram } from "@/components/FlowDiagram";
 import { DataTable } from "@/components/DataTable";
 import { AnalysisSidebar } from "@/components/AnalysisSidebar";
+import { NodeSidebar } from "@/components/NodeSidebar";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -91,44 +92,54 @@ const Index = () => {
         <ResizableHandle withHandle />
 
         <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 45 : 75} minSize={20}>
-          {selectedNodeId ? (
-            <ResizablePanelGroup direction="vertical" className="h-full">
-              <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 33.33 : 50} minSize={20}>
-                <div className="h-full w-full overflow-hidden">
-                  <FlowDiagram
-                    key={projectRefreshKey}
-                    onNodeClick={setSelectedNodeId}
-                    selectedNodeId={selectedNodeId}
-                    minimapOpen={minimapOpen}
-                    currentDatasetId={currentDatasetId}
-                  />
-                </div>
-              </ResizablePanel>
+          <div className="h-full w-full relative">
+            {selectedNodeId ? (
+              <ResizablePanelGroup direction="vertical" className="h-full">
+                <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 33.33 : 50} minSize={20}>
+                  <div className="h-full w-full overflow-hidden relative">
+                    <FlowDiagram
+                      key={projectRefreshKey}
+                      onNodeClick={setSelectedNodeId}
+                      selectedNodeId={selectedNodeId}
+                      minimapOpen={minimapOpen}
+                      currentDatasetId={currentDatasetId}
+                    />
+                    {/* Node Sidebar - floating on the right */}
+                    <div className="absolute top-0 right-0 h-full z-20 border-l border-border">
+                      <NodeSidebar />
+                    </div>
+                  </div>
+                </ResizablePanel>
 
-              <ResizableHandle withHandle />
+                <ResizableHandle withHandle />
 
-              <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 66.67 : 50} minSize={20}>
-                <div className="h-full overflow-auto p-6">
-                  <DataTable
-                    selectedNodeId={selectedNodeId}
-                    onNodeDeselect={() => setSelectedNodeId(null)}
-                    currentDatasetId={currentDatasetId}
-                    onProjectUpdate={() => setProjectRefreshKey(prev => prev + 1)}
-                  />
+                <ResizablePanel defaultSize={isAnalysisSidebarOpen ? 66.67 : 50} minSize={20}>
+                  <div className="h-full overflow-auto p-6">
+                    <DataTable
+                      selectedNodeId={selectedNodeId}
+                      onNodeDeselect={() => setSelectedNodeId(null)}
+                      currentDatasetId={currentDatasetId}
+                      onProjectUpdate={() => setProjectRefreshKey(prev => prev + 1)}
+                    />
+                  </div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            ) : (
+              <div className="h-full w-full overflow-hidden relative">
+                <FlowDiagram
+                  key={projectRefreshKey}
+                  onNodeClick={setSelectedNodeId}
+                  selectedNodeId={selectedNodeId}
+                  minimapOpen={minimapOpen}
+                  currentDatasetId={currentDatasetId}
+                />
+                {/* Node Sidebar - floating on the right */}
+                <div className="absolute top-0 right-0 h-full z-20 border-l border-border">
+                  <NodeSidebar />
                 </div>
-              </ResizablePanel>
-            </ResizablePanelGroup>
-          ) : (
-            <div className="h-full w-full overflow-hidden">
-              <FlowDiagram
-                key={projectRefreshKey}
-                onNodeClick={setSelectedNodeId}
-                selectedNodeId={selectedNodeId}
-                minimapOpen={minimapOpen}
-                currentDatasetId={currentDatasetId}
-              />
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </ResizablePanel>
 
         {isAnalysisSidebarOpen && (
