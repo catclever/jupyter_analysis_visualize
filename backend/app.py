@@ -22,13 +22,16 @@ if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query, Body
+import pyarrow as pa
+import pyarrow.parquet as pq
+from fastapi import FastAPI, HTTPException, Query, Body, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from project_manager import ProjectManager
 from notebook_manager import NotebookManager
 from dependency_analyzer import DependencyAnalyzer
+from kernel_manager import KernelManager
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -36,6 +39,8 @@ app = FastAPI(
     description="Backend API for notebook-based data analysis visualization",
     version="1.0.0"
 )
+
+KM = KernelManager(max_idle_time=300)
 
 # Add CORS middleware to allow frontend requests
 app.add_middleware(
@@ -177,7 +182,7 @@ def list_projects() -> Dict[str, Any]:
 
 
 @app.get("/api/projects/{project_id}")
-def get_project(project_id: str) -> Dict[str, Any]:
+def get_project(project_id: str, response: Response) -> Dict[str, Any]:
     """
     Get project metadata including:
     - Project info
@@ -238,6 +243,12 @@ def get_project(project_id: str) -> Dict[str, Any]:
                     "target": node_info["node_id"],
                     "animated": True
                 })
+
+        # Set response headers to prevent caching
+        # Frontend needs fresh data after node execution
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
 
         return {
             "id": project_data["project_id"],
@@ -404,6 +415,8 @@ def get_execution_plan(
     try:
         pm = get_project_manager(project_id)
 
+        KM.get_kernel(project_id)
+
         if pm.metadata is None:
             raise HTTPException(status_code=500, detail="Failed to load project metadata")
 
@@ -448,6 +461,8 @@ def get_node_data(
     """
     try:
         pm = get_project_manager(project_id)
+
+        KM.get_kernel(project_id)
 
         if pm.metadata is None:
             raise HTTPException(status_code=500, detail="Failed to load project metadata")
@@ -511,34 +526,88 @@ def get_node_data(
 
         # Load data based on format
         if result_format == "parquet":
-            # Handle absolute path returned from save_node_result
             try:
-                df = pd.read_parquet(str(file_path))
-            except FileNotFoundError:
-                # Try alternative path construction
-                alt_path = pm.parquets_path / f"{node_id}.parquet"
-                if alt_path.exists():
-                    df = pd.read_parquet(str(alt_path))
-                    file_path = alt_path
+                pf = pq.ParquetFile(str(file_path))
+                total_records = pf.metadata.num_rows
+
+                start_idx = (page - 1) * page_size
+                if start_idx < 0:
+                    start_idx = 0
+                end_idx = start_idx + page_size
+                if end_idx > total_records:
+                    end_idx = total_records
+
+                num_row_groups = pf.metadata.num_row_groups
+                tables = []
+                current_start = 0
+                first_group_start = None
+
+                for i in range(num_row_groups):
+                    rg_rows = pf.metadata.row_group(i).num_rows
+                    group_start = current_start
+                    group_end = group_start + rg_rows
+                    if group_end <= start_idx:
+                        current_start = group_end
+                        continue
+                    if group_start >= end_idx:
+                        break
+                    t = pf.read_row_group(i)
+                    tables.append(t)
+                    if first_group_start is None:
+                        first_group_start = group_start
+                    current_start = group_end
+
+                if tables:
+                    table = pa.concat_tables(tables) if len(tables) > 1 else tables[0]
+                    df_part = table.to_pandas()
+                    offset = start_idx - (first_group_start or 0)
+                    slice_len = end_idx - start_idx
+                    page_data_df = df_part.iloc[offset:offset + slice_len]
+                    return {
+                        "node_id": node_id,
+                        "format": "parquet",
+                        "total_records": total_records,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": (total_records + page_size - 1) // page_size,
+                        "columns": list(page_data_df.columns),
+                        "data": page_data_df.to_dict(orient="records"),
+                    }
                 else:
-                    raise
-            total_records = len(df)
-
-            # Calculate pagination
-            start_idx = (page - 1) * page_size
-            end_idx = start_idx + page_size
-            page_data = df.iloc[start_idx:end_idx]
-
-            return {
-                "node_id": node_id,
-                "format": "parquet",
-                "total_records": total_records,
-                "page": page,
-                "page_size": page_size,
-                "total_pages": (total_records + page_size - 1) // page_size,
-                "columns": list(df.columns),
-                "data": page_data.to_dict(orient="records"),
-            }
+                    return {
+                        "node_id": node_id,
+                        "format": "parquet",
+                        "total_records": total_records,
+                        "page": page,
+                        "page_size": page_size,
+                        "total_pages": (total_records + page_size - 1) // page_size,
+                        "columns": pf.schema.names,
+                        "data": [],
+                    }
+            except Exception:
+                try:
+                    df = pd.read_parquet(str(file_path))
+                except FileNotFoundError:
+                    alt_path = pm.parquets_path / f"{node_id}.parquet"
+                    if alt_path.exists():
+                        df = pd.read_parquet(str(alt_path))
+                        file_path = alt_path
+                    else:
+                        raise
+                total_records = len(df)
+                start_idx = (page - 1) * page_size
+                end_idx = start_idx + page_size
+                page_data = df.iloc[start_idx:end_idx]
+                return {
+                    "node_id": node_id,
+                    "format": "parquet",
+                    "total_records": total_records,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": (total_records + page_size - 1) // page_size,
+                    "columns": list(df.columns),
+                    "data": page_data.to_dict(orient="records"),
+                }
 
         elif result_format == "json":
             try:
@@ -964,7 +1033,6 @@ def execute_node(project_id: str, node_id: str) -> Dict[str, Any]:
     """
     try:
         from code_executor import CodeExecutor
-        from kernel_manager import KernelManager
 
         pm = get_project_manager(project_id)
 
@@ -978,8 +1046,7 @@ def execute_node(project_id: str, node_id: str) -> Dict[str, Any]:
         execution_order = execution_plan["execution_order"]
 
         # Initialize kernel manager and code executor
-        km = KernelManager(max_idle_time=300)
-        executor = CodeExecutor(pm, km, pm.notebook_manager)
+        executor = CodeExecutor(pm, KM, pm.notebook_manager)
 
         # Execute the node
         result = executor.execute_node(node_id)
@@ -1031,6 +1098,43 @@ def execute_node(project_id: str, node_id: str) -> Dict[str, Any]:
         import traceback
         error_msg = f"{str(e)}\n{traceback.format_exc()}"
         print(f"Error in execute_node: {error_msg}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/kernels")
+def list_kernels() -> Dict[str, Any]:
+    try:
+        return {"kernels": KM.get_all_kernels_info()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/kernels/{project_id}/keepalive")
+def keepalive_kernel(project_id: str, create_if_missing: bool = Query(False)) -> Dict[str, Any]:
+    try:
+        pm = get_project_manager(project_id)
+        if create_if_missing:
+            KM.get_or_create_kernel(project_id, str(pm.project_path))
+        else:
+            KM.get_kernel(project_id)
+        info = KM.get_kernel_info(project_id)
+        return {"project_id": project_id, "kernel": info}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/kernels/{project_id}/prewarm")
+def prewarm_kernel(project_id: str) -> Dict[str, Any]:
+    try:
+        pm = get_project_manager(project_id)
+        KM.get_or_create_kernel(project_id, str(pm.project_path))
+        info = KM.get_kernel_info(project_id)
+        return {"project_id": project_id, "kernel": info}
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 

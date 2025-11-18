@@ -27,6 +27,7 @@ interface ResultPanelProps {
   selectedNodeId: string | null;
   onNodeDeselect?: () => void;
   currentDatasetId?: string;
+  refreshToken?: number;
 }
 
 interface TableData {
@@ -41,6 +42,7 @@ export function ResultPanel({
   selectedNodeId,
   onNodeDeselect = () => {},
   currentDatasetId = "ecommerce_analytics",
+  refreshToken = 0,
 }: ResultPanelProps) {
   const [nodeInfo, setNodeInfo] = useState<ProjectNode | null>(null);
   const [displayType, setDisplayType] = useState<DisplayType>(DisplayType.NONE);
@@ -55,24 +57,6 @@ export function ResultPanel({
 
   // Use currentDatasetId directly - no mapping needed as we now load projects dynamically
   const projectId = currentDatasetId;
-
-  // DEBUG: For dict_result_test project, show alert immediately
-  useEffect(() => {
-    if (projectId === "dict_result_test") {
-      const fetchDebugInfo = async () => {
-        try {
-          const project = await getProject(projectId);
-          const debugInfo = project.nodes.map((n: any) =>
-            `${n.id}: result_is_dict=${n.result_is_dict}, path=${n.result_path}`
-          ).join("\n");
-          alert("[DEBUG dict_result_test]\n" + debugInfo);
-        } catch (e) {
-          alert("Error loading debug info: " + String(e));
-        }
-      };
-      fetchDebugInfo();
-    }
-  }, [projectId]);
 
   // Fetch node data
   useEffect(() => {
@@ -92,31 +76,17 @@ export function ResultPanel({
         setError(null);
         setCurrentPage(1);
 
-        // Get project info to find node details
-        const project = await getProject(projectId);
-        console.log("[DEBUG] Full project loaded:", project);
+        // Get project info to find node details (always bypass cache to get latest metadata)
+        const project = await getProject(projectId, true);
 
-        const node = project.nodes.find((n) => n.id === selectedNodeId);
-        console.log("[DEBUG] Selected node:", node);
+        const node = project.nodes.find((n: any) => n.id === selectedNodeId);
 
         if (!node) {
           setError(`Node ${selectedNodeId} not found in project`);
           return;
         }
 
-        // DEBUG: Show alert with node info
-        const debugMsg = `Node: ${node.id}\nresult_is_dict: ${node.result_is_dict}\nresult_path: ${node.result_path}\nexecution_status: ${node.execution_status}`;
-        alert("[DEBUG]\n" + debugMsg);
-
         setNodeInfo(node);
-
-        // DEBUG: Log node info
-        console.log("[ResultPanel] Node loaded:", {
-          id: node.id,
-          result_is_dict: node.result_is_dict,
-          result_path: node.result_path,
-          execution_status: node.execution_status
-        });
 
         // Determine display type from node output configuration
         let inferredDisplayType: DisplayType = DisplayType.NONE;
@@ -201,7 +171,7 @@ export function ResultPanel({
     };
 
     fetchNodeData();
-  }, [selectedNodeId, projectId, pageSize]);
+  }, [selectedNodeId, projectId, pageSize, refreshToken]);
 
   // Handle page changes
   const handlePageChange = async (newPage: number) => {

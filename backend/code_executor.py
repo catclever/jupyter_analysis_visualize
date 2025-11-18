@@ -25,6 +25,7 @@ import pandas as pd
 from project_manager import ProjectManager
 from kernel_manager import KernelManager
 from notebook_manager import NotebookManager
+from dependency_analyzer import DependencyAnalyzer
 
 
 class CodeValidator:
@@ -305,9 +306,11 @@ class CodeExecutor:
             else:
                 self.km.get_or_create_kernel(project_id)
 
-            # Auto-load validated nodes into kernel
             print(f"\n[KernelInit] New kernel created for project '{project_id}'")
-            self._load_validated_nodes_on_kernel_init(project_id)
+            nodes = self.pm.list_nodes()
+            validated_count = len([n for n in nodes if n.get('execution_status') == 'validated'])
+            if validated_count <= 5:
+                self._load_validated_nodes_on_kernel_init(project_id)
 
     def _load_validated_nodes_on_kernel_init(self, project_id: str) -> None:
         """
@@ -340,12 +343,13 @@ class CodeExecutor:
             node_id = node['node_id']
             node_type = node.get('type', 'compute')
             # Determine default result_format based on node type
+            # NOTE: Handle both missing and null values - use default if either occurs
             if node_type == 'tool':
-                result_format = node.get('result_format', 'pkl')
+                result_format = node.get('result_format') or 'pkl'
             elif node_type == 'chart':
-                result_format = node.get('result_format', 'json')
+                result_format = node.get('result_format') or 'json'
             else:
-                result_format = node.get('result_format', 'parquet')
+                result_format = node.get('result_format') or 'parquet'
 
             try:
                 # Get result path based on node type
@@ -1029,12 +1033,13 @@ with open(r'{full_path}', 'rb') as f:
             result_path = node.get('result_path')
             node_type = node.get('type', 'compute')
             # Determine default result_format based on node type
+            # NOTE: Handle both missing and null values - use default if either occurs
             if node_type == 'tool':
-                result_format = node.get('result_format', 'pkl')
+                result_format = node.get('result_format') or 'pkl'
             elif node_type == 'chart':
-                result_format = node.get('result_format', 'json')
+                result_format = node.get('result_format') or 'json'
             else:
-                result_format = node.get('result_format', 'parquet')
+                result_format = node.get('result_format') or 'parquet'
 
             print(f"[RecursiveExec] Processing dependency: {node_id} (status: {status})")
 
@@ -1098,7 +1103,7 @@ with open(r'{full_path}', 'rb') as f:
 
         return ""
 
-    def execute_node(self, node_id: str, execution_stack: List[str] = None) -> Dict[str, Any]:
+    def execute_node(self, node_id: str, execution_stack: List[str] = None, skip_dependency_resolution: bool = False) -> Dict[str, Any]:
         """
         Execute a node with new 9-step recursive dependency workflow:
         
@@ -1210,52 +1215,96 @@ with open(r'{full_path}', 'rb') as f:
 
                 return result
 
-            # Step 2: Analyze dependencies (WITHOUT writing to depends_on yet)
-            print(f"\n[Execution] Step 2: Analyzing dependencies for '{node_id}'...")
-            analyzed_deps = self._analyze_dependencies_pre_execution(node_id)
-            print(f"[Execution] Analyzed dependencies: {analyzed_deps}")
+            # Step 2: Analyze dependencies (single-pass recursive plan)
+            if not skip_dependency_resolution:
+                print(f"\n[Phase|DepsPlan] ▶ Node '{node_id}': analyzing dependencies (single-pass)")
+                analyzed_deps = self._analyze_dependencies_pre_execution(node_id)
+                print(f"[Phase|DepsPlan] analyzed_deps={analyzed_deps}")
 
-            # Step 3: Check which dependencies exist in Kernel
-            print(f"[Execution] Step 3: Checking Kernel variables...")
-            existing_vars, missing_vars = self._check_kernel_variables(analyzed_deps)
-            print(f"[Execution] Existing in Kernel: {existing_vars}")
-            print(f"[Execution] Missing (need to load/execute): {missing_vars}")
+                analyzer = DependencyAnalyzer(self.pm.metadata.nodes)
+                dep_info = analyzer.get_dependencies(node_id)
+                all_deps = dep_info.get('all_dependencies', [])
+                execution_order = dep_info.get('execution_order', [])
+                if not all_deps:
+                    all_deps = analyzed_deps
+                    execution_order = analyzed_deps + [node_id]
+                print(f"[Phase|DepsPlan] all_deps={all_deps}")
+                print(f"[Phase|DepsPlan] execution_order={execution_order}")
 
-            # Step 4: Recursively execute missing dependencies
-            if missing_vars:
-                print(f"[Execution] Step 4: Recursively executing {len(missing_vars)} missing dependencies: {missing_vars}")
-                if not self._execute_missing_dependencies_recursively(missing_vars, execution_stack):
-                    # Get detailed error from the recursive execution
-                    dep_error = getattr(self, '_last_dependency_error', {})
-                    if dep_error:
-                        error_node = dep_error.get('node_id', 'unknown')
-                        error_detail = dep_error.get('error', 'Unknown error')
-                        error_type = dep_error.get('type', 'unknown')
-                        result["error_message"] = f"Dependency execution failed: node '{error_node}' ({error_type}): {error_detail}"
+                print(f"[Phase|KernelCheck] ▶ Batch checking {len(all_deps)} deps in Kernel")
+                existing_vars, _ = [], []
+                deps_exist_map = self.km.check_variables_batch(self.pm.project_id, list(all_deps)) if all_deps else {}
+                for var_name, exists in deps_exist_map.items():
+                    if exists:
+                        existing_vars.append(var_name)
+                deps_missing = [d for d in all_deps if not deps_exist_map.get(d, False)]
+                print(f"[Phase|KernelCheck] existing={existing_vars}")
+                print(f"[Phase|KernelCheck] missing={deps_missing}")
+
+                to_execute = []
+                loaded_ok = []
+                for dep_id in deps_missing:
+                    dep_node = self.pm.get_node(dep_id)
+                    if not dep_node:
+                        result["error_message"] = f"Missing dependency node metadata: {dep_id}"
+                        result["status"] = "pending_validation"
+                        return result
+                    dep_type = dep_node.get('type', 'compute')
+                    if dep_type == 'tool':
+                        dep_format = dep_node.get('result_format', 'pkl')
+                    elif dep_type == 'chart':
+                        dep_format = dep_node.get('result_format', 'json')
                     else:
-                        result["error_message"] = f"Failed to execute dependencies for '{node_id}': {missing_vars}"
-                    result["status"] = "pending_validation"
-                    return result
-                print(f"[Execution] ✓ All dependencies resolved")
-            else:
-                print(f"[Execution] Step 4: No missing dependencies (analyzed_deps={analyzed_deps}), skipping recursive execution")
+                        dep_format = dep_node.get('result_format', 'parquet')
+
+                    dep_status = dep_node.get('execution_status', 'not_executed')
+                    dep_result_path = dep_node.get('result_path')
+
+                    if dep_status == 'validated' and dep_result_path:
+                        print(f"[Phase|TopoExec] try load validated dep '{dep_id}' from '{dep_result_path}' ({dep_format})")
+                        ok = self._load_variable_from_file(dep_id, dep_result_path, dep_format)
+                        if ok:
+                            loaded_ok.append(dep_id)
+                        else:
+                            to_execute.append(dep_id)
+                    else:
+                        to_execute.append(dep_id)
+
+                if to_execute:
+                    print(f"[Phase|TopoExec] ▶ Execute {len(to_execute)} missing deps in topo order: {to_execute}")
+                    for exec_id in execution_order:
+                        if exec_id == node_id:
+                            continue
+                        if exec_id in to_execute:
+                            print(f"[Phase|TopoExec] exec dep '{exec_id}'")
+                            dep_res = self.execute_node(exec_id, (execution_stack or []) + [exec_id], skip_dependency_resolution=False)
+                            if dep_res.get('status') != 'success':
+                                dep_err = dep_res.get('error_message', 'Unknown error')
+                                result["error_message"] = f"Dependency execution failed: node '{exec_id}': {dep_err}"
+                                result["status"] = "pending_validation"
+                                return result
+                    print(f"[Phase|TopoExec] ✓ All dependencies resolved")
+                else:
+                    print(f"[Phase|TopoExec] No missing dependencies after batch check")
 
             # Step 5: Auto-append save code to persist results
             # Default result_format depends on node type:
             # - tool nodes default to 'pkl' (for function serialization)
             # - chart nodes default to 'json' (for plotly/echarts serialization)
             # - other nodes default to 'parquet' (for dataframe serialization)
+            # NOTE: Handle both missing and null values - use default if either occurs
             if node_type == 'tool':
-                result_format = node.get('result_format', 'pkl')
+                result_format = node.get('result_format') or 'pkl'
             elif node_type == 'chart':
-                result_format = node.get('result_format', 'json')
+                result_format = node.get('result_format') or 'json'
             else:
-                result_format = node.get('result_format', 'parquet')
+                result_format = node.get('result_format') or 'parquet'
 
             # Always append save code to ensure results are persisted for frontend display
             # (except for tool nodes - they define functions that stay in kernel)
             code = self._auto_append_save_code(code, node_id, result_format, node_type)
 
+            print(f"[Phase|NodeExec] ▶ Execute current node '{node_id}'")
             # Step 6: Execute current node code
             try:
                 output = self.km.execute_code(self.pm.project_id, code, timeout=30)
@@ -1368,10 +1417,9 @@ with open(r'{full_path}', 'rb') as f:
 
                     return result
             else:
-                # Non-tool nodes: Check if variable exists in kernel
                 try:
-                    var_value = self.km.get_variable(self.pm.project_id, node_id)
-                    if var_value is None:
+                    exists = self.km.variable_exists(self.pm.project_id, node_id)
+                    if not exists:
                         result["error_message"] = f"Execution produced no value for '{node_id}'"
                         result["status"] = "pending_validation"
                         node['execution_status'] = 'pending_validation'
@@ -1402,11 +1450,11 @@ with open(r'{full_path}', 'rb') as f:
 
                     return result
 
-                print(f"[Execution] ✓ Variable '{node_id}' verified in kernel")
+                print(f"[Phase|NodeExec] ✓ Variable '{node_id}' exists in kernel")
 
             # Note: Save was already done by auto-appended code in Step 5
             # We don't do a second save here to avoid unreliable get_variable() issues
-            print(f"[Execution] ✓ Result already saved by auto-appended code during Kernel execution")
+            print(f"[Phase|NodeExec] ✓ Result saved by auto-appended code")
 
             # Step 8.5: Generate/overwrite result cell (skip for tool nodes)
             # Tool nodes define functions that live in kernel namespace, no result cells needed
@@ -1484,10 +1532,11 @@ with open(r'{full_path}', 'rb') as f:
 
             if node_type != 'tool':
                 # Determine default result_format based on node type
+                # NOTE: Handle both missing and null values - use default if either occurs
                 if node_type == 'chart':
-                    result_format = node.get('result_format', 'json')
+                    result_format = node.get('result_format') or 'json'
                 else:
-                    result_format = node.get('result_format', 'parquet')
+                    result_format = node.get('result_format') or 'parquet'
                 is_visualization = node.get('type') in ['image', 'chart']
                 target_dir = 'visualizations' if is_visualization else 'parquets'
 
@@ -1544,10 +1593,11 @@ with open(r'{full_path}', 'rb') as f:
 
             # Step 9: NOW update depends_on with the analyzed dependencies
             # Important: We only write depends_on after ALL dependencies are successfully executed
-            print(f"[Execution] Step 9: Updating depends_on with analyzed dependencies: {analyzed_deps}")
-            node = self.pm.get_node(node_id)
-            node['depends_on'] = sorted(list(set(analyzed_deps)))  # Remove duplicates and sort
-            self.pm._save_metadata()
+            if not skip_dependency_resolution:
+                print(f"[Execution] Step 9: Updating depends_on with analyzed dependencies: {analyzed_deps}")
+                node = self.pm.get_node(node_id)
+                node['depends_on'] = sorted(list(set(analyzed_deps)))
+                self.pm._save_metadata()
 
             # Also sync to notebook
             try:
@@ -1671,8 +1721,9 @@ with open(r'{full_path}', 'rb') as f:
                 node['output_type'] = execution_result['inferred_type']
 
             # Store is_dict_result flag if available
+            # Note: Use 'is_dict_result' key (app.py line 213 expects this)
             if 'is_dict_result' in execution_result:
-                node['result_is_dict'] = execution_result['is_dict_result']
+                node['is_dict_result'] = execution_result['is_dict_result']
 
             # Save project.json
             self.pm._save_metadata()
