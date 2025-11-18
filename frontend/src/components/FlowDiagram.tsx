@@ -350,24 +350,25 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         [class*="flow-node-"] {
           border: 2px solid transparent;
           border-radius: 8px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-          width: auto !important;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          width: auto;
           min-width: 140px;
           padding: 12px 20px;
         }
 
-        /* Ensure status classes are applied to ReactFlow node wrapper */
-        /* ReactFlow applies the className to the node container */
+        /* ReactFlow node基础样式 */
         .react-flow__node {
-          border: 2px solid transparent !important;
+          border: 2px solid transparent;
           border-radius: 8px;
+          pointer-events: auto;
+          cursor: pointer;
         }
 
         [class*="flow-node-"] > div {
           font-weight: 500;
           font-size: 13px;
           text-align: center;
-          cursor: pointer;
+          pointer-events: auto;
         }
 
         /* 数据源节点 (data_source) - 莫兰迪蓝 */
@@ -380,14 +381,14 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         }
 
         .flow-node-data_source.selected {
-          background: #a8c5da !important;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 197, 218, 0.8) !important;
+          background: #a8c5da;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), 0 0 0 3px rgba(168, 197, 218, 0.8);
         }
 
         .flow-node-data_source.parent {
-          background: #a8c5da !important;
+          background: #a8c5da;
           opacity: 1;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .flow-node-data_source.ancestor {
