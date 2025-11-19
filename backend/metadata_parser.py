@@ -46,6 +46,7 @@ class CellMetadata:
         self.result_format: Optional[str] = None  # 'parquet', 'json', 'image', 'visualization'
         self.parquet_path: Optional[str] = None
         self.linked_node_id: Optional[str] = None  # For markdown cells linked to code nodes
+        self.declared_output_type: Optional[str] = None  # 'dataframe', 'dict_of_dataframes', 'chart', etc.
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary"""
@@ -119,6 +120,8 @@ class ProjectMetadataParser:
     # New patterns for optimization
     EXECUTION_STATUS_PATTERN = re.compile(r'#\s*@execution_status:\s*(\w+)')
     RESULT_FORMAT_PATTERN = re.compile(r'#\s*@result_format:\s*(\w+)')
+    # Pattern for declared output type (e.g., @output_type: dict_of_dataframes)
+    OUTPUT_TYPE_PATTERN = re.compile(r'#\s*@output_type:\s*([\w_]+)')
 
     def __init__(self, notebook_path: str):
         """
@@ -251,6 +254,11 @@ class ProjectMetadataParser:
             if exec_status_match:
                 cell_meta.execution_status = exec_status_match.group(1)
 
+            # Optional: declared output type
+            output_type_match = self.OUTPUT_TYPE_PATTERN.search(cell_meta.content)
+            if output_type_match:
+                cell_meta.declared_output_type = output_type_match.group(1)
+
             # Optional: dependencies
             depends_match = self.DEPENDS_PATTERN.search(cell_meta.content)
             if depends_match:
@@ -268,6 +276,8 @@ class ProjectMetadataParser:
                 cell_meta.depends_on = cell_notebook_meta['depends_on']
             if 'execution_status' in cell_notebook_meta:
                 cell_meta.execution_status = cell_notebook_meta['execution_status']
+            if 'declared_output_type' in cell_notebook_meta:
+                cell_meta.declared_output_type = cell_notebook_meta['declared_output_type']
 
         return cell_meta
 

@@ -1211,6 +1211,7 @@ with open(r'{full_path}', 'rb') as f:
             # 这样确保前端修改的节点类型能被立即识别，即使 project.json 还没更新
             cell_metadata = code_cell.get('metadata', {})
             node_type_from_notebook = cell_metadata.get('node_type')
+            declared_output_type = cell_metadata.get('declared_output_type')  # Extract declared output type
 
             # 调试输出：看节点类型在哪里被读取
             print(f"\n[NodeTypeDebug] Node: {node_id}")
@@ -1573,41 +1574,66 @@ with open(r'{full_path}', 'rb') as f:
                 target_dir = 'visualizations' if is_visualization else 'parquets'
 
                 # Check if result is a dict of DataFrames
-                # by checking if the auto-appended code saved it as a directory
+                # First check declared_output_type, then check actual file structure
                 from pathlib import Path
 
-                if result_format == 'parquet':
-                    # For parquet format, check if directory with metadata exists
-                    parquets_path = Path(self.pm.parquets_path)
-                    node_dir = parquets_path / node_id
-                    if node_dir.is_dir() and (node_dir / '_metadata.json').exists():
-                        is_dict_result = True
-                        result_path = f"{target_dir}/{node_id}"
-                        print(f"[Execution] ✓ Detected dict of DataFrames result - saved as directory")
-                    else:
-                        result_path = f"{target_dir}/{node_id}.parquet"
-                else:
-                    # For other formats (json, etc.), determine file extension
-                    if result_format == 'json':
-                        file_ext = 'json'
-                        # Also check for dict saved as JSON
-                        results_dir = Path(self.pm.parquets_path) / 'results'
-                        dict_path = results_dir / f'{node_id}_dict.json'
-                        if dict_path.exists():
+                # Priority 1: Check declared output type
+                if declared_output_type == 'dict_of_dataframes':
+                    is_dict_result = True
+                    print(f"[Execution] ✓ Using declared output type: dict_of_dataframes")
+                elif declared_output_type:
+                    # Other declared types don't affect is_dict_result
+                    is_dict_result = False
+                    print(f"[Execution] ✓ Using declared output type: {declared_output_type}")
+
+                # Priority 2: If no declaration, detect from actual file structure
+                if not declared_output_type:
+                    if result_format == 'parquet':
+                        # For parquet format, check if directory with metadata exists
+                        parquets_path = Path(self.pm.parquets_path)
+                        node_dir = parquets_path / node_id
+                        if node_dir.is_dir() and (node_dir / '_metadata.json').exists():
                             is_dict_result = True
-                            result_path = f"{target_dir}/results/{node_id}_dict.json"
-                            print(f"[Execution] ✓ Detected dict result saved as JSON")
+                            result_path = f"{target_dir}/{node_id}"
+                            print(f"[Execution] ✓ Detected dict of DataFrames result - saved as directory")
                         else:
-                            result_path = f"{target_dir}/{node_id}.{file_ext}"
-                    elif result_format in ['image', 'visualization']:
-                        file_ext = 'png'
-                        result_path = f"{target_dir}/{node_id}.{file_ext}"
-                    elif result_format == 'pkl':
-                        file_ext = 'pkl'
-                        result_path = f"{target_dir}/{node_id}.{file_ext}"
+                            result_path = f"{target_dir}/{node_id}.parquet"
                     else:
-                        file_ext = result_format
-                        result_path = f"{target_dir}/{node_id}.{file_ext}"
+                        # For other formats (json, etc.), determine file extension
+                        if result_format == 'json':
+                            file_ext = 'json'
+                            # Also check for dict saved as JSON
+                            results_dir = Path(self.pm.parquets_path) / 'results'
+                            dict_path = results_dir / f'{node_id}_dict.json'
+                            if dict_path.exists():
+                                is_dict_result = True
+                                result_path = f"{target_dir}/results/{node_id}_dict.json"
+                                print(f"[Execution] ✓ Detected dict result saved as JSON")
+                            else:
+                                result_path = f"{target_dir}/{node_id}.{file_ext}"
+                        elif result_format in ['image', 'visualization']:
+                            file_ext = 'png'
+                            result_path = f"{target_dir}/{node_id}.{file_ext}"
+                        elif result_format == 'pkl':
+                            file_ext = 'pkl'
+                            result_path = f"{target_dir}/{node_id}.{file_ext}"
+                        else:
+                            file_ext = result_format
+                            result_path = f"{target_dir}/{node_id}.{file_ext}"
+                else:
+                    # When declared_output_type is present, still set result_path
+                    if result_format == 'parquet':
+                        if is_dict_result:
+                            result_path = f"{target_dir}/{node_id}"
+                        else:
+                            result_path = f"{target_dir}/{node_id}.parquet"
+                    elif result_format == 'json':
+                        if is_dict_result:
+                            result_path = f"{target_dir}/results/{node_id}_dict.json"
+                        else:
+                            result_path = f"{target_dir}/{node_id}.json"
+                    else:
+                        result_path = f"{target_dir}/{node_id}.{result_format}"
 
             # Call unified metadata sync method (Step 8: Update node status)
             print(f"[Execution] Step 8: Updating node status...")

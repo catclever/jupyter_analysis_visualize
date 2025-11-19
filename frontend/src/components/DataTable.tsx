@@ -3375,6 +3375,7 @@ function renderChart(chartType: string | undefined, data: DataRow[]) {
 export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = 'ecommerce_analytics', onProjectUpdate, onNodeDelete }: DataTableProps) {
   const [apiData, setApiData] = useState<PaginatedData<any> | null>(null);
   const [dictResult, setDictResult] = useState<any | null>(null);
+  const [dictPageSizes, setDictPageSizes] = useState<Record<string, number>>({}); // Track page sizes for dict tables
   const [apiCode, setApiCode] = useState<string>('');
   const [apiCodeWithMetadata, setApiCodeWithMetadata] = useState<string>('');
   const [apiMarkdown, setApiMarkdown] = useState<string>('');
@@ -3436,6 +3437,28 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
 
   // Use currentDatasetId directly - no mapping needed as we now load projects dynamically
   const projectId = currentDatasetId;
+
+  // Handler for dict result pagination
+  const handleDictTablePageChange = async (tableKey: string, newPage: number): Promise<void> => {
+    if (!displayedNodeId || !dictResult) return;
+
+    try {
+      const pageSize = dictPageSizes[tableKey] || 10;
+      const updatedDictData = await getDictResult(projectId, displayedNodeId, newPage, pageSize);
+
+      // Update only the specific table's data with new page
+      setDictResult(prev => ({
+        ...prev,
+        tables: {
+          ...prev.tables,
+          [tableKey]: updatedDictData.tables[tableKey]
+        }
+      }));
+    } catch (err) {
+      console.error(`[DataTable] Failed to load page ${newPage} for table ${tableKey}:`, err);
+      throw err;
+    }
+  };
 
   // Check for unsaved changes when selectedNodeId (from props) changes
   useEffect(() => {
@@ -4206,6 +4229,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
             <DictResultDisplay
               keys={dictResult.keys}
               tables={dictResult.tables}
+              onTablePageChange={handleDictTablePageChange}
             />
           </div>
         )
@@ -4245,6 +4269,7 @@ export function DataTable({ selectedNodeId, onNodeDeselect, currentDatasetId = '
                 <DictResultDisplay
                   keys={dictResult.keys}
                   tables={dictResult.tables}
+                  onTablePageChange={handleDictTablePageChange}
                 />
               ) : (
                 <div className="overflow-x-auto h-full">

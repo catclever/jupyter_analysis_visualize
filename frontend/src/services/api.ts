@@ -142,17 +142,31 @@ export async function getNodeData<T = unknown>(
 /**
  * Get dict of DataFrames result for a node
  */
+export interface TablePageInfo {
+  data: Array<Record<string, unknown>>;
+  total_rows: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 export interface DictResult {
   keys: string[];
-  tables: Record<string, Array<Record<string, unknown>>>;
+  tables: Record<string, TablePageInfo | Array<Record<string, unknown>>>;
 }
 
 export async function getDictResult(
   projectId: string,
-  nodeId: string
+  nodeId: string,
+  page: number = 1,
+  pageSize: number = 10
 ): Promise<DictResult> {
+  const params = new URLSearchParams();
+  params.append('page', page.toString());
+  params.append('page_size', pageSize.toString());
+
   const response = await fetch(
-    `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/dict-result`
+    `${API_BASE_URL}/api/projects/${projectId}/nodes/${nodeId}/dict-result?${params.toString()}`
   );
   if (!response.ok) {
     throw new Error(`Failed to fetch dict result: ${response.statusText}`);

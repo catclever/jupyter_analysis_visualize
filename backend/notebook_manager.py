@@ -41,6 +41,7 @@ class NotebookCell:
         metadata: Optional[Dict[str, Any]] = None,
         execution_status: Optional[str] = None,
         linked_node_id: Optional[str] = None,
+        declared_output_type: Optional[str] = None,
     ):
         """
         Create a notebook cell
@@ -55,6 +56,7 @@ class NotebookCell:
             metadata: Additional cell metadata
             execution_status: For code cells - 'not_executed', 'pending_validation', 'validated'
             linked_node_id: For markdown cells - ID of associated node
+            declared_output_type: For code cells - declared output type (e.g., 'dict_of_dataframes')
         """
         self.cell_type = cell_type
         self.content = content
@@ -65,6 +67,7 @@ class NotebookCell:
         self.metadata = metadata or {}
         self.execution_status = execution_status or ExecutionStatus.NOT_EXECUTED.value
         self.linked_node_id = linked_node_id
+        self.declared_output_type = declared_output_type
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to Jupyter notebook cell format"""
@@ -85,6 +88,8 @@ class NotebookCell:
                 cell_dict["metadata"]["depends_on"] = self.depends_on
             if self.name:
                 cell_dict["metadata"]["name"] = self.name
+            if self.declared_output_type:
+                cell_dict["metadata"]["declared_output_type"] = self.declared_output_type
 
         # Add linked node metadata to markdown cells
         if self.cell_type == "markdown" and self.linked_node_id:
@@ -756,7 +761,8 @@ else:
                 node_id=metadata.get("node_id"),
                 execution_status=metadata.get("execution_status"),
                 depends_on=metadata.get("depends_on"),
-                name=metadata.get("name")
+                name=metadata.get("name"),
+                declared_output_type=metadata.get("declared_output_type")
             )
 
             # Combine new header with actual code ensuring exactly one newline after header
@@ -822,7 +828,8 @@ else:
         node_id: Optional[str],
         execution_status: Optional[str],
         depends_on: Optional[List[str]],
-        name: Optional[str]
+        name: Optional[str],
+        declared_output_type: Optional[str] = None
     ) -> str:
         """
         Generate header comments from Cell metadata
@@ -833,6 +840,7 @@ else:
             execution_status: Execution status
             depends_on: Dependencies
             name: Node name
+            declared_output_type: Declared output type (e.g., 'dict_of_dataframes')
 
         Returns:
             Header comment string
@@ -844,6 +852,9 @@ else:
 
         if execution_status:
             lines.append(f"# @execution_status: {execution_status}")
+
+        if declared_output_type:
+            lines.append(f"# @output_type: {declared_output_type}")
 
         if depends_on:
             depends_str = ', '.join(depends_on)
