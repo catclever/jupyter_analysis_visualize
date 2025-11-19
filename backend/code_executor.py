@@ -1557,11 +1557,16 @@ with open(r'{full_path}', 'rb') as f:
             # Update node status to validated and set result_path
             execution_time = (datetime.now() - start_time).total_seconds()
 
-            # Tool nodes don't have result paths (functions are kept in kernel namespace)
+            # Initialize result_path and is_dict_result
             result_path = None
             is_dict_result = False
 
-            if node_type != 'tool':
+            if node_type == 'tool':
+                # Tool nodes: pickle file is saved in functions/ directory
+                result_path = f"functions/{node_id}.pkl"
+                print(f"[Execution] Tool node result path: {result_path}")
+            else:
+                # Other node types (data_source, compute, chart)
                 # Determine default result_format based on node type
                 # NOTE: Handle both missing and null values - use default if either occurs
                 if node_type == 'chart':
