@@ -98,7 +98,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @dataclass
@@ -305,7 +305,7 @@ class ProjectJsonGenerator:
             'tool': 'pkl',
         }
 
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         project_nodes = []
         for node_id, node in nodes.items():
@@ -426,24 +426,116 @@ class ProjectCreator:
 
 
 def main():
-    """Main entry point"""
-    if len(sys.argv) != 2:
-        print("Usage: python3 create_project.py <path_to_notebook.ipynb>")
+    """Main entry point with support for selecting individual functions"""
+    if len(sys.argv) < 2:
+        print("╔════════════════════════════════════════════════════════════════╗")
+        print("║        Project Builder - Notebook to Project Converter         ║")
+        print("╚════════════════════════════════════════════════════════════════╝")
         print()
-        print("Example:")
-        print("  python3 create_project.py /path/to/my_analysis.ipynb")
+        print("Usage:")
+        print("  python3 project_builder.py <notebook.ipynb> [option]")
         print()
-        print("This will create:")
-        print("  ./my_analysis/")
-        print("  ├── project.ipynb (enhanced notebook with metadata)")
-        print("  └── project.json  (project configuration)")
+        print("Options:")
+        print("  (none)        Execute all 3 steps (default)")
+        print("  extract       Run only Step 1: Extract metadata")
+        print("  headers       Run only Step 2: Generate headers")
+        print("  json          Run only Step 3: Generate project.json")
+        print("  all           Run all 3 steps (same as no option)")
+        print()
+        print("Examples:")
+        print("  python3 project_builder.py /path/to/notebook.ipynb")
+        print("    → Creates: ./notebook/")
+        print("       ├── project.ipynb")
+        print("       └── project.json")
+        print()
+        print("  python3 project_builder.py /path/to/notebook.ipynb extract")
+        print("    → Only extracts node metadata and prints results")
+        print()
+        print("  python3 project_builder.py /path/to/notebook.ipynb headers")
+        print("    → Generates enhanced notebook with headers in memory")
+        print()
+        print("  python3 project_builder.py /path/to/notebook.ipynb json")
+        print("    → Generates project.json configuration in memory")
         sys.exit(1)
 
     notebook_path = sys.argv[1]
+    option = sys.argv[2].lower() if len(sys.argv) > 2 else 'all'
+
+    # Validate option
+    valid_options = {'all', 'extract', 'headers', 'json'}
+    if option not in valid_options:
+        print(f"❌ Invalid option: '{option}'")
+        print(f"   Valid options: {', '.join(sorted(valid_options))}")
+        sys.exit(1)
 
     try:
-        creator = ProjectCreator(notebook_path)
-        creator.create_project()
+        # Step 1: Extract metadata (always needed)
+        print(f"📋 Starting project builder with option: '{option}'")
+        print(f"📄 Notebook: {notebook_path}")
+        print()
+
+        print("Step 1: Extracting node metadata from notebook...")
+        extractor = NotebookMetadataExtractor(notebook_path)
+        nodes = extractor.extract_nodes()
+        print(f"  ✓ Found {len(nodes)} nodes:")
+        for node_id, node in nodes.items():
+            print(f"    - {node_id}: {node.node_type} ({node.name or 'unnamed'})")
+            if node.depends_on:
+                print(f"      depends_on: {node.depends_on}")
+            if node.declared_output_type:
+                print(f"      output_type: {node.declared_output_type}")
+        print()
+
+        # If only extraction requested
+        if option == 'extract':
+            print("✨ Extraction complete!")
+            return
+
+        # Step 2: Generate headers (for 'headers' and 'all')
+        print("Step 2: Generating metadata headers for notebook cells...")
+        with open(notebook_path, 'r', encoding='utf-8') as f:
+            notebook = json.load(f)
+
+        enhanced_notebook = HeaderCommentGenerator.add_headers_to_notebook(notebook, nodes)
+        print(f"  ✓ Generated headers for {len(nodes)} node cells")
+        print()
+
+        # If only headers requested
+        if option == 'headers':
+            print("✨ Header generation complete!")
+            print("   (Enhanced notebook is ready but not written to disk)")
+            return
+
+        # Step 3: Generate project.json (for 'json' and 'all')
+        print("Step 3: Generating project.json...")
+        project_name = Path(notebook_path).stem
+        project_id = project_name.lower().replace(' ', '_').replace('-', '_')
+
+        project_json = ProjectJsonGenerator.generate_project_json(
+            project_id=project_id,
+            nodes=nodes,
+            name=f"Project: {project_name}",
+            description=f"Auto-generated project from {Path(notebook_path).name}"
+        )
+        print(f"  ✓ Generated project configuration with {len(project_json['nodes'])} nodes")
+        print()
+
+        # If only json requested
+        if option == 'json':
+            print("✨ Project.json generation complete!")
+            print("   (Configuration is ready but not written to disk)")
+            return
+
+        # If 'all' - create full project structure
+        if option == 'all':
+            print("Step 4: Creating project structure...")
+            creator = ProjectCreator(notebook_path)
+            creator.create_project()
+            print()
+            print("=" * 60)
+            print(f"✨ All steps completed successfully!")
+            print("=" * 60)
+
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)
         import traceback
