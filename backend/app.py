@@ -269,16 +269,30 @@ def get_project(project_id: str, response: Response) -> Dict[str, Any]:
 
 
 @app.get("/api/projects/{project_id}/nodes/{node_id}/dict-result")
-def get_dict_result(project_id: str, node_id: str) -> Dict[str, Any]:
+def get_dict_result(
+    project_id: str,
+    node_id: str,
+    page: int = 1,
+    page_size: int = 10
+) -> Dict[str, Any]:
     """
-    Get dict of DataFrames result for a node.
+    Get dict of DataFrames result for a node with pagination support.
+
+    Query params:
+    - page: Page number (1-indexed, default 1)
+    - page_size: Rows per page (default 10)
 
     Returns:
     {
         "keys": ["key1", "key2", "key3"],
         "tables": {
-            "key1": [{"col1": val, "col2": val}, ...],
-            "key2": [...],
+            "key1": {
+                "data": [{"col1": val, "col2": val}, ...],
+                "total_rows": 1000,
+                "page": 1,
+                "page_size": 10,
+                "total_pages": 100
+            },
             ...
         }
     }
@@ -292,6 +306,12 @@ def get_dict_result(project_id: str, node_id: str) -> Dict[str, Any]:
         if pm.metadata is None:
             raise HTTPException(status_code=500, detail="Failed to load project metadata")
 
+        # Validate pagination params
+        if page < 1:
+            raise HTTPException(status_code=400, detail="page must be >= 1")
+        if page_size < 1 or page_size > 1000:
+            raise HTTPException(status_code=400, detail="page_size must be between 1 and 1000")
+
         # Find node info
         node_info = None
         for node in pm.metadata.nodes.values():
@@ -300,11 +320,11 @@ def get_dict_result(project_id: str, node_id: str) -> Dict[str, Any]:
                 break
 
         if node_info is None:
-            raise HTTPException(status_code=404, detail="Node not found")
+            raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found")
 
         result_path = node_info.get("result_path")
         if not result_path:
-            raise HTTPException(status_code=404, detail="Node has no result")
+            raise HTTPException(status_code=404, detail=f"Node '{node_id}' has no result")
 
         full_result_path = Path(pm.project_path) / result_path
 
@@ -315,23 +335,49 @@ def get_dict_result(project_id: str, node_id: str) -> Dict[str, Any]:
         # Read metadata
         metadata_path = full_result_path / "_metadata.json"
         if not metadata_path.exists():
-            raise HTTPException(status_code=400, detail="Dict result is missing metadata")
+            raise HTTPException(status_code=400, detail="Dict result is missing _metadata.json")
 
-        with open(str(metadata_path), 'r') as f:
+        with open(str(metadata_path), 'r', encoding='utf-8') as f:
             metadata = json.load(f)
 
         keys = metadata.get("keys", [])
 
-        # Load each DataFrame and convert to JSON-serializable format
+        # Load each DataFrame with pagination
         tables = {}
         for key in keys:
             parquet_path = full_result_path / f"{key}.parquet"
             if not parquet_path.exists():
                 raise HTTPException(status_code=500, detail=f"DataFrame '{key}' not found")
 
-            df = pd.read_parquet(str(parquet_path))
-            # Convert to list of dicts for frontend consumption
-            tables[key] = df.to_dict('records')
+            try:
+                df = pd.read_parquet(str(parquet_path))
+                total_rows = len(df)
+                total_pages = (total_rows + page_size - 1) // page_size
+
+                # Validate page number
+                if page > total_pages and total_rows > 0:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Page {page} out of range (total {total_pages} pages)"
+                    )
+
+                # Get page data
+                start_idx = (page - 1) * page_size
+                end_idx = start_idx + page_size
+                page_df = df.iloc[start_idx:end_idx]
+
+                tables[key] = {
+                    "data": page_df.to_dict('records'),
+                    "total_rows": total_rows,
+                    "page": page,
+                    "page_size": page_size,
+                    "total_pages": total_pages
+                }
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to load DataFrame '{key}': {str(e)}"
+                )
 
         return {
             "keys": keys,
@@ -341,7 +387,7 @@ def get_dict_result(project_id: str, node_id: str) -> Dict[str, Any]:
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 @app.get("/api/projects/{project_id}/nodes/{node_id}/dependencies")
