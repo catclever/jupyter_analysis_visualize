@@ -761,8 +761,7 @@ else:
                 node_id=metadata.get("node_id"),
                 execution_status=metadata.get("execution_status"),
                 depends_on=metadata.get("depends_on"),
-                name=metadata.get("name"),
-                declared_output_type=metadata.get("declared_output_type")
+                name=metadata.get("name")
             )
 
             # Combine new header with actual code ensuring exactly one newline after header
@@ -828,8 +827,7 @@ else:
         node_id: Optional[str],
         execution_status: Optional[str],
         depends_on: Optional[List[str]],
-        name: Optional[str],
-        declared_output_type: Optional[str] = None
+        name: Optional[str]
     ) -> str:
         """
         Generate header comments from Cell metadata
@@ -853,8 +851,7 @@ else:
         if execution_status:
             lines.append(f"# @execution_status: {execution_status}")
 
-        if declared_output_type:
-            lines.append(f"# @output_type: {declared_output_type}")
+        # No output_type in system-managed header; users may add normal comment separately
 
         if depends_on:
             depends_str = ', '.join(depends_on)

@@ -1,547 +1,533 @@
-#!/usr/bin/env python3
-"""
-Jupyter Notebook to Project Generator
-
-This script parses a Jupyter notebook and creates a complete project structure
-with three distinct functional components:
-
-═══════════════════════════════════════════════════════════════════════════
-
-ENTRY POINT 1: NotebookMetadataExtractor
-  Purpose: Extract node metadata from notebook cells
-  Input: Path to .ipynb file
-  Output: Dict[str, NodeMetadata]
-
-  Extracts these annotations from code cells:
-    - @node_type: (data_source | compute | chart | tool)
-    - @node_id: identifier
-    - @name: Human-readable name
-    - @depends_on: [dep1, dep2]
-    - @output_type: (dict_of_dataframes | etc)
-
-  Usage:
-    from project_builder import NotebookMetadataExtractor
-    extractor = NotebookMetadataExtractor('notebook.ipynb')
-    nodes = extractor.extract_nodes()
-
-═══════════════════════════════════════════════════════════════════════════
-
-ENTRY POINT 2: HeaderCommentGenerator
-  Purpose: Generate standardized metadata headers for notebook cells
-  Input: Notebook dict + Dict[str, NodeMetadata]
-  Output: Enhanced notebook with metadata headers
-
-  Generates properly formatted system-managed metadata sections:
-    # ===== System-managed metadata (auto-generated, understand to edit) =====
-    # @node_type: compute
-    # @node_id: my_node
-    # @depends_on: [node1, node2]
-    # @name: My Node
-    # @output_type: dict_of_dataframes (if declared)
-    # ===== End of system-managed metadata =====
-
-  Usage:
-    from project_builder import HeaderCommentGenerator
-    enhanced_nb = HeaderCommentGenerator.add_headers_to_notebook(notebook, nodes)
-
-═══════════════════════════════════════════════════════════════════════════
-
-ENTRY POINT 3: ProjectJsonGenerator
-  Purpose: Generate project.json configuration from node metadata
-  Input: project_id, Dict[str, NodeMetadata], optional name/description
-  Output: Dict representing complete project.json structure
-
-  Creates project configuration with:
-    - Node definitions with types and dependencies
-    - Result format mapping (data_source→parquet, chart→json, tool→pkl)
-    - Execution status tracking (all start as 'not_executed')
-    - Declared output types (for dict results, etc)
-
-  Usage:
-    from project_builder import ProjectJsonGenerator
-    project_json = ProjectJsonGenerator.generate_project_json(
-        project_id='my_project',
-        nodes=nodes,
-        name='My Project',
-        description='Project description'
-    )
-
-═══════════════════════════════════════════════════════════════════════════
-
-MAIN ORCHESTRATOR: ProjectCreator
-  Purpose: Coordinate all three components into a complete workflow
-  Entry point for command-line usage
-
-  Workflow:
-    1. Extract nodes from notebook (NotebookMetadataExtractor)
-    2. Generate headers and enhance notebook (HeaderCommentGenerator)
-    3. Generate project.json (ProjectJsonGenerator)
-    4. Create project directory and write files
-
-  CLI Usage:
-    python3 project_builder.py <path_to_notebook.ipynb>
-
-  Example:
-    python3 project_builder.py /path/to/sales_analysis.ipynb
-
-  Output:
-    ./sales_analysis/
-      ├── project.ipynb   (enhanced notebook with metadata headers)
-      └── project.json    (project configuration with DAG structure)
-
-═══════════════════════════════════════════════════════════════════════════
-"""
-
 import json
 import sys
 import re
+import ast
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
+import argparse
+import shutil # For copying files in deploy mode
 
-
+# --- NodeMetadata ---
 @dataclass
 class NodeMetadata:
-    """Represents extracted node metadata"""
+    """Represents extracted or inferred node metadata"""
     node_id: str
-    node_type: str  # 'data_source', 'compute', 'chart', 'tool'
+    node_type: str  # 'data_source', 'compute', 'chart', 'tool', 'image'
     name: Optional[str] = None
     depends_on: List[str] = None
-    declared_output_type: Optional[str] = None
+    # declared_output_type is not inferred by this script, but kept for consistency if present in comments
+    declared_output_type: Optional[str] = None 
 
     def __post_init__(self):
         if self.depends_on is None:
             self.depends_on = []
 
+# --- Helper Functions for Inference and Comment Handling ---
 
-class NotebookMetadataExtractor:
-    """Step 1: Extract node information from notebook cells"""
+def _infer_node_id(code: str) -> Optional[str]:
+    """
+    Infers the node_id from the last assignment in the code.
+    Returns the target variable name of the last assignment.
+    """
+    try:
+        tree = ast.parse(code)
+        last_assign_target = None
+        # Iterate through the AST nodes in reverse order to find the last assignment
+        # This is a simplified approach; a full AST visitor might be more robust for complex cases.
+        for node in reversed(list(ast.walk(tree))):
+            if isinstance(node, ast.Assign):
+                # Get the last target of the assignment
+                if node.targets:
+                    target = node.targets[-1]
+                    if isinstance(target, ast.Name):
+                        last_assign_target = target.id
+                        break
+                    elif isinstance(target, (ast.Tuple, ast.List)):
+                        # If it's a tuple/list assignment, take the last element
+                        if target.elts:
+                            last_elt = target.elts[-1]
+                            if isinstance(last_elt, ast.Name):
+                                last_assign_target = last_elt.id
+                                break
+        return last_assign_target
+    except SyntaxError:
+        return None # Invalid Python code, cannot parse AST
 
-    # Regex patterns to detect node declarations
-    NODE_TYPE_PATTERN = re.compile(r'#\s*@node_type:\s*(\w+)')
-    NODE_ID_PATTERN = re.compile(r'#\s*@node_id:\s*([\w_]+)')
-    NODE_NAME_PATTERN = re.compile(r'#\s*@name:\s*(.+)')
-    DEPENDS_PATTERN = re.compile(r'#\s*@depends_on:\s*\[(.*?)\]')
-    OUTPUT_TYPE_PATTERN = re.compile(r'#\s*@output_type:\s*([\w_]+)')
+def _infer_node_type(code: str) -> str:
+    """
+    Infers the node_type based on keywords/imports in the code.
+    """
+    code_lower = code.lower()
 
-    def __init__(self, notebook_path: str):
-        """Initialize extractor with notebook path"""
-        self.notebook_path = Path(notebook_path)
-        if not self.notebook_path.exists():
-            raise FileNotFoundError(f"Notebook not found: {notebook_path}")
+    # Data Source
+    data_source_keywords = ['pd.read_csv', 'pd.read_excel', 'pd.read_sql', 'pd.read_parquet', 'spark.read', 'open(']
+    if any(keyword in code_lower for keyword in data_source_keywords):
+        return 'data_source'
 
-        with open(self.notebook_path, 'r', encoding='utf-8') as f:
-            self.notebook = json.load(f)
+    # Chart / Image
+    chart_keywords = ['plt.figure', 'plt.plot', 'sns.scatterplot', 'go.figure', 'px.line', 'altair.chart']
+    image_keywords = ['pil.image', 'image.open', 'matplotlib.figure.figure'] # Matplotlib figure can be image
+    if any(keyword in code_lower for keyword in chart_keywords):
+        return 'chart'
+    if any(keyword in code_lower for keyword in image_keywords):
+        return 'image'
 
-    def extract_nodes(self) -> Dict[str, NodeMetadata]:
-        """Extract all node metadata from notebook cells"""
-        nodes = {}
+    # Tool (if the last top-level statement is a function or class definition)
+    try:
+        tree = ast.parse(code)
+        last_top_level_statement = None
+        # Find the last top-level statement
+        if tree.body:
+            last_top_level_statement = tree.body[-1]
 
-        for cell in self.notebook.get('cells', []):
-            if cell.get('cell_type') != 'code':
-                continue
+        if isinstance(last_top_level_statement, (ast.FunctionDef, ast.ClassDef)):
+            return 'tool'
+    except SyntaxError:
+        pass # Ignore syntax errors during inference
 
-            source = ''.join(cell.get('source', []))
+    # Compute (default)
+    return 'compute'
 
-            # Try to extract node metadata from comments
-            node_type_match = self.NODE_TYPE_PATTERN.search(source)
-            node_id_match = self.NODE_ID_PATTERN.search(source)
+def _format_node_name(node_id: str) -> str:
+    """Formats node_id into a human-readable name."""
+    return node_id.replace('_', ' ').title()
 
-            if not (node_type_match and node_id_match):
-                continue
+def _generate_header_comments(node_metadata: NodeMetadata) -> str:
+    """Generates the # @... metadata header block for a code cell."""
+    lines = []
+    lines.append("# ===== System-managed metadata (auto-generated, understand to edit) =====")
+    lines.append(f"# @node_type: {node_metadata.node_type}")
+    lines.append(f"# @node_id: {node_metadata.node_id}")
 
-            node_id = node_id_match.group(1)
-            node_type = node_type_match.group(1)
+    if node_metadata.name:
+        lines.append(f"# @name: {node_metadata.name}")
 
-            # Extract optional metadata
-            name_match = self.NODE_NAME_PATTERN.search(source)
-            name = name_match.group(1).strip() if name_match else None
+    # depends_on, execution_status, result_format, result_path are not generated by annotate/create initially
+    # and are handled by deploy or runtime.
+    # The prompt explicitly states depends_on is empty, status is not_executed, result_format/path are None.
+    # So, we don't include them in the initial header comments.
 
-            depends_match = self.DEPENDS_PATTERN.search(source)
-            depends_on = []
-            if depends_match:
-                deps_str = depends_match.group(1)
-                depends_on = [d.strip().strip("'\"") for d in deps_str.split(',')]
-                depends_on = [d for d in depends_on if d]
+    lines.append("# ===== End of system-managed metadata =====")
+    return '\n'.join(lines) + '\n' # Ensure a newline after the header
 
-            output_type_match = self.OUTPUT_TYPE_PATTERN.search(source)
-            declared_output_type = output_type_match.group(1) if output_type_match else None
+# Regex patterns to detect node declarations in comments
+_NODE_TYPE_PATTERN = re.compile(r'#\s*@node_type:\s*(\w+)')
+_NODE_ID_PATTERN = re.compile(r'#\s*@node_id:\s*([\w_]+)')
+_NODE_NAME_PATTERN = re.compile(r'#\s*@name:\s*(.+)')
+_DEPENDS_PATTERN = re.compile(r'#\s*@depends_on:\s*\[(.*?)\]') # Not used for inference, but for parsing existing comments
+_OUTPUT_TYPE_PATTERN = re.compile(r'#\s*@output_type:\s*([\w_]+)') # Not used for inference, but for parsing existing comments
+_EXECUTION_STATUS_PATTERN = re.compile(r'#\s*@execution_status:\s*(\w+)') # Not used for inference, but for parsing existing comments
 
-            nodes[node_id] = NodeMetadata(
-                node_id=node_id,
-                node_type=node_type,
-                name=name,
-                depends_on=depends_on,
-                declared_output_type=declared_output_type
-            )
-
-        return nodes
-
-
-class HeaderCommentGenerator:
-    """Step 2: Generate header comments for cells with node metadata"""
-
-    @staticmethod
-    def generate_header(
-        node_type: str,
-        node_id: str,
-        execution_status: str = 'not_executed',
-        depends_on: List[str] = None,
-        name: Optional[str] = None,
-        declared_output_type: Optional[str] = None
-    ) -> str:
-        """Generate metadata header comment for a code cell"""
-        if depends_on is None:
-            depends_on = []
-
-        lines = []
-        lines.append("# ===== System-managed metadata (auto-generated, understand to edit) =====")
-        lines.append(f"# @node_type: {node_type}")
-        lines.append(f"# @node_id: {node_id}")
-
-        if execution_status and execution_status != 'not_executed':
-            lines.append(f"# @execution_status: {execution_status}")
-
-        if declared_output_type:
-            lines.append(f"# @output_type: {declared_output_type}")
-
-        if depends_on:
-            depends_str = ', '.join(depends_on)
-            lines.append(f"# @depends_on: [{depends_str}]")
-
-        if name:
-            lines.append(f"# @name: {name}")
-
-        lines.append("# ===== End of system-managed metadata =====")
-
-        return '\n'.join(lines)
-
-    @staticmethod
-    def add_headers_to_notebook(
-        notebook: Dict[str, Any],
-        nodes: Dict[str, NodeMetadata]
-    ) -> Dict[str, Any]:
-        """Add header comments to notebook cells"""
-        for cell in notebook.get('cells', []):
-            if cell.get('cell_type') != 'code':
-                continue
-
-            source = ''.join(cell.get('source', []))
-            metadata = cell.get('metadata', {})
-
-            # Check if this cell has node metadata
-            node_id = metadata.get('node_id')
-            if not node_id or node_id not in nodes:
-                continue
-
-            node = nodes[node_id]
-
-            # Remove existing header(s) if present
-            # This handles both old and new style headers
-            code_lines = []
+def _parse_header_comments(code: str) -> Optional[NodeMetadata]:
+    """
+    Parses the # @... metadata header block from a code cell.
+    Returns NodeMetadata if a valid header is found, otherwise None.
+    """
+    source_lines = code.split('\n')
+    header_lines = []
+    in_header = False
+    for line in source_lines:
+        if '# ===== System-managed metadata' in line:
+            in_header = True
+            header_lines.append(line)
+        elif '# ===== End of system-managed metadata' in line:
             in_header = False
-            for line in source.split('\n'):
-                if '# ===== System-managed metadata' in line:
-                    in_header = True
-                    continue
-                elif '# ===== End of system-managed metadata' in line:
-                    in_header = False
-                    continue
-                elif not in_header:
-                    code_lines.append(line)
+            header_lines.append(line)
+            break # Stop after end marker
+        elif in_header:
+            header_lines.append(line)
 
-            # Clean code (remove leading empty lines)
-            code = '\n'.join(code_lines).lstrip('\n')
+    header_text = '\n'.join(header_lines)
 
-            # Generate new header
-            header = HeaderCommentGenerator.generate_header(
-                node_type=node.node_type,
-                node_id=node.node_id,
-                depends_on=node.depends_on,
-                name=node.name,
-                declared_output_type=node.declared_output_type
-            )
+    node_type_match = _NODE_TYPE_PATTERN.search(header_text)
+    node_id_match = _NODE_ID_PATTERN.search(header_text)
 
-            # Combine header with code
-            new_source = header + '\n' + code
+    if not (node_type_match and node_id_match):
+        return None # No valid header found
 
-            # Update cell source (format as list of lines with newlines)
-            source_lines = new_source.split('\n')
-            cell['source'] = [line + '\n' for line in source_lines[:-1]]
-            if source_lines[-1]:  # Add last line if non-empty
-                cell['source'].append(source_lines[-1])
+    node_id = node_id_match.group(1)
+    node_type = node_type_match.group(1)
 
-            # Update metadata
-            cell['metadata']['node_type'] = node.node_type
-            cell['metadata']['node_id'] = node.node_id
-            if node.declared_output_type:
-                cell['metadata']['declared_output_type'] = node.declared_output_type
-            if node.depends_on:
-                cell['metadata']['depends_on'] = node.depends_on
-            if node.name:
-                cell['metadata']['name'] = node.name
+    name_match = _NODE_NAME_PATTERN.search(header_text)
+    name = name_match.group(1).strip() if name_match else None
 
-        return notebook
+    depends_on = []
+    depends_match = _DEPENDS_PATTERN.search(header_text)
+    if depends_match:
+        deps_str = depends_match.group(1)
+        depends_on = [d.strip().strip("'\"") for d in deps_str.split(',')]
+        depends_on = [d for d in depends_on if d] # Filter out empty strings
+
+    declared_output_type = None
+    output_type_match = _OUTPUT_TYPE_PATTERN.search(header_text)
+    if output_type_match:
+        declared_output_type = output_type_match.group(1)
+
+    return NodeMetadata(
+        node_id=node_id,
+        node_type=node_type,
+        name=name,
+        depends_on=depends_on,
+        declared_output_type=declared_output_type
+    )
+
+def _extract_code_after_header(source_text: str) -> str:
+    """
+    Extracts the actual code after the system-managed metadata section.
+    Preserves leading empty lines of the actual code.
+    """
+    # Find the end marker and capture everything after it
+    pattern = r"#\s*===== End of system-managed metadata =====\n(.*)"
+    match = re.search(pattern, source_text, re.DOTALL)
+    if match:
+        return match.group(1)
+    return source_text # If no header, return original text
+
+class ProjectBuilder:
+    """
+    Manages the creation, annotation, and deployment of projects from Jupyter notebooks.
+    """
+    def __init__(self, input_path: str, output_dir: Optional[str] = None, project_name: Optional[str] = None):
+        self.input_path = Path(input_path)
+        if not self.input_path.exists():
+            raise FileNotFoundError(f"Input notebook not found: {input_path}")
+
+        self.original_notebook_name = self.input_path.stem
+        # project_name is only relevant for deploy and create modes
+        self.project_name = project_name if project_name else self.original_notebook_name
+        self.project_id = self.project_name.lower().replace(' ', '_').replace('-', '_')
+
+        # Determine output_base_dir: if provided, use it; otherwise, use current working directory.
+        self.output_base_dir = Path(output_dir) if output_dir else Path.cwd()
+
+        # These will be set more precisely in each mode's method
+        self.project_root_dir: Path = Path()
+        self.output_notebook_path: Path = Path()
+
+    def _setup_paths_for_mode(self, mode: str) -> None:
+        """Sets up self.project_root_dir and self.output_notebook_path based on mode and args."""
+        if mode == 'deploy' and self.input_path.name == 'project.ipynb' and not self.output_base_dir.is_absolute():
+            # In-place deploy: output_base_dir is not provided, or is relative, and input is project.ipynb
+            # This means output_base_dir is effectively the current directory or input_path's parent.
+            # We need to ensure project_root_dir is the parent of the input_path.
+            self.project_root_dir = self.input_path.parent
+            self.output_notebook_path = self.input_path
+            print(f"  [Path Setup] In-place deployment detected. Project root: {self.project_root_dir}")
+        else:
+            # Standard behavior: create a new project directory
+            # For annotate mode, project_name is not used for directory naming, it's just original_notebook_name
+            dir_name_for_output = self.original_notebook_name if mode == 'annotate' else self.project_name
+
+            # If output_base_dir is a file path, use its parent as the base for the new project dir
+            if self.output_base_dir.suffix: # It's a file path
+                base_for_new_dir = self.output_base_dir.parent
+            else: # It's a directory path
+                base_for_new_dir = self.output_base_dir
+            
+            self.project_root_dir = base_for_new_dir / dir_name_for_output
+            self.output_notebook_path = self.project_root_dir / 'project.ipynb'
+            print(f"  [Path Setup] Standard deployment/creation. Project root: {self.project_root_dir}")
+
+        self.project_root_dir.mkdir(parents=True, exist_ok=True)
+        print(f"  [Path Setup] Output notebook path: {self.output_notebook_path}")
 
 
-class ProjectJsonGenerator:
-    """Step 3: Generate project.json from notebook metadata"""
+    def _load_notebook(self, path: Path) -> Dict[str, Any]:
+        """Loads a Jupyter notebook from the given path."""
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
 
-    @staticmethod
-    def generate_project_json(
-        project_id: str,
-        nodes: Dict[str, NodeMetadata],
-        name: Optional[str] = None,
-        description: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Generate project.json structure"""
+    def _save_notebook(self, notebook: Dict[str, Any], path: Path) -> None:
+        """Saves a Jupyter notebook to the given path."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(notebook, f, ensure_ascii=False, indent=1) # Use indent=1 for smaller diffs
 
-        # Map node types to result formats
-        result_format_map = {
-            'data_source': 'parquet',
-            'compute': 'parquet',
-            'chart': 'json',
-            'tool': 'pkl',
-        }
-
+    def _save_project_json(self, nodes: Dict[str, NodeMetadata], path: Path) -> None:
+        """Generates and saves project.json."""
         now = datetime.now(timezone.utc).isoformat()
 
         project_nodes = []
         for node_id, node in nodes.items():
-            result_format = result_format_map.get(node.node_type, 'parquet')
+            # Map node types to result formats for project.json
+            result_format_map = {
+                'data_source': 'parquet',
+                'compute': 'parquet',
+                'chart': 'json',
+                'image': 'image',
+                'tool': 'pkl',
+            }
+            result_format = result_format_map.get(node.node_type, 'parquet') # Default to parquet
 
             node_entry = {
                 'node_id': node_id,
                 'node_type': node.node_type,
-                'name': node.name or f"{node.node_type.title()}: {node_id}",
-                'type': node.node_type,
-                'depends_on': node.depends_on,
+                'name': node.name or _format_node_name(node_id),
+                'type': node.node_type, # Redundant but present in existing project.json
+                'depends_on': [], # Always empty for initial creation/deployment
                 'execution_status': 'not_executed',
                 'result_format': result_format,
                 'result_path': None,
+                'error_message': None,
+                'last_execution_time': None,
+                'position': None # Position is not inferred here
             }
-
-            # Add declared_output_type if present
-            if node.declared_output_type:
-                node_entry['declared_output_type'] = node.declared_output_type
-
             project_nodes.append(node_entry)
 
-        project_json = {
-            'project_id': project_id,
-            'name': name or f"Project: {project_id}",
-            'description': description or "Auto-generated project from notebook",
+        project_json_content = {
+            'project_id': self.project_id,
+            'name': self.project_name,
+            'description': f"Auto-generated project from {self.input_path.name}",
             'version': '1.0.0',
             'created_at': now,
             'updated_at': now,
             'nodes': project_nodes
         }
 
-        return project_json
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(project_json_content, f, ensure_ascii=False, indent=2)
 
-
-class ProjectCreator:
-    """Main orchestrator: coordinates all three steps"""
-
-    def __init__(self, notebook_path: str):
-        """Initialize with notebook path"""
-        self.notebook_path = Path(notebook_path)
-        if not self.notebook_path.exists():
-            raise FileNotFoundError(f"Notebook not found: {notebook_path}")
-
-        # Project directory name (based on notebook filename without extension)
-        self.project_name = self.notebook_path.stem
-        self.project_dir = self.notebook_path.parent / self.project_name
-
-        # Project ID (lowercase, replace spaces with underscores)
-        self.project_id = self.project_name.lower().replace(' ', '_').replace('-', '_')
-
-    def create_project(self) -> Path:
+    def annotate_mode(self) -> None:
         """
-        Execute all three steps:
-        1. Extract node metadata from notebook
-        2. Generate headers with annotations
-        3. Create project.json
-
-        Returns:
-            Path to created project directory
+        Annotates an input notebook with metadata comments.
+        Does not modify cell metadata or create project.json.
         """
-        print(f"📋 Starting project creation from: {self.notebook_path}")
-        print(f"📁 Project directory: {self.project_dir}")
-        print(f"🔑 Project ID: {self.project_id}")
-        print()
+        print(f"Running ANNOTATE mode for {self.input_path}")
+        # project_name is not used in annotate mode for output directory naming
+        # The output directory will be named after the original notebook's stem.
+        self._setup_paths_for_mode('annotate')
 
-        # Step 1: Extract nodes from notebook
-        print("Step 1: Extracting node metadata from notebook...")
-        extractor = NotebookMetadataExtractor(str(self.notebook_path))
-        nodes = extractor.extract_nodes()
-        print(f"  ✓ Found {len(nodes)} nodes:")
-        for node_id, node in nodes.items():
-            print(f"    - {node_id}: {node.node_type} ({node.name or 'unnamed'})")
-        print()
+        original_notebook = self._load_notebook(self.input_path)
+        annotated_notebook = original_notebook.copy()
+        annotated_notebook['cells'] = [] # Start with empty cells to rebuild
 
-        # Step 2: Generate headers and enhance notebook
-        print("Step 2: Generating metadata headers for notebook cells...")
-        with open(self.notebook_path, 'r', encoding='utf-8') as f:
-            notebook = json.load(f)
+        for i, cell in enumerate(original_notebook.get('cells', [])):
+            if cell.get('cell_type') == 'code':
+                code = ''.join(cell.get('source', []))
+                node_id = _infer_node_id(code)
 
-        enhanced_notebook = HeaderCommentGenerator.add_headers_to_notebook(notebook, nodes)
-        print(f"  ✓ Enhanced notebook with metadata headers")
-        print()
+                if node_id:
+                    node_type = _infer_node_type(code)
+                    name = _format_node_name(node_id)
+                    node_metadata = NodeMetadata(node_id=node_id, node_type=node_type, name=name)
+                    header_comments = _generate_header_comments(node_metadata)
+                    
+                    # Remove existing header comments if any, before adding new ones
+                    cleaned_code = _extract_code_after_header(code)
+                    new_source = header_comments + cleaned_code
+                    
+                    new_cell = cell.copy()
+                    new_cell['source'] = [line + '\n' for line in new_source.split('\n')[:-1]]
+                    if new_source.split('\n')[-1]:
+                        new_cell['source'].append(new_source.split('\n')[-1])
+                    annotated_notebook['cells'].append(new_cell)
+                    print(f"  Annotated code cell {i}: ID='{node_id}', Type='{node_type}', Name='{name}'")
+                else:
+                    # If node_id cannot be inferred, keep the cell as is without comments
+                    annotated_notebook['cells'].append(cell.copy())
+                    print(f"  Skipped code cell {i}: No assignable variable found.")
+            else:
+                # Markdown cells are copied as is, without any metadata generation
+                annotated_notebook['cells'].append(cell.copy())
+                print(f"  Copied markdown cell {i}")
 
-        # Step 3: Generate project.json
-        print("Step 3: Generating project.json...")
-        project_json = ProjectJsonGenerator.generate_project_json(
-            project_id=self.project_id,
-            nodes=nodes,
-            name=f"Project: {self.project_name}",
-            description=f"Auto-generated project from {self.notebook_path.name}"
-        )
-        print(f"  ✓ Generated project configuration")
-        print()
+        self._save_notebook(annotated_notebook, self.output_notebook_path)
+        print(f"ANNOTATE mode complete. Annotated notebook saved to: {self.output_notebook_path}")
 
-        # Create project directory
-        self.project_dir.mkdir(parents=True, exist_ok=True)
-        print(f"✅ Created project directory: {self.project_dir}")
+    def deploy_mode(self) -> None:
+        """
+        Deploys a project from an annotated notebook.
+        Generates project.json and updates cell metadata.
+        """
+        print(f"Running DEPLOY mode for {self.input_path}")
+        self._setup_paths_for_mode('deploy')
+        
+        project_json_path = self.project_root_dir / 'project.json'
+        
+        # If not in-place deploy, copy the input notebook to the new project directory
+        if self.input_path != self.output_notebook_path:
+            print(f"  Copying input notebook from {self.input_path} to {self.output_notebook_path}")
+            shutil.copy(self.input_path, self.output_notebook_path)
 
-        # Write enhanced notebook
-        notebook_output_path = self.project_dir / 'project.ipynb'
-        with open(notebook_output_path, 'w', encoding='utf-8') as f:
-            json.dump(enhanced_notebook, f, ensure_ascii=False, indent=2)
-        print(f"✅ Wrote enhanced notebook: {notebook_output_path}")
+        notebook = self._load_notebook(self.output_notebook_path)
+        deployed_nodes: Dict[str, NodeMetadata] = {}
+        
+        has_any_node_comments = False
 
-        # Write project.json
-        json_output_path = self.project_dir / 'project.json'
-        with open(json_output_path, 'w', encoding='utf-8') as f:
-            json.dump(project_json, f, ensure_ascii=False, indent=2)
-        print(f"✅ Wrote project configuration: {json_output_path}")
+        for i, cell in enumerate(notebook.get('cells', [])):
+            if cell.get('cell_type') == 'code':
+                code = ''.join(cell.get('source', []))
+                node_metadata = _parse_header_comments(code)
 
-        print()
-        print("=" * 60)
-        print(f"✨ Project successfully created: {self.project_dir}")
-        print("=" * 60)
+                if node_metadata:
+                    has_any_node_comments = True
+                    deployed_nodes[node_metadata.node_id] = node_metadata
+                    # Update cell metadata
+                    cell['metadata']['node_type'] = node_metadata.node_type
+                    cell['metadata']['node_id'] = node_metadata.node_id
+                    if node_metadata.name:
+                        cell['metadata']['name'] = node_metadata.name
+                    # Other fields like depends_on, execution_status are set by runtime or deploy
+                    cell['metadata']['depends_on'] = [] # Initialize as empty
+                    cell['metadata']['execution_status'] = 'not_executed'
+                    print(f"  Deployed code cell {i}: ID='{node_metadata.node_id}', Type='{node_metadata.node_type}'")
+                else:
+                    # Ensure non-node code cells don't have node metadata
+                    if 'node_id' in cell['metadata']: del cell['metadata']['node_id']
+                    if 'node_type' in cell['metadata']: del cell['metadata']['node_type']
+                    if 'name' in cell['metadata']: del cell['metadata']['name']
+                    if 'depends_on' in cell['metadata']: del cell['metadata']['depends_on']
+                    if 'execution_status' in cell['metadata']: del cell['metadata']['execution_status']
+                    print(f"  Skipped non-annotated code cell {i}")
+            else:
+                # Markdown cells are copied as is, ensure no node metadata
+                if 'node_id' in cell['metadata']: del cell['metadata']['node_id']
+                if 'node_type' in cell['metadata']: del cell['metadata']['node_type']
+                print(f"  Copied markdown cell {i}")
 
-        return self.project_dir
+        if not has_any_node_comments:
+            print("DEPLOY mode skipped: No node metadata comments found in the input notebook.")
+            return
+
+        # Save the notebook with updated cell metadata
+        self._save_notebook(notebook, self.output_notebook_path)
+        print(f"  Notebook with updated cell metadata saved to: {self.output_notebook_path}")
+
+        # Generate and save project.json
+        self._save_project_json(deployed_nodes, project_json_path)
+        print(f"  Project.json generated and saved to: {project_json_path}")
+        
+        print(f"DEPLOY mode complete. Project deployed to: {self.project_root_dir}")
+
+    def create_mode(self) -> None:
+        """
+        Combines annotate and deploy steps into a single operation.
+        """
+        print(f"Running CREATE mode for {self.input_path}")
+        self._setup_paths_for_mode('create')
+        
+        project_json_path = self.project_root_dir / 'project.json'
+
+        original_notebook = self._load_notebook(self.input_path)
+        created_notebook = original_notebook.copy()
+        created_notebook['cells'] = [] # Start with empty cells to rebuild
+
+        inferred_nodes: Dict[str, NodeMetadata] = {}
+
+        for i, cell in enumerate(original_notebook.get('cells', [])):
+            if cell.get('cell_type') == 'code':
+                code = ''.join(cell.get('source', []))
+                node_id = _infer_node_id(code)
+
+                if node_id:
+                    node_type = _infer_node_type(code)
+                    name = _format_node_name(node_id)
+                    node_metadata = NodeMetadata(node_id=node_id, node_type=node_type, name=name)
+                    inferred_nodes[node_id] = node_metadata
+
+                    # Add header comments
+                    header_comments = _generate_header_comments(node_metadata)
+                    cleaned_code = _extract_code_after_header(code)
+                    new_source = header_comments + cleaned_code
+                    
+                    new_cell = cell.copy()
+                    new_cell['source'] = [line + '\n' for line in new_source.split('\n')[:-1]]
+                    if new_source.split('\n')[-1]:
+                        new_cell['source'].append(new_source.split('\n')[-1])
+
+                    # Update cell metadata directly
+                    new_cell['metadata']['node_type'] = node_metadata.node_type
+                    new_cell['metadata']['node_id'] = node_metadata.node_id
+                    if node_metadata.name:
+                        new_cell['metadata']['name'] = node_metadata.name
+                    new_cell['metadata']['depends_on'] = []
+                    new_cell['metadata']['execution_status'] = 'not_executed'
+
+                    created_notebook['cells'].append(new_cell)
+                    print(f"  Created code cell {i}: ID='{node_id}', Type='{node_type}', Name='{name}'")
+                else:
+                    # If node_id cannot be inferred, keep the cell as is without comments or metadata
+                    if 'node_id' in cell['metadata']: del cell['metadata']['node_id']
+                    if 'node_type' in cell['metadata']: del cell['metadata']['node_type']
+                    if 'name' in cell['metadata']: del cell['metadata']['name']
+                    if 'depends_on' in cell['metadata']: del cell['metadata']['depends_on']
+                    if 'execution_status' in cell['metadata']: del cell['metadata']['execution_status']
+                    created_notebook['cells'].append(cell.copy())
+                    print(f"  Skipped code cell {i}: No assignable variable found.")
+            else:
+                # Markdown cells are copied as is, ensure no node metadata
+                if 'node_id' in cell['metadata']: del cell['metadata']['node_id']
+                if 'node_type' in cell['metadata']: del cell['metadata']['node_type']
+                created_notebook['cells'].append(cell.copy())
+                print(f"  Copied markdown cell {i}")
+
+        # Save the notebook
+        self._save_notebook(created_notebook, self.output_notebook_path)
+        print(f"  Notebook with annotations and metadata saved to: {self.output_notebook_path}")
+
+        # Generate and save project.json
+        self._save_project_json(inferred_nodes, project_json_path)
+        print(f"  Project.json generated and saved to: {project_json_path}")
+
+        print(f"CREATE mode complete. Project created at: {self.project_root_dir}")
 
 
 def main():
-    """Main entry point with support for selecting individual functions"""
-    if len(sys.argv) < 2:
-        print("╔════════════════════════════════════════════════════════════════╗")
-        print("║        Project Builder - Notebook to Project Converter         ║")
-        print("╚════════════════════════════════════════════════════════════════╝")
-        print()
-        print("Usage:")
-        print("  python3 project_builder.py <notebook.ipynb> [option]")
-        print()
-        print("Options:")
-        print("  (none)        Execute all 3 steps (default)")
-        print("  extract       Run only Step 1: Extract metadata")
-        print("  headers       Run only Step 2: Generate headers")
-        print("  json          Run only Step 3: Generate project.json")
-        print("  all           Run all 3 steps (same as no option)")
-        print()
-        print("Examples:")
-        print("  python3 project_builder.py /path/to/notebook.ipynb")
-        print("    → Creates: ./notebook/")
-        print("       ├── project.ipynb")
-        print("       └── project.json")
-        print()
-        print("  python3 project_builder.py /path/to/notebook.ipynb extract")
-        print("    → Only extracts node metadata and prints results")
-        print()
-        print("  python3 project_builder.py /path/to/notebook.ipynb headers")
-        print("    → Generates enhanced notebook with headers in memory")
-        print()
-        print("  python3 project_builder.py /path/to/notebook.ipynb json")
-        print("    → Generates project.json configuration in memory")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Jupyter Notebook to Project Generator. Modes: annotate, deploy, create."
+    )
+    parser.add_argument(
+        "mode",
+        choices=["annotate", "deploy", "create"],
+        help="Operation mode: 'annotate' (add comments), 'deploy' (build from comments), 'create' (do both)."
+    )
+    parser.add_argument(
+        "--input",
+        "-i",
+        required=True,
+        help="Path to the input Jupyter notebook (.ipynb) file."
+    )
+    parser.add_argument(
+        "--output-dir",
+        "-o",
+        help="Optional: Directory for the output project. Defaults to current directory. "
+             "For 'annotate' and 'create', if not provided, a new directory named after the project will be created. "
+             "For 'deploy', if input is 'project.ipynb' and output-dir is not provided, it will modify in-place."
+    )
+    parser.add_argument(
+        "--project-name",
+        "-n",
+        help="Optional: Name of the new project. Defaults to the input notebook's filename (without extension). "
+             "Note: This parameter is ignored in 'annotate' mode as it only generates comments, not a full project."
+    )
 
-    notebook_path = sys.argv[1]
-    option = sys.argv[2].lower() if len(sys.argv) > 2 else 'all'
-
-    # Validate option
-    valid_options = {'all', 'extract', 'headers', 'json'}
-    if option not in valid_options:
-        print(f"❌ Invalid option: '{option}'")
-        print(f"   Valid options: {', '.join(sorted(valid_options))}")
-        sys.exit(1)
+    args = parser.parse_args()
 
     try:
-        # Step 1: Extract metadata (always needed)
-        print(f"📋 Starting project builder with option: '{option}'")
-        print(f"📄 Notebook: {notebook_path}")
-        print()
-
-        print("Step 1: Extracting node metadata from notebook...")
-        extractor = NotebookMetadataExtractor(notebook_path)
-        nodes = extractor.extract_nodes()
-        print(f"  ✓ Found {len(nodes)} nodes:")
-        for node_id, node in nodes.items():
-            print(f"    - {node_id}: {node.node_type} ({node.name or 'unnamed'})")
-            if node.depends_on:
-                print(f"      depends_on: {node.depends_on}")
-            if node.declared_output_type:
-                print(f"      output_type: {node.declared_output_type}")
-        print()
-
-        # If only extraction requested
-        if option == 'extract':
-            print("✨ Extraction complete!")
-            return
-
-        # Step 2: Generate headers (for 'headers' and 'all')
-        print("Step 2: Generating metadata headers for notebook cells...")
-        with open(notebook_path, 'r', encoding='utf-8') as f:
-            notebook = json.load(f)
-
-        enhanced_notebook = HeaderCommentGenerator.add_headers_to_notebook(notebook, nodes)
-        print(f"  ✓ Generated headers for {len(nodes)} node cells")
-        print()
-
-        # If only headers requested
-        if option == 'headers':
-            print("✨ Header generation complete!")
-            print("   (Enhanced notebook is ready but not written to disk)")
-            return
-
-        # Step 3: Generate project.json (for 'json' and 'all')
-        print("Step 3: Generating project.json...")
-        project_name = Path(notebook_path).stem
-        project_id = project_name.lower().replace(' ', '_').replace('-', '_')
-
-        project_json = ProjectJsonGenerator.generate_project_json(
-            project_id=project_id,
-            nodes=nodes,
-            name=f"Project: {project_name}",
-            description=f"Auto-generated project from {Path(notebook_path).name}"
+        builder = ProjectBuilder(
+            input_path=args.input,
+            output_dir=args.output_dir,
+            project_name=args.project_name if args.mode != 'annotate' else None # Pass project_name only if not annotate mode
         )
-        print(f"  ✓ Generated project configuration with {len(project_json['nodes'])} nodes")
-        print()
 
-        # If only json requested
-        if option == 'json':
-            print("✨ Project.json generation complete!")
-            print("   (Configuration is ready but not written to disk)")
-            return
+        if args.mode == "annotate":
+            builder.annotate_mode()
+        elif args.mode == "deploy":
+            builder.deploy_mode()
+        elif args.mode == "create":
+            builder.create_mode()
 
-        # If 'all' - create full project structure
-        if option == 'all':
-            print("Step 4: Creating project structure...")
-            creator = ProjectCreator(notebook_path)
-            creator.create_project()
-            print()
-            print("=" * 60)
-            print(f"✨ All steps completed successfully!")
-            print("=" * 60)
-
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
-        print(f"❌ Error: {e}", file=sys.stderr)
+        print(f"An unexpected error occurred: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         sys.exit(1)
-
 
 if __name__ == '__main__':
     main()

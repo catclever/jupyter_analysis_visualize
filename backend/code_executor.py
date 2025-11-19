@@ -147,7 +147,7 @@ class CodeValidator:
         return 'unknown'
 
     @staticmethod
-    def validate_node_form(code: str, node_id: str, node_type: str) -> tuple:
+    def validate_node_form(code: str, node_id: str, node_type: str, declared_output_type: str = None) -> tuple:
         """
         Validate node code form:
         1. Check if required variable/function is assigned
@@ -182,9 +182,14 @@ class CodeValidator:
 
         # Type validation rules
         if node_type in ['data_source', 'compute']:
-            if inferred_type not in ['dataframe', 'unknown']:
-                print(f"[ValidateDebug] ✗ FAILED: Node must return DataFrame, but got {inferred_type}")
-                return False, f"Node '{node_id}' must return DataFrame, but code suggests {inferred_type}", inferred_type
+            allowed_types = ['dataframe', 'unknown']
+            # Allow dict output when declared as dict_of_dataframes
+            if declared_output_type == 'dict_of_dataframes':
+                allowed_types.append('dict')
+            if inferred_type not in allowed_types:
+                expected_desc = 'Dict of DataFrames' if declared_output_type == 'dict_of_dataframes' else 'DataFrame'
+                print(f"[ValidateDebug] ✗ FAILED: Node must return {expected_desc}, but got {inferred_type}")
+                return False, f"Node '{node_id}' must return {expected_desc}, but code suggests {inferred_type}", inferred_type
         elif node_type == 'chart':
             if inferred_type not in ['figure', 'dict', 'unknown']:
                 print(f"[ValidateDebug] ✗ FAILED: Node must return Figure/dict, but got {inferred_type}")
@@ -1237,7 +1242,12 @@ with open(r'{full_path}', 'rb') as f:
             print(f"[CodeDebug] Code preview (first 200 chars):\n{code[:200]}")
             print(f"[CodeDebug] Code ends with: ...{code[-100:] if len(code) > 100 else code}")
 
-            is_valid, validation_msg, inferred_type = CodeValidator.validate_node_form(code, node_id, node_type)
+            is_valid, validation_msg, inferred_type = CodeValidator.validate_node_form(
+                code,
+                node_id,
+                node_type,
+                declared_output_type
+            )
 
             if not is_valid:
                 # Form validation failed - abort execution
