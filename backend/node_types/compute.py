@@ -23,7 +23,7 @@ class DataFrameNode(BaseNode):
     Storage: PARQUET format, saved to parquets/ directory
     """
 
-    node_type = "dataframe"
+    node_type = "compute"
 
     # What output types this node can produce
     supported_output_types = [OutputType.DATAFRAME]
