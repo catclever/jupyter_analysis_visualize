@@ -23,17 +23,18 @@ class NodeLayoutInfo:
 class DAGLayout:
     """
     Hierarchical DAG layout algorithm with support for:
-    1. Tool nodes at the top (y < 0)
-    2. Hierarchical layering for other nodes
+    1. Tool nodes horizontally arranged at the top
+    2. Hierarchical layering for other nodes (left to right)
     3. Special positioning for single-child and single-parent nodes
+    4. Left-to-right flow (arrows: left-in, right-out)
     """
 
     # Layout constants
-    TOOL_NODE_Y = -150  # Tool nodes positioned at negative y
-    LAYER_HEIGHT = 250  # Vertical spacing between layers
-    LAYER_WIDTH = 300   # Horizontal spacing between layers
+    TOOL_NODE_Y = -150  # Tool nodes positioned at top
     NODE_SPACING = 150  # Vertical spacing between nodes in same layer
     TOOL_NODE_SPACING = 200  # Horizontal spacing between tool nodes
+    LAYER_SPACING = 100  # Horizontal spacing between layer levels
+    SPECIAL_OFFSET = 20  # Offset for special positioning rules (0.2 * 100 = 20)
 
     def __init__(self, nodes: List[Dict[str, Any]], edges: List[Tuple[str, str]]):
         """
@@ -111,13 +112,14 @@ class DAGLayout:
 
     def _layout_hierarchical_nodes(self, non_tool_ids: List[str]) -> Dict[str, Tuple[float, float]]:
         """
-        Layout non-tool nodes in hierarchical layers
+        Layout non-tool nodes in hierarchical layers (left to right)
 
         Algorithm:
         1. Compute layer for each node (0 for nodes with no parents, else max(parent_layer) + 1)
         2. Group nodes by layer
-        3. Position nodes within each layer
-        4. Apply special positioning rules for single-child/single-parent nodes
+        3. Position nodes within each layer (center vertically)
+        4. Adjust horizontal positions based on layer widths
+        5. Apply special positioning rules for single-child/single-parent nodes
         """
         positions = {}
 
@@ -131,22 +133,35 @@ class DAGLayout:
                 nodes_by_layer[layer] = []
             nodes_by_layer[layer].append(node_id)
 
-        # Step 3: Position nodes within each layer
-        for layer, node_ids in sorted(nodes_by_layer.items()):
+        # Step 3: Position nodes within each layer (vertically centered)
+        current_x = 0
+        layer_x_offsets = {}  # Store x position for each layer
+
+        for layer in sorted(nodes_by_layer.keys()):
+            node_ids = nodes_by_layer[layer]
             # Sort by execution time within layer
             sorted_nodes = self._sort_by_execution_time(node_ids)
 
-            # Calculate positions
+            # Store x offset for this layer
+            layer_x_offsets[layer] = current_x
+
+            # Calculate total height needed for this layer
+            layer_height = (len(sorted_nodes) - 1) * self.NODE_SPACING
+
+            # Calculate positions (centered at y=0)
             layer_positions = {}
             for i, node_id in enumerate(sorted_nodes):
-                x = layer * self.LAYER_WIDTH
-                y = i * self.NODE_SPACING
+                x = current_x
+                y = i * self.NODE_SPACING - layer_height / 2  # Center vertically
                 layer_positions[node_id] = (x, y)
 
             positions.update(layer_positions)
 
+            # Move to next layer (add layer spacing)
+            current_x += self.LAYER_SPACING
+
         # Step 4: Apply special positioning rules
-        positions = self._apply_special_positioning(positions, layers)
+        positions = self._apply_special_positioning(positions, layers, layer_x_offsets)
 
         return positions
 
@@ -210,43 +225,38 @@ class DAGLayout:
     def _apply_special_positioning(
         self,
         positions: Dict[str, Tuple[float, float]],
-        layers: Dict[str, int]
+        layers: Dict[str, int],
+        layer_x_offsets: Dict[int, float]
     ) -> Dict[str, Tuple[float, float]]:
         """
-        Apply special positioning rules:
-        1. Layer 0 node with single child: move to child's left-bottom (x = child_x - 0.5 layer_width)
-        2. Non-layer-0 node with single parent and no children: move to parent's right-top (x = parent_x + 0.5 layer_width)
+        Apply special positioning rules for single-child/single-parent nodes:
+        1. Layer 0 node with single child: move to child's left-top (parent上方/左侧)
+           - x = child_x - SPECIAL_OFFSET
+           - y = child_y - SPECIAL_OFFSET
+        2. Non-layer-0 node with single parent and no children: move to parent's right-bottom (子节点下方/右侧)
+           - x = parent_x + SPECIAL_OFFSET
+           - y = parent_y + SPECIAL_OFFSET
         """
-        # Build child mapping for easier lookup
-        children_map = {}
-        for source, target in self.edges:
-            if target not in children_map:
-                children_map[target] = []
-            children_map[target].append(source)
-
         new_positions = dict(positions)
 
         # Rule 1: Layer 0 node with single child
-        # Only apply if the source node has exactly one direct child
+        # Position at child's left-top (左上方)
         layer_0_nodes = [n_id for n_id, l in layers.items() if l == 0]
         for node_id in layer_0_nodes:
             # Get direct children of this node
             children = self.adjacency_list.get(node_id, [])
-            children = [c for c in children if c in layers]  # Only consider nodes in layout
+            children = [c for c in children if c in layers]
 
             if len(children) == 1:
                 child_id = children[0]
                 child_x, child_y = new_positions[child_id]
-                # Position at child's left-bottom
-                # x = child_x - 0.5 * layer_width
-                # y = child_y + node_spacing (below child)
-                new_x = child_x - 0.5 * self.LAYER_WIDTH
-                new_y = child_y + self.NODE_SPACING
+                # Position at child's left-top
+                new_x = child_x - self.SPECIAL_OFFSET
+                new_y = child_y - self.SPECIAL_OFFSET
                 new_positions[node_id] = (new_x, new_y)
 
         # Rule 2: Non-layer-0 node with single parent and no children
-        # This is a RARE case - only for truly leaf nodes with single parent
-        # Don't apply if the parent has multiple children (that would be confusing)
+        # Position at parent's right-bottom (右下方)
         for node_id, layer in layers.items():
             if layer == 0:
                 continue
@@ -265,16 +275,13 @@ class DAGLayout:
             parent_id = parents[0]
             parent_children = [c for c in self.adjacency_list.get(parent_id, []) if c in layers]
             if len(parent_children) > 1:
-                # Parent has multiple children, keep normal hierarchical positioning
                 continue
 
             # Only apply if parent has single child (this node)
-            # Position at parent's right-top
+            # Position at parent's right-bottom
             parent_x, parent_y = new_positions[parent_id]
-            # x = parent_x + 0.5 * layer_width
-            # y = parent_y - node_spacing (above parent)
-            new_x = parent_x + 0.5 * self.LAYER_WIDTH
-            new_y = parent_y - self.NODE_SPACING
+            new_x = parent_x + self.SPECIAL_OFFSET
+            new_y = parent_y + self.SPECIAL_OFFSET
             new_positions[node_id] = (new_x, new_y)
 
         return new_positions

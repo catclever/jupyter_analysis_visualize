@@ -32,7 +32,7 @@ def test_tool_node_positioning():
 
 
 def test_hierarchical_layering():
-    """Test that nodes are layered correctly"""
+    """Test that nodes are layered correctly (left to right with LAYER_SPACING=100)"""
     nodes = [
         {'id': 'source', 'type': 'data_source', 'first_execution_time': None},
         {'id': 'compute1', 'type': 'compute', 'first_execution_time': None},
@@ -51,12 +51,12 @@ def test_hierarchical_layering():
     # Source should be in layer 0 (leftmost)
     assert positions['source']['x'] == 0, "Source node should be at x=0"
 
-    # Compute nodes should be in layer 1
-    assert positions['compute1']['x'] == 300, "Compute nodes should be at layer 1 (x=300)"
-    assert positions['compute2']['x'] == 300, "Compute nodes should be at layer 1 (x=300)"
+    # Compute nodes should be in layer 1 (x = 0 + LAYER_SPACING = 100)
+    assert positions['compute1']['x'] == 100, "Compute nodes should be at layer 1 (x=100)"
+    assert positions['compute2']['x'] == 100, "Compute nodes should be at layer 1 (x=100)"
 
-    # Chart should be in layer 2
-    assert positions['chart']['x'] == 600, "Chart node should be at layer 2 (x=600)"
+    # Chart should be in layer 2 (x = 100 + LAYER_SPACING = 200)
+    assert positions['chart']['x'] == 200, "Chart node should be at layer 2 (x=200)"
 
     print("✓ Hierarchical layering test passed")
 
@@ -91,7 +91,7 @@ def test_execution_time_sorting():
 
 
 def test_single_child_positioning():
-    """Test special positioning for layer 0 nodes with single child"""
+    """Test special positioning for layer 0 nodes with single child (parent moves to left-top of child)"""
     nodes = [
         {'id': 'source', 'type': 'data_source', 'first_execution_time': None},
         {'id': 'compute', 'type': 'compute', 'first_execution_time': None},
@@ -100,18 +100,21 @@ def test_single_child_positioning():
 
     positions = calculate_node_positions(nodes, edges)
 
-    # Source should be moved to left-bottom of compute
+    # Source should be moved to left-top of compute (SPECIAL_OFFSET = 20)
     compute_x = positions['compute']['x']
+    compute_y = positions['compute']['y']
     source_x = positions['source']['x']
+    source_y = positions['source']['y']
 
-    # Source x should be less than compute x (moved left)
-    assert source_x < compute_x, "Single child positioning: source should be left of compute"
+    # Source should be offset by SPECIAL_OFFSET (20) to the left and up
+    assert source_x == compute_x - 20, f"Source x should be {compute_x - 20}, got {source_x}"
+    assert source_y == compute_y - 20, f"Source y should be {compute_y - 20}, got {source_y}"
 
     print("✓ Single child positioning test passed")
 
 
 def test_single_parent_positioning():
-    """Test special positioning for leaf nodes with single parent"""
+    """Test special positioning for leaf nodes with single parent (child moves to right-bottom of parent)"""
     nodes = [
         {'id': 'compute1', 'type': 'compute', 'first_execution_time': None},
         {'id': 'compute2', 'type': 'compute', 'first_execution_time': None},
@@ -124,12 +127,15 @@ def test_single_parent_positioning():
 
     positions = calculate_node_positions(nodes, edges)
 
-    # Chart should be positioned to the right-top of compute2
+    # Chart should be positioned to the right-bottom of compute2 (SPECIAL_OFFSET = 20)
     compute2_x = positions['compute2']['x']
+    compute2_y = positions['compute2']['y']
     chart_x = positions['chart']['x']
+    chart_y = positions['chart']['y']
 
-    # Chart x should be greater than compute2 x (moved right)
-    assert chart_x > compute2_x, "Single parent positioning: chart should be right of compute2"
+    # Chart should be offset by SPECIAL_OFFSET (20) to the right and down
+    assert chart_x == compute2_x + 20, f"Chart x should be {compute2_x + 20}, got {chart_x}"
+    assert chart_y == compute2_y + 20, f"Chart y should be {compute2_y + 20}, got {chart_y}"
 
     print("✓ Single parent positioning test passed")
 
