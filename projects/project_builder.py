@@ -28,30 +28,83 @@ class NodeMetadata:
 
 def _infer_node_id(code: str) -> Optional[str]:
     """
-    Infers the node_id from the last assignment in the code.
-    Returns the target variable name of the last assignment.
+    Infers the node_id from the last assignment in the code,
+    ignoring assignments inside loops (for, while) and function/class definitions.
+    Returns the target variable name of the last valid assignment.
     """
     try:
         tree = ast.parse(code)
         last_assign_target = None
-        # Iterate through the AST nodes in reverse order to find the last assignment
-        # This is a simplified approach; a full AST visitor might be more robust for complex cases.
-        for node in reversed(list(ast.walk(tree))):
-            if isinstance(node, ast.Assign):
-                # Get the last target of the assignment
-                if node.targets:
-                    target = node.targets[-1]
-                    if isinstance(target, ast.Name):
-                        last_assign_target = target.id
-                        break
-                    elif isinstance(target, (ast.Tuple, ast.List)):
-                        # If it's a tuple/list assignment, take the last element
-                        if target.elts:
-                            last_elt = target.elts[-1]
-                            if isinstance(last_elt, ast.Name):
-                                last_assign_target = last_elt.id
-                                break
-        return last_assign_target
+        
+        # We want to find the *last* assignment in top-level scope (or allowed scopes like if/try)
+        # We can walk the tree but need to track context.
+        # A simpler way for this specific requirement is to iterate top-level nodes
+        # and recurse only into allowed structures (If, Try, With).
+        
+        def find_last_assignment(nodes: List[ast.AST]) -> Optional[str]:
+            last_target = None
+            for node in nodes:
+                if isinstance(node, ast.Assign):
+                    # Get the last target of the assignment
+                    if node.targets:
+                        target = node.targets[-1]
+                        if isinstance(target, ast.Name):
+                            last_target = target.id
+                        elif isinstance(target, (ast.Tuple, ast.List)):
+                            # If it's a tuple/list assignment, take the last element
+                            if target.elts:
+                                last_elt = target.elts[-1]
+                                if isinstance(last_elt, ast.Name):
+                                    last_target = last_elt.id
+                elif isinstance(node, ast.AnnAssign):
+                     if isinstance(node.target, ast.Name):
+                        last_target = node.target.id
+                elif isinstance(node, (ast.If, ast.Try, ast.With, ast.AsyncWith)):
+                    # Recurse into blocks that don't create a "loop" scope for our purpose
+                    # (though technically they share scope in Python, we treat them as "main flow")
+                    # We check all branches and take the very last one found in the entire structure
+                    
+                    # For If: body and orelse
+                    # For Try: body, handlers, orelse, finalbody
+                    # For With: body
+                    
+                    child_nodes = []
+                    if isinstance(node, ast.If):
+                        child_nodes.extend(node.body)
+                        child_nodes.extend(node.orelse)
+                    elif isinstance(node, ast.Try):
+                        child_nodes.extend(node.body)
+                        for handler in node.handlers:
+                            child_nodes.extend(handler.body)
+                        child_nodes.extend(node.orelse)
+                        child_nodes.extend(node.finalbody)
+                    elif isinstance(node, (ast.With, ast.AsyncWith)):
+                        child_nodes.extend(node.body)
+                    
+                    # Recursively find in children
+                    child_result = find_last_assignment(child_nodes)
+                    if child_result:
+                        last_target = child_result
+                
+                # Explicitly IGNORE: ast.For, ast.AsyncFor, ast.While, ast.FunctionDef, ast.ClassDef
+                # We do not recurse into them.
+            
+            return last_target
+
+        last_assign_target = find_last_assignment(tree.body)
+        
+        if last_assign_target:
+            return last_assign_target
+
+        # Fallback: If no assignment found, check if the last top-level statement is a function or class definition
+        # This supports "Tool" nodes that are just definitions.
+        if tree.body:
+            last_node = tree.body[-1]
+            if isinstance(last_node, (ast.FunctionDef, ast.ClassDef)):
+                return last_node.name
+
+        return None
+
     except SyntaxError:
         return None # Invalid Python code, cannot parse AST
 
