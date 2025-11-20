@@ -88,6 +88,149 @@ interface FlowDiagramProps {
 
 export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, currentDatasetId = "ecommerce_analytics", onEdgesAdded }: FlowDiagramProps) {
   const reactFlowRef = useRef<ReactFlowInstance | null>(null);
+  const TOOL_NODE_GAP = 20;
+  const LAYER_GAP = 50;
+
+  const adjustToolRowSpacing = React.useCallback(async () => {
+    const instance = reactFlowRef.current;
+    if (!instance) return;
+    const rendered = instance.getNodes();
+    const toolNodes = rendered.filter((n) => {
+      const d = n.data as FlowNodeData;
+      return d && (d.type === NodeType.TOOL || d.type === 'tool');
+    });
+    if (toolNodes.length === 0) return;
+    toolNodes.sort((a, b) => (a.position.x - b.position.x));
+    const updates = new Map<string, { x: number; y: number }>();
+    const getNodeWidth = (id: string, fallback: number) => {
+      const el = document.querySelector(`.react-flow__node[data-id="${id}"]`) as HTMLElement | null;
+      const domWidth = el?.offsetWidth ?? fallback ?? 0;
+      return domWidth;
+    };
+    let prevRight = toolNodes[0].position.x + getNodeWidth(toolNodes[0].id, toolNodes[0].width || 0);
+    updates.set(toolNodes[0].id, { x: toolNodes[0].position.x, y: toolNodes[0].position.y });
+    for (let i = 1; i < toolNodes.length; i++) {
+      const n = toolNodes[i];
+      const newLeft = prevRight + TOOL_NODE_GAP;
+      updates.set(n.id, { x: newLeft, y: n.position.y });
+      prevRight = newLeft + getNodeWidth(n.id, n.width || 0);
+    }
+    setNodes((nds) => nds.map((node) => {
+      const u = updates.get(node.id);
+      if (u) {
+        const p = { x: u.x, y: u.y };
+        return { ...node, position: p, positionAbsolute: p };
+      }
+      return node;
+    }));
+    const payloads = Array.from(updates.entries());
+    for (const [id, pos] of payloads) {
+      try {
+        await updateNodePosition(currentDatasetId as string, id, pos);
+      } catch (e) {
+        console.warn('[FlowDiagram] Failed to persist tool node position', id, e);
+      }
+    }
+    instance.fitView({ includeHiddenNodes: true, padding: 0.2 });
+  }, [reactFlowRef, currentDatasetId]);
+
+  const adjustLayerSpacing = React.useCallback(async () => {
+    const instance = reactFlowRef.current;
+    if (!instance) return;
+    const rendered = instance.getNodes();
+    const toolIds = new Set(
+      rendered
+        .filter((n) => {
+          const d = n.data as FlowNodeData;
+          return d && (d.type === NodeType.TOOL || d.type === 'tool');
+        })
+        .map((n) => n.id)
+    );
+
+    const domWidth = (id: string, fallback: number) => {
+      const el = document.querySelector(`.react-flow__node[data-id="${id}"]`) as HTMLElement | null;
+      return (el?.offsetWidth ?? fallback ?? 0);
+    };
+
+    const nonTool = rendered.filter((n) => !toolIds.has(n.id));
+
+    const parentsMap = new Map<string, Set<string>>();
+    const rfEdges = (instance as any).getEdges ? (instance as any).getEdges() : [];
+    rfEdges.forEach((e: any) => {
+      if (toolIds.has(e.source) || toolIds.has(e.target)) return;
+      if (!parentsMap.has(e.target)) parentsMap.set(e.target, new Set());
+      parentsMap.get(e.target)!.add(e.source);
+      if (!parentsMap.has(e.source)) parentsMap.set(e.source, new Set());
+    });
+
+    const layerOf = new Map<string, number>();
+    const calcLayer = (id: string): number => {
+      if (layerOf.has(id)) return layerOf.get(id)!;
+      const ps = Array.from(parentsMap.get(id) || []);
+      if (ps.length === 0) {
+        layerOf.set(id, 0);
+        return 0;
+      }
+      const l = Math.max(...ps.map(calcLayer)) + 1;
+      layerOf.set(id, l);
+      return l;
+    };
+    nonTool.forEach((n) => calcLayer(n.id));
+
+    const byLayer = new Map<number, typeof nonTool>();
+    nonTool.forEach((n) => {
+      const l = layerOf.get(n.id) || 0;
+      if (!byLayer.has(l)) byLayer.set(l, [] as any);
+      (byLayer.get(l) as any).push(n);
+    });
+
+    const sortedLayers = Array.from(byLayer.keys()).sort((a, b) => a - b);
+    if (sortedLayers.length === 0) return;
+
+    const updates = new Map<string, { x: number; y: number }>();
+    // Compute right edge of each layer and reposition next layer
+    // Keep layer 0 left as-is
+    let prevLayerRight = Math.max(
+      ...((byLayer.get(sortedLayers[0]) || []) as any).map((n: any) => n.position.x + domWidth(n.id, n.width || 0))
+    );
+    const layerLeft = new Map<number, number>();
+    sortedLayers.forEach((l) => {
+      const group = byLayer.get(l)!;
+      const left = Math.min(...group.map((n) => n.position.x));
+      layerLeft.set(l, left);
+    });
+
+    for (let i = 1; i < sortedLayers.length; i++) {
+      const l = sortedLayers[i];
+      const group = byLayer.get(l)!;
+      const origLeft = layerLeft.get(l)!;
+      const newLeft = prevLayerRight + LAYER_GAP;
+      group.forEach((n) => {
+        const shift = n.position.x - origLeft;
+        updates.set(n.id, { x: newLeft + shift, y: n.position.y });
+      });
+      prevLayerRight = Math.max(...group.map((n) => (newLeft + (n.position.x - origLeft) + domWidth(n.id, n.width || 0))));
+    }
+
+    if (updates.size === 0) return;
+    setNodes((nds) => nds.map((node) => {
+      const u = updates.get(node.id);
+      if (u) {
+        const p = { x: u.x, y: u.y };
+        return { ...node, position: p, positionAbsolute: p };
+      }
+      return node;
+    }));
+    const payloads = Array.from(updates.entries());
+    for (const [id, pos] of payloads) {
+      try {
+        await updateNodePosition(currentDatasetId as string, id, pos);
+      } catch (e) {
+        console.warn('[FlowDiagram] Failed to persist layer node position', id, e);
+      }
+    }
+    instance.fitView({ includeHiddenNodes: true, padding: 0.2 });
+  }, [reactFlowRef, currentDatasetId]);
   const [apiNodes, setApiNodes] = useState<Node<FlowNodeData>[] | null>(null);
   const [apiEdges, setApiEdges] = useState<Edge[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -281,15 +424,18 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         })
       );
 
-      // Ensure view fits updated positions (including top tool row)
-      reactFlowRef.current?.fitView({ includeHiddenNodes: true, padding: 0.2 });
+      requestAnimationFrame(() => {
+        void adjustToolRowSpacing().then(() => {
+          requestAnimationFrame(() => { void adjustLayerSpacing(); });
+        });
+      });
     } catch (error) {
       console.error('[FlowDiagram] Auto-layout failed:', error);
       alert(`Auto-layout failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsAutoLayouting(false);
     }
-  }, [currentDatasetId]);
+  }, [currentDatasetId, adjustToolRowSpacing, adjustLayerSpacing]);
 
   // Handle node changes (including drag operations)
   const handleNodesChange = React.useCallback((changes: any) => {

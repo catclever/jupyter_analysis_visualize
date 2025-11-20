@@ -1,0 +1,414 @@
+{
+  "project_id": "ecommerce_analytics",
+  "name": "E-Commerce Analytics Platform",
+  "description": "Comprehensive e-commerce data analysis with multiple analysis pathways: Sales Trends, Customer Behavior, Category Competition, and Marketing Effectiveness",
+  "version": "1.0.0",
+  "created_at": "2025-11-20T16:09:49.542118",
+  "updated_at": "2025-11-20T16:13:41.322411",
+  "nodes": [
+    {
+      "node_id": "load_orders_data",
+      "node_type": "data_source",
+      "name": "Load Orders Data",
+      "depends_on": [],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/load_orders_data.parquet",
+      "error_message": null,
+      "execution_time": 0.047065,
+      "last_execution_time": "2025-11-20T16:10:02.934553",
+      "output_type": "dataframe",
+      "is_dict_result": false,
+      "position": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "node_id": "load_customers_data",
+      "node_type": "data_source",
+      "name": "Load Customers Data",
+      "depends_on": [],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/load_customers_data.parquet",
+      "position": {
+        "x": 240,
+        "y": 390
+      },
+      "error_message": null,
+      "execution_time": 0.026186,
+      "last_execution_time": "2025-11-20T16:11:55.044113",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "load_products_data",
+      "node_type": "data_source",
+      "name": "Load Products Data",
+      "depends_on": [],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/load_products_data.parquet",
+      "position": {
+        "x": 240,
+        "y": 540
+      },
+      "error_message": null,
+      "execution_time": 0.020501,
+      "last_execution_time": "2025-11-20T16:12:26.754075",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "load_promotions_data",
+      "node_type": "data_source",
+      "name": "Load Promotions Data",
+      "depends_on": [],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/load_promotions_data.parquet",
+      "position": {
+        "x": 0,
+        "y": 450
+      },
+      "error_message": null,
+      "execution_time": 0.027803,
+      "last_execution_time": "2025-11-20T16:12:40.077963",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "tool_time_aggregation",
+      "node_type": "tool",
+      "name": "Tool: Time Aggregation Functions",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": null,
+      "result_path": null,
+      "position": {
+        "x": 0,
+        "y": -150
+      }
+    },
+    {
+      "node_id": "tool_cohort_analysis",
+      "node_type": "tool",
+      "name": "Tool: Cohort Analysis",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": null,
+      "result_path": null,
+      "position": {
+        "x": 253,
+        "y": -150
+      }
+    },
+    {
+      "node_id": "tool_category_metrics",
+      "node_type": "tool",
+      "name": "Tool: Category Metrics",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": null,
+      "result_path": null,
+      "position": {
+        "x": 436,
+        "y": -150
+      }
+    },
+    {
+      "node_id": "tool_promo_impact",
+      "node_type": "tool",
+      "name": "Tool: Promotion Impact Analysis",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": null,
+      "result_path": null,
+      "position": {
+        "x": 628,
+        "y": -150
+      }
+    },
+    {
+      "node_id": "p1_daily_sales",
+      "node_type": "compute",
+      "name": "Path 1: Daily Sales Trend",
+      "depends_on": [
+        "load_orders_data"
+      ],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null,
+      "position": {
+        "x": 515,
+        "y": 0
+      }
+    },
+    {
+      "node_id": "p1_category_sales",
+      "node_type": "compute",
+      "name": "Path 1: Category Sales Distribution",
+      "depends_on": [
+        "load_orders_data"
+      ],
+      "execution_status": "pending_validation",
+      "result_format": "parquet",
+      "result_path": null,
+      "error_message": "Kernel execution error: \u001b[31m---------------------------------------------------------------------------\u001b[39m\n\u001b[31mNameError\u001b[39m                                 Traceback (most recent call last)\n\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[2]\u001b[39m\u001b[32m, line 4\u001b[39m\n\u001b[32m      1\u001b[39m \u001b[38;5;28;01mimport\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[34;01mpandas\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[38;5;28;01mas\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[34;01mpd\u001b[39;00m\n\u001b[32m      3\u001b[39m \u001b[38;5;66;03m# Sales by category\u001b[39;00m\n\u001b[32m----> \u001b[39m\u001b[32m4\u001b[39m p1_category_sales = \u001b[43mload_orders_data\u001b[49m.groupby(\u001b[33m'\u001b[39m\u001b[33mcategory\u001b[39m\u001b[33m'\u001b[39m).agg({\n\u001b[32m      5\u001b[39m     \u001b[33m'\u001b[39m\u001b[33mtotal_amount\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33msum\u001b[39m\u001b[33m'\u001b[39m,\n\u001b[32m      6\u001b[39m     \u001b[33m'\u001b[39m\u001b[33morder_id\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33mcount\u001b[39m\u001b[33m'\u001b[39m,\n\u001b[32m      7\u001b[39m     \u001b[33m'\u001b[39m\u001b[33mquantity\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33msum\u001b[39m\u001b[33m'\u001b[39m\n\u001b[32m      8\u001b[39m }).rename(columns={\u001b[33m'\u001b[39m\u001b[33morder_id\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33morder_count\u001b[39m\u001b[33m'\u001b[39m}).reset_index()\n\u001b[32m     10\u001b[39m p1_category_sales = p1_category_sales.sort_values(\u001b[33m'\u001b[39m\u001b[33mtotal_amount\u001b[39m\u001b[33m'\u001b[39m, ascending=\u001b[38;5;28;01mFalse\u001b[39;00m)\n\u001b[32m     14\u001b[39m \u001b[38;5;66;03m# Auto-appended: Save result to parquet\u001b[39;00m\n\n\u001b[31mNameError\u001b[39m: name 'load_orders_data' is not defined",
+      "position": {
+        "x": 515,
+        "y": 150
+      }
+    },
+    {
+      "node_id": "p1_weekly_trend",
+      "node_type": "compute",
+      "name": "Path 1: Weekly Sales Trend",
+      "depends_on": [
+        "load_orders_data"
+      ],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null,
+      "position": {
+        "x": 515,
+        "y": 300
+      }
+    },
+    {
+      "node_id": "p1_sales_chart",
+      "node_type": "chart",
+      "name": "Path 1: Sales by Category Chart",
+      "depends_on": [
+        "p1_category_sales"
+      ],
+      "execution_status": "not_executed",
+      "result_format": "image",
+      "result_path": null,
+      "output_type": "image",
+      "display_type": "image_viewer",
+      "description": "PNG visualization showing sales by category",
+      "position": {
+        "x": 861,
+        "y": 210
+      }
+    },
+    {
+      "node_id": "p2_customer_purchase",
+      "node_type": "compute",
+      "name": "Path 2: Customer Purchase Behavior",
+      "depends_on": [
+        "load_customers_data",
+        "load_orders_data"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p2_customer_purchase.parquet",
+      "position": {
+        "x": 515,
+        "y": 450
+      },
+      "error_message": null,
+      "execution_time": 0.066144,
+      "last_execution_time": "2025-11-20T16:11:55.073425",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p2_loyalty_analysis",
+      "node_type": "compute",
+      "name": "Path 2: Loyalty Level Analysis",
+      "depends_on": [
+        "p2_customer_purchase"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p2_loyalty_analysis.parquet",
+      "position": {
+        "x": 1101,
+        "y": 150
+      },
+      "error_message": null,
+      "execution_time": 0.038683,
+      "last_execution_time": "2025-11-20T16:12:10.467285",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p2_regional_behavior",
+      "node_type": "compute",
+      "name": "Path 2: Regional Purchase Behavior",
+      "depends_on": [],
+      "execution_status": "pending_validation",
+      "result_format": "parquet",
+      "result_path": null,
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "error_message": "Kernel execution error: \u001b[31m---------------------------------------------------------------------------\u001b[39m\n\u001b[31mKeyError\u001b[39m                                  Traceback (most recent call last)\n\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[42]\u001b[39m\u001b[32m, line 4\u001b[39m\n\u001b[32m      1\u001b[39m \u001b[38;5;28;01mimport\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[34;01mpandas\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[38;5;28;01mas\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[34;01mpd\u001b[39;00m\n\u001b[32m      3\u001b[39m \u001b[38;5;66;03m# Regional analysis\u001b[39;00m\n\u001b[32m----> \u001b[39m\u001b[32m4\u001b[39m p2_regional_behavior = \u001b[43mp2_customer_purchase\u001b[49m\u001b[43m.\u001b[49m\u001b[43mgroupby\u001b[49m\u001b[43m(\u001b[49m\u001b[33;43m'\u001b[39;49m\u001b[33;43mregion\u001b[39;49m\u001b[33;43m'\u001b[39;49m\u001b[43m)\u001b[49m.agg({\n\u001b[32m      5\u001b[39m     \u001b[33m'\u001b[39m\u001b[33mcustomer_id\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33mnunique\u001b[39m\u001b[33m'\u001b[39m,\n\u001b[32m      6\u001b[39m     \u001b[33m'\u001b[39m\u001b[33mtotal_amount\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33msum\u001b[39m\u001b[33m'\u001b[39m,\n\u001b[32m      7\u001b[39m     \u001b[33m'\u001b[39m\u001b[33morder_count\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33msum\u001b[39m\u001b[33m'\u001b[39m\n\u001b[32m      8\u001b[39m }).round(\u001b[32m2\u001b[39m).reset_index()\n\u001b[32m     10\u001b[39m p2_regional_behavior.columns = [\u001b[33m'\u001b[39m\u001b[33mregion\u001b[39m\u001b[33m'\u001b[39m, \u001b[33m'\u001b[39m\u001b[33munique_customers\u001b[39m\u001b[33m'\u001b[39m, \u001b[33m'\u001b[39m\u001b[33mtotal_sales\u001b[39m\u001b[33m'\u001b[39m, \u001b[33m'\u001b[39m\u001b[33mtotal_orders\u001b[39m\u001b[33m'\u001b[39m]\n\u001b[32m     13\u001b[39m \u001b[38;5;66;03m# Auto-appended: Save result to parquet\u001b[39;00m\n\n\u001b[36mFile \u001b[39m\u001b[32m~/Documents/泛钛客资料/space/jupyter_analysis_visualize/.venv/lib/python3.12/site-packages/pandas/core/frame.py:9210\u001b[39m, in \u001b[36mDataFrame.groupby\u001b[39m\u001b[34m(self, by, axis, level, as_index, sort, group_keys, observed, dropna)\u001b[39m\n\u001b[32m   9207\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m level \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m \u001b[38;5;129;01mand\u001b[39;00m by \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[32m   9208\u001b[39m     \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mTypeError\u001b[39;00m(\u001b[33m\"\u001b[39m\u001b[33mYou have to supply one of \u001b[39m\u001b[33m'\u001b[39m\u001b[33mby\u001b[39m\u001b[33m'\u001b[39m\u001b[33m and \u001b[39m\u001b[33m'\u001b[39m\u001b[33mlevel\u001b[39m\u001b[33m'\u001b[39m\u001b[33m\"\u001b[39m)\n\u001b[32m-> \u001b[39m\u001b[32m9210\u001b[39m \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[43mDataFrameGroupBy\u001b[49m\u001b[43m(\u001b[49m\n\u001b[32m   9211\u001b[39m \u001b[43m    \u001b[49m\u001b[43mobj\u001b[49m\u001b[43m=\u001b[49m\u001b[38;5;28;43mself\u001b[39;49m\u001b[43m,\u001b[49m\n\u001b[32m   9212\u001b[39m \u001b[43m    \u001b[49m\u001b[43mkeys\u001b[49m\u001b[43m=\u001b[49m\u001b[43mby\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9213\u001b[39m \u001b[43m    \u001b[49m\u001b[43maxis\u001b[49m\u001b[43m=\u001b[49m\u001b[43maxis\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9214\u001b[39m \u001b[43m    \u001b[49m\u001b[43mlevel\u001b[49m\u001b[43m=\u001b[49m\u001b[43mlevel\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9215\u001b[39m \u001b[43m    \u001b[49m\u001b[43mas_index\u001b[49m\u001b[43m=\u001b[49m\u001b[43mas_index\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9216\u001b[39m \u001b[43m    \u001b[49m\u001b[43msort\u001b[49m\u001b[43m=\u001b[49m\u001b[43msort\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9217\u001b[39m \u001b[43m    \u001b[49m\u001b[43mgroup_keys\u001b[49m\u001b[43m=\u001b[49m\u001b[43mgroup_keys\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9218\u001b[39m \u001b[43m    \u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m=\u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9219\u001b[39m \u001b[43m    \u001b[49m\u001b[43mdropna\u001b[49m\u001b[43m=\u001b[49m\u001b[43mdropna\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9220\u001b[39m \u001b[43m\u001b[49m\u001b[43m)\u001b[49m\n\n\u001b[36mFile \u001b[39m\u001b[32m~/Documents/泛钛客资料/space/jupyter_analysis_visualize/.venv/lib/python3.12/site-packages/pandas/core/groupby/groupby.py:1331\u001b[39m, in \u001b[36mGroupBy.__init__\u001b[39m\u001b[34m(self, obj, keys, axis, level, grouper, exclusions, selection, as_index, sort, group_keys, observed, dropna)\u001b[39m\n\u001b[32m   1328\u001b[39m \u001b[38;5;28mself\u001b[39m.dropna = dropna\n\u001b[32m   1330\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m grouper \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[32m-> \u001b[39m\u001b[32m1331\u001b[39m     grouper, exclusions, obj = \u001b[43mget_grouper\u001b[49m\u001b[43m(\u001b[49m\n\u001b[32m   1332\u001b[39m \u001b[43m        \u001b[49m\u001b[43mobj\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1333\u001b[39m \u001b[43m        \u001b[49m\u001b[43mkeys\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1334\u001b[39m \u001b[43m        \u001b[49m\u001b[43maxis\u001b[49m\u001b[43m=\u001b[49m\u001b[43maxis\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1335\u001b[39m \u001b[43m        \u001b[49m\u001b[43mlevel\u001b[49m\u001b[43m=\u001b[49m\u001b[43mlevel\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1336\u001b[39m \u001b[43m        \u001b[49m\u001b[43msort\u001b[49m\u001b[43m=\u001b[49m\u001b[43msort\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1337\u001b[39m \u001b[43m        \u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m=\u001b[49m\u001b[38;5;28;43;01mFalse\u001b[39;49;00m\u001b[43m \u001b[49m\u001b[38;5;28;43;01mif\u001b[39;49;00m\u001b[43m \u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;129;43;01mis\u001b[39;49;00m\u001b[43m \u001b[49m\u001b[43mlib\u001b[49m\u001b[43m.\u001b[49m\u001b[43mno_default\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;28;43;01melse\u001b[39;49;00m\u001b[43m \u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1338\u001b[39m \u001b[43m        \u001b[49m\u001b[43mdropna\u001b[49m\u001b[43m=\u001b[49m\u001b[38;5;28;43mself\u001b[39;49m\u001b[43m.\u001b[49m\u001b[43mdropna\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1339\u001b[39m \u001b[43m    \u001b[49m\u001b[43m)\u001b[49m\n\u001b[32m   1341\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m observed \u001b[38;5;129;01mis\u001b[39;00m lib.no_default:\n\u001b[32m   1342\u001b[39m     \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28many\u001b[39m(ping._passed_categorical \u001b[38;5;28;01mfor\u001b[39;00m ping \u001b[38;5;129;01min\u001b[39;00m grouper.groupings):\n\n\u001b[36mFile \u001b[39m\u001b[32m~/Documents/泛钛客资料/space/jupyter_analysis_visualize/.venv/lib/python3.12/site-packages/pandas/core/groupby/grouper.py:1043\u001b[39m, in \u001b[36mget_grouper\u001b[39m\u001b[34m(obj, key, axis, level, sort, observed, validate, dropna)\u001b[39m\n\u001b[32m   1041\u001b[39m         in_axis, level, gpr = \u001b[38;5;28;01mFalse\u001b[39;00m, gpr, \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[32m   1042\u001b[39m     \u001b[38;5;28;01melse\u001b[39;00m:\n\u001b[32m-> \u001b[39m\u001b[32m1043\u001b[39m         \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mKeyError\u001b[39;00m(gpr)\n\u001b[32m   1044\u001b[39m \u001b[38;5;28;01melif\u001b[39;00m \u001b[38;5;28misinstance\u001b[39m(gpr, Grouper) \u001b[38;5;129;01mand\u001b[39;00m gpr.key \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[32m   1045\u001b[39m     \u001b[38;5;66;03m# Add key to exclusions\u001b[39;00m\n\u001b[32m   1046\u001b[39m     exclusions.add(gpr.key)\n\n\u001b[31mKeyError\u001b[39m: 'region'"
+    },
+    {
+      "node_id": "p2_customer_chart",
+      "node_type": "chart",
+      "name": "Path 2: Loyalty Level Distribution Chart",
+      "depends_on": [
+        "p2_loyalty_analysis"
+      ],
+      "execution_status": "not_executed",
+      "result_format": "image",
+      "result_path": null,
+      "output_type": "image",
+      "display_type": "image_viewer",
+      "description": "PNG visualization showing loyalty level distribution",
+      "position": {
+        "x": 1368,
+        "y": 210
+      }
+    },
+    {
+      "node_id": "p3_category_comparison",
+      "node_type": "compute",
+      "name": "Path 3: Category Performance Comparison",
+      "depends_on": [
+        "load_orders_data",
+        "load_products_data"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p3_category_comparison.parquet",
+      "position": {
+        "x": 515,
+        "y": 600
+      },
+      "error_message": null,
+      "execution_time": 0.058535,
+      "last_execution_time": "2025-11-20T16:12:26.777897",
+      "output_type": "dataframe",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p3_category_market_share",
+      "node_type": "compute",
+      "name": "Path 3: Category Market Share",
+      "depends_on": [
+        "p3_category_comparison"
+      ],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p3_category_market_share.parquet",
+      "position": {
+        "x": 1101,
+        "y": 300
+      },
+      "error_message": null,
+      "execution_time": 0.037826,
+      "last_execution_time": "2025-11-20T16:12:48.803558",
+      "output_type": "unknown",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p3_top_products",
+      "node_type": "compute",
+      "name": "Path 3: Top Products by Revenue",
+      "depends_on": [],
+      "execution_status": "pending_validation",
+      "result_format": "parquet",
+      "result_path": null,
+      "position": {
+        "x": 0,
+        "y": 750
+      },
+      "error_message": "Kernel execution error: \u001b[31m---------------------------------------------------------------------------\u001b[39m\n\u001b[31mKeyError\u001b[39m                                  Traceback (most recent call last)\n\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[50]\u001b[39m\u001b[32m, line 5\u001b[39m\n\u001b[32m      3\u001b[39m \u001b[38;5;66;03m# Top 10 products\u001b[39;00m\n\u001b[32m      4\u001b[39m merged = load_orders_data.merge(load_products_data[[\u001b[33m'\u001b[39m\u001b[33mproduct_id\u001b[39m\u001b[33m'\u001b[39m, \u001b[33m'\u001b[39m\u001b[33mproduct_name\u001b[39m\u001b[33m'\u001b[39m, \u001b[33m'\u001b[39m\u001b[33mcategory\u001b[39m\u001b[33m'\u001b[39m]], on=\u001b[33m'\u001b[39m\u001b[33mproduct_id\u001b[39m\u001b[33m'\u001b[39m)\n\u001b[32m----> \u001b[39m\u001b[32m5\u001b[39m p3_top_products = \u001b[43mmerged\u001b[49m\u001b[43m.\u001b[49m\u001b[43mgroupby\u001b[49m\u001b[43m(\u001b[49m\u001b[43m[\u001b[49m\u001b[33;43m'\u001b[39;49m\u001b[33;43mproduct_id\u001b[39;49m\u001b[33;43m'\u001b[39;49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[33;43m'\u001b[39;49m\u001b[33;43mproduct_name\u001b[39;49m\u001b[33;43m'\u001b[39;49m\u001b[43m,\u001b[49m\u001b[43m \u001b[49m\u001b[33;43m'\u001b[39;49m\u001b[33;43mcategory\u001b[39;49m\u001b[33;43m'\u001b[39;49m\u001b[43m]\u001b[49m\u001b[43m)\u001b[49m.agg({\n\u001b[32m      6\u001b[39m     \u001b[33m'\u001b[39m\u001b[33mtotal_amount\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33msum\u001b[39m\u001b[33m'\u001b[39m,\n\u001b[32m      7\u001b[39m     \u001b[33m'\u001b[39m\u001b[33mquantity\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33msum\u001b[39m\u001b[33m'\u001b[39m,\n\u001b[32m      8\u001b[39m     \u001b[33m'\u001b[39m\u001b[33morder_id\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33mcount\u001b[39m\u001b[33m'\u001b[39m\n\u001b[32m      9\u001b[39m }).rename(columns={\u001b[33m'\u001b[39m\u001b[33morder_id\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33morder_count\u001b[39m\u001b[33m'\u001b[39m}).reset_index().sort_values(\u001b[33m'\u001b[39m\u001b[33mtotal_amount\u001b[39m\u001b[33m'\u001b[39m, ascending=\u001b[38;5;28;01mFalse\u001b[39;00m).head(\u001b[32m10\u001b[39m)\n\u001b[32m     14\u001b[39m \u001b[38;5;66;03m# Auto-appended: Save result to parquet\u001b[39;00m\n\u001b[32m     15\u001b[39m \u001b[38;5;28;01mimport\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[34;01mos\u001b[39;00m\n\n\u001b[36mFile \u001b[39m\u001b[32m~/Documents/泛钛客资料/space/jupyter_analysis_visualize/.venv/lib/python3.12/site-packages/pandas/core/frame.py:9210\u001b[39m, in \u001b[36mDataFrame.groupby\u001b[39m\u001b[34m(self, by, axis, level, as_index, sort, group_keys, observed, dropna)\u001b[39m\n\u001b[32m   9207\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m level \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m \u001b[38;5;129;01mand\u001b[39;00m by \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[32m   9208\u001b[39m     \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mTypeError\u001b[39;00m(\u001b[33m\"\u001b[39m\u001b[33mYou have to supply one of \u001b[39m\u001b[33m'\u001b[39m\u001b[33mby\u001b[39m\u001b[33m'\u001b[39m\u001b[33m and \u001b[39m\u001b[33m'\u001b[39m\u001b[33mlevel\u001b[39m\u001b[33m'\u001b[39m\u001b[33m\"\u001b[39m)\n\u001b[32m-> \u001b[39m\u001b[32m9210\u001b[39m \u001b[38;5;28;01mreturn\u001b[39;00m \u001b[43mDataFrameGroupBy\u001b[49m\u001b[43m(\u001b[49m\n\u001b[32m   9211\u001b[39m \u001b[43m    \u001b[49m\u001b[43mobj\u001b[49m\u001b[43m=\u001b[49m\u001b[38;5;28;43mself\u001b[39;49m\u001b[43m,\u001b[49m\n\u001b[32m   9212\u001b[39m \u001b[43m    \u001b[49m\u001b[43mkeys\u001b[49m\u001b[43m=\u001b[49m\u001b[43mby\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9213\u001b[39m \u001b[43m    \u001b[49m\u001b[43maxis\u001b[49m\u001b[43m=\u001b[49m\u001b[43maxis\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9214\u001b[39m \u001b[43m    \u001b[49m\u001b[43mlevel\u001b[49m\u001b[43m=\u001b[49m\u001b[43mlevel\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9215\u001b[39m \u001b[43m    \u001b[49m\u001b[43mas_index\u001b[49m\u001b[43m=\u001b[49m\u001b[43mas_index\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9216\u001b[39m \u001b[43m    \u001b[49m\u001b[43msort\u001b[49m\u001b[43m=\u001b[49m\u001b[43msort\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9217\u001b[39m \u001b[43m    \u001b[49m\u001b[43mgroup_keys\u001b[49m\u001b[43m=\u001b[49m\u001b[43mgroup_keys\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9218\u001b[39m \u001b[43m    \u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m=\u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9219\u001b[39m \u001b[43m    \u001b[49m\u001b[43mdropna\u001b[49m\u001b[43m=\u001b[49m\u001b[43mdropna\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   9220\u001b[39m \u001b[43m\u001b[49m\u001b[43m)\u001b[49m\n\n\u001b[36mFile \u001b[39m\u001b[32m~/Documents/泛钛客资料/space/jupyter_analysis_visualize/.venv/lib/python3.12/site-packages/pandas/core/groupby/groupby.py:1331\u001b[39m, in \u001b[36mGroupBy.__init__\u001b[39m\u001b[34m(self, obj, keys, axis, level, grouper, exclusions, selection, as_index, sort, group_keys, observed, dropna)\u001b[39m\n\u001b[32m   1328\u001b[39m \u001b[38;5;28mself\u001b[39m.dropna = dropna\n\u001b[32m   1330\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m grouper \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[32m-> \u001b[39m\u001b[32m1331\u001b[39m     grouper, exclusions, obj = \u001b[43mget_grouper\u001b[49m\u001b[43m(\u001b[49m\n\u001b[32m   1332\u001b[39m \u001b[43m        \u001b[49m\u001b[43mobj\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1333\u001b[39m \u001b[43m        \u001b[49m\u001b[43mkeys\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1334\u001b[39m \u001b[43m        \u001b[49m\u001b[43maxis\u001b[49m\u001b[43m=\u001b[49m\u001b[43maxis\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1335\u001b[39m \u001b[43m        \u001b[49m\u001b[43mlevel\u001b[49m\u001b[43m=\u001b[49m\u001b[43mlevel\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1336\u001b[39m \u001b[43m        \u001b[49m\u001b[43msort\u001b[49m\u001b[43m=\u001b[49m\u001b[43msort\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1337\u001b[39m \u001b[43m        \u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m=\u001b[49m\u001b[38;5;28;43;01mFalse\u001b[39;49;00m\u001b[43m \u001b[49m\u001b[38;5;28;43;01mif\u001b[39;49;00m\u001b[43m \u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;129;43;01mis\u001b[39;49;00m\u001b[43m \u001b[49m\u001b[43mlib\u001b[49m\u001b[43m.\u001b[49m\u001b[43mno_default\u001b[49m\u001b[43m \u001b[49m\u001b[38;5;28;43;01melse\u001b[39;49;00m\u001b[43m \u001b[49m\u001b[43mobserved\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1338\u001b[39m \u001b[43m        \u001b[49m\u001b[43mdropna\u001b[49m\u001b[43m=\u001b[49m\u001b[38;5;28;43mself\u001b[39;49m\u001b[43m.\u001b[49m\u001b[43mdropna\u001b[49m\u001b[43m,\u001b[49m\n\u001b[32m   1339\u001b[39m \u001b[43m    \u001b[49m\u001b[43m)\u001b[49m\n\u001b[32m   1341\u001b[39m \u001b[38;5;28;01mif\u001b[39;00m observed \u001b[38;5;129;01mis\u001b[39;00m lib.no_default:\n\u001b[32m   1342\u001b[39m     \u001b[38;5;28;01mif\u001b[39;00m \u001b[38;5;28many\u001b[39m(ping._passed_categorical \u001b[38;5;28;01mfor\u001b[39;00m ping \u001b[38;5;129;01min\u001b[39;00m grouper.groupings):\n\n\u001b[36mFile \u001b[39m\u001b[32m~/Documents/泛钛客资料/space/jupyter_analysis_visualize/.venv/lib/python3.12/site-packages/pandas/core/groupby/grouper.py:1043\u001b[39m, in \u001b[36mget_grouper\u001b[39m\u001b[34m(obj, key, axis, level, sort, observed, validate, dropna)\u001b[39m\n\u001b[32m   1041\u001b[39m         in_axis, level, gpr = \u001b[38;5;28;01mFalse\u001b[39;00m, gpr, \u001b[38;5;28;01mNone\u001b[39;00m\n\u001b[32m   1042\u001b[39m     \u001b[38;5;28;01melse\u001b[39;00m:\n\u001b[32m-> \u001b[39m\u001b[32m1043\u001b[39m         \u001b[38;5;28;01mraise\u001b[39;00m \u001b[38;5;167;01mKeyError\u001b[39;00m(gpr)\n\u001b[32m   1044\u001b[39m \u001b[38;5;28;01melif\u001b[39;00m \u001b[38;5;28misinstance\u001b[39m(gpr, Grouper) \u001b[38;5;129;01mand\u001b[39;00m gpr.key \u001b[38;5;129;01mis\u001b[39;00m \u001b[38;5;129;01mnot\u001b[39;00m \u001b[38;5;28;01mNone\u001b[39;00m:\n\u001b[32m   1045\u001b[39m     \u001b[38;5;66;03m# Add key to exclusions\u001b[39;00m\n\u001b[32m   1046\u001b[39m     exclusions.add(gpr.key)\n\n\u001b[31mKeyError\u001b[39m: 'category'"
+    },
+    {
+      "node_id": "p3_category_chart",
+      "node_type": "chart",
+      "name": "Path 3: Market Share Distribution",
+      "depends_on": [
+        "p3_category_market_share"
+      ],
+      "execution_status": "validated",
+      "result_format": "image",
+      "result_path": "visualizations/p3_category_chart.png",
+      "output_type": "figure",
+      "display_type": "image_viewer",
+      "description": "PNG visualization showing market share distribution",
+      "position": {
+        "x": 1368,
+        "y": 360
+      },
+      "error_message": null,
+      "execution_time": 10.925908,
+      "last_execution_time": "2025-11-20T16:13:21.969873",
+      "is_dict_result": false
+    },
+    {
+      "node_id": "p4_promo_effectiveness",
+      "node_type": "compute",
+      "name": "Path 4: Promotion Effectiveness",
+      "depends_on": [],
+      "execution_status": "validated",
+      "result_format": "parquet",
+      "result_path": "parquets/p4_promo_effectiveness.parquet",
+      "error_message": null,
+      "execution_time": 0.022306,
+      "last_execution_time": "2025-11-20T16:10:27.788459",
+      "output_type": "dataframe",
+      "is_dict_result": false,
+      "position": {
+        "x": 240,
+        "y": 690
+      }
+    },
+    {
+      "node_id": "p4_category_promo_impact",
+      "node_type": "compute",
+      "name": "Path 4: Promotion Impact by Category",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null,
+      "position": {
+        "x": 0,
+        "y": 1050
+      }
+    },
+    {
+      "node_id": "p4_payment_method_analysis",
+      "node_type": "compute",
+      "name": "Path 4: Payment Method Analysis",
+      "depends_on": [],
+      "execution_status": "not_executed",
+      "result_format": "parquet",
+      "result_path": null,
+      "position": {
+        "x": 0,
+        "y": 1200
+      }
+    },
+    {
+      "node_id": "p4_promo_chart",
+      "node_type": "chart",
+      "name": "Path 4: Promotion Effectiveness Comparison",
+      "depends_on": [
+        "p4_promo_effectiveness"
+      ],
+      "execution_status": "validated",
+      "result_format": "image",
+      "result_path": "visualizations/p4_promo_chart.png",
+      "output_type": "figure",
+      "display_type": "image_viewer",
+      "description": "PNG visualization comparing promotion effectiveness",
+      "error_message": null,
+      "execution_time": 4.680131,
+      "last_execution_time": "2025-11-20T16:10:32.437634",
+      "is_dict_result": false,
+      "position": {
+        "x": 515,
+        "y": 750
+      }
+    }
+  ]
+}
