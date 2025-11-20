@@ -197,7 +197,8 @@ class NotebookManager:
         depends_on: Optional[List[str]] = None,
         name: Optional[str] = None,
         add_header_comment: bool = True,
-        execution_status: Optional[str] = None
+        execution_status: Optional[str] = None,
+        declared_output_type: Optional[str] = None
     ) -> int:
         """
         Append a code cell with optional node metadata
@@ -210,13 +211,18 @@ class NotebookManager:
             name: Human-readable name for this node
             add_header_comment: If True, add metadata comments to code
             execution_status: 'not_executed', 'pending_validation', 'validated'
+            declared_output_type: Declared output type (e.g., 'dict_of_dataframes')
 
         Returns:
             Index of the new cell
         """
         # Format code with header comments if it's a node
         if node_type and add_header_comment:
-            code = self._add_node_header_comment(code, node_type, node_id, depends_on, name, execution_status)
+            code = self._add_node_header_comment(code, node_type, node_id, depends_on, name, execution_status, declared_output_type)
+
+        # Parse @output_type from code if not explicitly provided
+        if not declared_output_type and node_type:
+            declared_output_type = self._extract_output_type_from_code(code)
 
         cell = NotebookCell(
             cell_type='code',
@@ -225,7 +231,8 @@ class NotebookManager:
             node_id=node_id,
             depends_on=depends_on,
             name=name,
-            execution_status=execution_status
+            execution_status=execution_status,
+            declared_output_type=declared_output_type
         )
         return self._append_cell(cell)
 
@@ -253,7 +260,8 @@ class NotebookManager:
         node_id: str,
         depends_on: Optional[List[str]],
         name: Optional[str],
-        execution_status: Optional[str] = None
+        execution_status: Optional[str] = None,
+        declared_output_type: Optional[str] = None
     ) -> str:
         """
         Add header comments to code for node metadata
@@ -269,6 +277,7 @@ class NotebookManager:
             depends_on: Upstream dependencies
             name: Node name
             execution_status: Node execution status
+            declared_output_type: Declared output type (e.g., 'dict_of_dataframes')
 
         Returns:
             Code with header comments
@@ -288,11 +297,32 @@ class NotebookManager:
         if name:
             lines.append(f"# @name: {name}")
 
+        if declared_output_type:
+            lines.append(f"# @output_type: {declared_output_type}")
+
         lines.append("# ===== End of system-managed metadata =====")
         lines.append("")  # Empty line after metadata
         lines.append(code)
 
         return '\n'.join(lines)
+
+    @staticmethod
+    def _extract_output_type_from_code(code: str) -> Optional[str]:
+        """
+        Extract @output_type annotation from code comments
+
+        Args:
+            code: Python code
+
+        Returns:
+            Output type string if found, None otherwise
+        """
+        # Pattern to match: # @output_type: <type>
+        pattern = re.compile(r'#\s*@output_type:\s*([\w_]+)')
+        match = pattern.search(code)
+        if match:
+            return match.group(1)
+        return None
 
     def insert_code_cell(
         self,

@@ -1592,63 +1592,63 @@ with open(r'{full_path}', 'rb') as f:
                 # First check declared_output_type, then check actual file structure
                 from pathlib import Path
 
-                # Priority 1: Check declared output type
+                # Priority 1: Initialize is_dict_result and auto-detect flag
+                is_dict_result = False
+                need_auto_detect = False
+
+                # Priority 2: Check declared output type STRICTLY
+                # If declared, we trust the declaration and don't auto-detect from file structure
                 if declared_output_type == 'dict_of_dataframes':
+                    # User explicitly declared this returns dict
                     is_dict_result = True
                     print(f"[Execution] ✓ Using declared output type: dict_of_dataframes")
                 elif declared_output_type:
-                    # Other declared types don't affect is_dict_result
+                    # Other declared types mean it's NOT a dict
                     is_dict_result = False
                     print(f"[Execution] ✓ Using declared output type: {declared_output_type}")
+                    # Don't auto-detect from file structure when type is explicitly declared
+                else:
+                    # No declaration - need to auto-detect from file structure
+                    need_auto_detect = True
 
-                # Priority 2: If no declaration, detect from actual file structure
-                if not declared_output_type:
+                # Priority 3: Auto-detect from file structure ONLY if not declared
+                if need_auto_detect:
                     if result_format == 'parquet':
                         # For parquet format, check if directory with metadata exists
                         parquets_path = Path(self.pm.parquets_path)
                         node_dir = parquets_path / node_id
                         if node_dir.is_dir() and (node_dir / '_metadata.json').exists():
                             is_dict_result = True
-                            result_path = f"{target_dir}/{node_id}"
                             print(f"[Execution] ✓ Detected dict of DataFrames result - saved as directory")
-                        else:
-                            result_path = f"{target_dir}/{node_id}.parquet"
+                        # else: is_dict_result remains False
                     else:
-                        # For other formats (json, etc.), determine file extension
+                        # For other formats (json, etc.), check for dict indicators
                         if result_format == 'json':
-                            file_ext = 'json'
                             # Also check for dict saved as JSON
                             results_dir = Path(self.pm.parquets_path) / 'results'
                             dict_path = results_dir / f'{node_id}_dict.json'
                             if dict_path.exists():
                                 is_dict_result = True
-                                result_path = f"{target_dir}/results/{node_id}_dict.json"
                                 print(f"[Execution] ✓ Detected dict result saved as JSON")
-                            else:
-                                result_path = f"{target_dir}/{node_id}.{file_ext}"
-                        elif result_format in ['image', 'visualization']:
-                            file_ext = 'png'
-                            result_path = f"{target_dir}/{node_id}.{file_ext}"
-                        elif result_format == 'pkl':
-                            file_ext = 'pkl'
-                            result_path = f"{target_dir}/{node_id}.{file_ext}"
-                        else:
-                            file_ext = result_format
-                            result_path = f"{target_dir}/{node_id}.{file_ext}"
-                else:
-                    # When declared_output_type is present, still set result_path
-                    if result_format == 'parquet':
-                        if is_dict_result:
-                            result_path = f"{target_dir}/{node_id}"
-                        else:
-                            result_path = f"{target_dir}/{node_id}.parquet"
-                    elif result_format == 'json':
-                        if is_dict_result:
-                            result_path = f"{target_dir}/results/{node_id}_dict.json"
-                        else:
-                            result_path = f"{target_dir}/{node_id}.json"
+                            # else: is_dict_result remains False
+
+                # Set result_path based on is_dict_result flag
+                if result_format == 'parquet':
+                    if is_dict_result:
+                        result_path = f"{target_dir}/{node_id}"
                     else:
-                        result_path = f"{target_dir}/{node_id}.{result_format}"
+                        result_path = f"{target_dir}/{node_id}.parquet"
+                elif result_format == 'json':
+                    if is_dict_result:
+                        result_path = f"{target_dir}/results/{node_id}_dict.json"
+                    else:
+                        result_path = f"{target_dir}/{node_id}.json"
+                elif result_format in ['image', 'visualization']:
+                    result_path = f"{target_dir}/{node_id}.png"
+                elif result_format == 'pkl':
+                    result_path = f"{target_dir}/{node_id}.pkl"
+                else:
+                    result_path = f"{target_dir}/{node_id}.{result_format}"
 
             # Call unified metadata sync method (Step 8: Update node status)
             print(f"[Execution] Step 8: Updating node status...")
