@@ -216,27 +216,74 @@ class DAGLayout:
     ) -> Dict[str, Tuple[float, float]]:
         """
         Apply special positioning rules for single-child/single-parent nodes:
-        1. Layer 0 node with single child: move to child's left-top (父节点在左上)
-           - x = child_x - SPECIAL_OFFSET
-           - y = child_y - SPECIAL_OFFSET
-        2. Non-layer-0 node with single parent and no children: move to parent's right-bottom (子节点在右下)
+        1. Non-layer-0 node with single parent and no children: move to parent's right-bottom (子节点在右下)
            - x = parent_x + SPECIAL_OFFSET
            - y = parent_y + SPECIAL_OFFSET
+           - 优先级高于规则2（先应用此规则）
+           - 对计算节点不生效（type == 'compute' 的节点不移动）
+        2. Layer 0 node with single child: move to child's left-top (父节点在左上)
+           - x = child_x - SPECIAL_OFFSET
+           - y = child_y - SPECIAL_OFFSET
+           - 对计算节点不生效（父节点为 compute 时不移动）
+           - 如果该子节点位于第 1 层，则本规则不生效
+           - 若该子节点已被规则1移动，则本规则不生效（规则1优先）
         """
         new_positions = dict(positions)
 
-        # Rule 1: Layer 0 node with single child
-        # Position at child's left-top (父节点在左上)
+        def is_compute(node_id: str) -> bool:
+            node = self.nodes.get(node_id, {})
+            return str(node.get('type', '')).strip().lower() == 'compute'
+
+        # Rule 2 (priority): Non-layer-0 node with single parent and no children
+        moved_by_rule2: Set[str] = set()
+        for node_id, layer in layers.items():
+            if layer == 0:
+                continue
+            if is_compute(node_id):
+                continue
+
+            # Check if has single parent
+            parents = [p for p in self.reverse_adjacency.get(node_id, []) if p in layers]
+            if len(parents) != 1:
+                continue
+
+            # Check if has no children
+            children = [c for c in self.adjacency_list.get(node_id, []) if c in layers]
+            if children:
+                continue
+
+            # Check if parent has single child (this node)
+            parent_id = parents[0]
+            parent_children = [c for c in self.adjacency_list.get(parent_id, []) if c in layers]
+            if len(parent_children) != 1:
+                continue
+
+            # Move child to parent's right-bottom
+            parent_x, parent_y = new_positions[parent_id]
+            new_x = parent_x + self.SPECIAL_OFFSET
+            new_y = parent_y + self.SPECIAL_OFFSET
+            new_positions[node_id] = (new_x, new_y)
+            moved_by_rule2.add(node_id)
+
+        # Rule 1: Layer 0 node with single child (with new constraints)
         layer_0_nodes = [n_id for n_id, l in layers.items() if l == 0]
         for node_id in layer_0_nodes:
+            if is_compute(node_id):
+                continue
             # Get direct children of this node
             children = self.adjacency_list.get(node_id, [])
             children = [c for c in children if c in layers]
 
             if len(children) == 1:
                 child_id = children[0]
+                # If child's layer is 1, rule does not apply
+                if layers.get(child_id, 0) == 1:
+                    continue
+                # If child was moved by rule2, skip (rule2 priority)
+                if child_id in moved_by_rule2:
+                    continue
+
                 child_x, child_y = new_positions[child_id]
-                # Position at child's left-top
                 new_x = child_x - self.SPECIAL_OFFSET
                 new_y = child_y - self.SPECIAL_OFFSET
                 new_positions[node_id] = (new_x, new_y)
