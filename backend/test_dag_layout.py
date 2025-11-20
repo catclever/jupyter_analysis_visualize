@@ -22,8 +22,9 @@ def test_tool_node_positioning():
     assert positions['tool1']['y'] < 0, "Tool nodes should have negative y"
     assert positions['tool2']['y'] < 0, "Tool nodes should have negative y"
 
-    # Tool2 should come before tool1 (sorted by execution time)
-    assert positions['tool2']['x'] < positions['tool1']['x'], "Nodes should be sorted by execution time"
+    # Horizontal arrangement at top regardless of execution status
+    assert positions['tool1']['y'] == DAGLayout.TOOL_NODE_Y
+    assert positions['tool2']['y'] == DAGLayout.TOOL_NODE_Y
 
     # Data source node should have positive or zero y
     assert positions['data_1']['y'] >= 0, "Non-tool nodes should have non-negative y"

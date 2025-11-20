@@ -207,7 +207,7 @@ def get_project(project_id: str, response: Response) -> Dict[str, Any]:
             # Map backend node types directly to frontend
             # Backend supports: data_source, compute, chart, image, tool
             # Frontend now supports: data_source, compute, chart, image, tool (via config)
-            node_type = node_info.get("node_type", "compute")  # default to compute
+            node_type = node_info.get("type") or node_info.get("node_type", "compute")
 
             # For backward compatibility, map old "data" type to "data_source"
             if node_type == "data":
@@ -1061,7 +1061,7 @@ def auto_layout_nodes(project_id: str) -> Dict[str, Any]:
         for node in raw_nodes:
             transformed_node = {
                 'id': node['node_id'],
-                'type': node.get('type', 'compute'),
+                'type': (node.get('type') or node.get('node_type', 'compute')),
                 'first_execution_time': node.get('first_execution_time'),
                 'last_execution_time': node.get('last_execution_time')
             }

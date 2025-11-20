@@ -44,7 +44,11 @@ class DAGLayout:
             nodes: List of node dicts with at least: id, type, last_execution_time (optional)
             edges: List of (source, target) tuples representing dependencies
         """
-        self.nodes = {node['id']: node for node in nodes}
+        normalized_nodes = []
+        for node in nodes:
+            t = str(node.get('type', 'compute')).strip().lower()
+            normalized_nodes.append({**node, 'type': t})
+        self.nodes = {node['id']: node for node in normalized_nodes}
         self.edges = edges
         self.adjacency_list = self._build_adjacency_list()
         self.reverse_adjacency = self._build_reverse_adjacency_list()
@@ -88,8 +92,8 @@ class DAGLayout:
 
     def _layout_tool_nodes(self, tool_node_ids: List[str]) -> Dict[str, Tuple[float, float]]:
         """
-        Layout tool nodes in a horizontal line at the top
-        Sorted by execution time, with unexecuted nodes last
+        Layout tool nodes in a horizontal line at the top.
+        Do not consider execution status; preserve input order.
 
         Args:
             tool_node_ids: List of tool node IDs
@@ -99,11 +103,8 @@ class DAGLayout:
         """
         positions = {}
 
-        # Sort tool nodes by execution time
-        sorted_nodes = self._sort_by_execution_time(tool_node_ids)
-
-        # Position them horizontally with fixed spacing
-        for i, node_id in enumerate(sorted_nodes):
+        # Position tool nodes horizontally in given order
+        for i, node_id in enumerate(tool_node_ids):
             x = i * self.TOOL_NODE_SPACING
             y = self.TOOL_NODE_Y
             positions[node_id] = (x, y)

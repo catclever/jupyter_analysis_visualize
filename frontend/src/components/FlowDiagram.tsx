@@ -7,6 +7,7 @@ import {
   Controls,
   MiniMap,
   ConnectionMode,
+  ReactFlowInstance,
   NodeProps,
   Handle,
   Position,
@@ -86,6 +87,7 @@ interface FlowDiagramProps {
 }
 
 export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, currentDatasetId = "ecommerce_analytics", onEdgesAdded }: FlowDiagramProps) {
+  const reactFlowRef = useRef<ReactFlowInstance | null>(null);
   const [apiNodes, setApiNodes] = useState<Node<FlowNodeData>[] | null>(null);
   const [apiEdges, setApiEdges] = useState<Edge[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -185,6 +187,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
             id: node.id,
             type: 'default',
             position: position,
+            sourcePosition: Position.Right,
+            targetPosition: Position.Left,
             data: {
               label: node.label,
               type: node.type,
@@ -276,6 +280,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           return node;
         })
       );
+
+      // Ensure view fits updated positions (including top tool row)
+      reactFlowRef.current?.fitView({ includeHiddenNodes: true, padding: 0.2 });
     } catch (error) {
       console.error('[FlowDiagram] Auto-layout failed:', error);
       alert(`Auto-layout failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -546,6 +553,8 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         id: nodeId,
         type: 'default',
         position: { x, y },
+        sourcePosition: Position.Right,
+        targetPosition: Position.Left,
         data: {
           label: `${config.label} 节点`,
           type: nodeType,
@@ -1044,6 +1053,7 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       `}</style>
       
       <ReactFlow
+        onInit={(instance) => { reactFlowRef.current = instance; }}
         key={currentDatasetId}
         nodes={(() => {
           console.log('[FlowDiagram render] nodes state length:', nodes.length);
