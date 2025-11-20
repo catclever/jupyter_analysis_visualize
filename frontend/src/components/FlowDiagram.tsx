@@ -163,6 +163,14 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       if (!parentsMap.has(e.source)) parentsMap.set(e.source, new Set());
     });
 
+    const childrenMap = new Map<string, Set<string>>();
+    rfEdges.forEach((e: any) => {
+      if (toolIds.has(e.source) || toolIds.has(e.target)) return;
+      if (!childrenMap.has(e.source)) childrenMap.set(e.source, new Set());
+      childrenMap.get(e.source)!.add(e.target);
+      if (!childrenMap.has(e.target)) childrenMap.set(e.target, new Set());
+    });
+
     const layerOf = new Map<string, number>();
     const calcLayer = (id: string): number => {
       if (layerOf.has(id)) return layerOf.get(id)!;
@@ -184,32 +192,69 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
       (byLayer.get(l) as any).push(n);
     });
 
+    // Identify special nodes according to backend special rules
+    const specialNodeIds = new Set<string>();
+    nonTool.forEach((n) => {
+      const l = layerOf.get(n.id) || 0;
+      const parents = Array.from(parentsMap.get(n.id) || []);
+      const children = Array.from(childrenMap.get(n.id) || []);
+      if (l === 0 && children.length === 1) {
+        specialNodeIds.add(n.id);
+        return;
+      }
+      if (l > 0 && parents.length === 1 && children.length === 0) {
+        const p = parents[0];
+        const pc = Array.from(childrenMap.get(p) || []);
+        if (pc.length === 1) {
+          specialNodeIds.add(n.id);
+        }
+      }
+    });
+
     const sortedLayers = Array.from(byLayer.keys()).sort((a, b) => a - b);
     if (sortedLayers.length === 0) return;
 
     const updates = new Map<string, { x: number; y: number }>();
-    // Compute right edge of each layer and reposition next layer
-    // Keep layer 0 left as-is
-    let prevLayerRight = Math.max(
-      ...((byLayer.get(sortedLayers[0]) || []) as any).map((n: any) => n.position.x + domWidth(n.id, n.width || 0))
-    );
+    // Compute right edge using only main nodes (exclude special nodes)
     const layerLeft = new Map<number, number>();
+    const layerMainLeft = new Map<number, number>();
+    const layerMainRight = new Map<number, number>();
+
     sortedLayers.forEach((l) => {
       const group = byLayer.get(l)!;
-      const left = Math.min(...group.map((n) => n.position.x));
-      layerLeft.set(l, left);
+      const leftAll = Math.min(...group.map((n) => n.position.x));
+      layerLeft.set(l, leftAll);
+      const mainNodes = group.filter((n) => !specialNodeIds.has(n.id));
+      if (mainNodes.length > 0) {
+        const leftMain = Math.min(...mainNodes.map((n) => n.position.x));
+        const rightMain = Math.max(...mainNodes.map((n) => n.position.x + domWidth(n.id, n.width || 0)));
+        layerMainLeft.set(l, leftMain);
+        layerMainRight.set(l, rightMain);
+      }
     });
 
-    for (let i = 1; i < sortedLayers.length; i++) {
-      const l = sortedLayers[i];
+    // Reposition only main layers
+    let prevMainRight: number | null = null;
+    for (const l of sortedLayers) {
       const group = byLayer.get(l)!;
-      const origLeft = layerLeft.get(l)!;
-      const newLeft = prevLayerRight + LAYER_GAP;
-      group.forEach((n) => {
-        const shift = n.position.x - origLeft;
+      const mainNodes = group.filter((n) => !specialNodeIds.has(n.id));
+      if (mainNodes.length === 0) {
+        // Skip special-only layers
+        continue;
+      }
+      const origLeftMain = layerMainLeft.get(l)!;
+      if (prevMainRight === null) {
+        // Anchor first main layer where it is
+        prevMainRight = layerMainRight.get(l)!;
+        continue;
+      }
+      const newLeft = prevMainRight + LAYER_GAP;
+      mainNodes.forEach((n) => {
+        const shift = n.position.x - origLeftMain;
         updates.set(n.id, { x: newLeft + shift, y: n.position.y });
       });
-      prevLayerRight = Math.max(...group.map((n) => (newLeft + (n.position.x - origLeft) + domWidth(n.id, n.width || 0))));
+      // Update prevMainRight based on relocated mainNodes only
+      prevMainRight = Math.max(...mainNodes.map((n) => (newLeft + (n.position.x - origLeftMain) + domWidth(n.id, n.width || 0))));
     }
 
     if (updates.size === 0) return;

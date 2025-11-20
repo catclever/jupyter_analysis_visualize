@@ -4,7 +4,7 @@
   "description": "Comprehensive e-commerce data analysis with multiple analysis pathways: Sales Trends, Customer Behavior, Category Competition, and Marketing Effectiveness",
   "version": "1.0.0",
   "created_at": "2025-11-20T16:09:49.542118",
-  "updated_at": "2025-11-20T16:13:41.322411",
+  "updated_at": "2025-11-20T16:21:19.055499",
   "nodes": [
     {
       "node_id": "load_orders_data",
@@ -113,7 +113,7 @@
       "result_format": null,
       "result_path": null,
       "position": {
-        "x": 436,
+        "x": 400,
         "y": -150
       }
     },
@@ -141,7 +141,7 @@
       "result_format": "parquet",
       "result_path": null,
       "position": {
-        "x": 515,
+        "x": 294,
         "y": 0
       }
     },
@@ -157,7 +157,7 @@
       "result_path": null,
       "error_message": "Kernel execution error: \u001b[31m---------------------------------------------------------------------------\u001b[39m\n\u001b[31mNameError\u001b[39m                                 Traceback (most recent call last)\n\u001b[36mCell\u001b[39m\u001b[36m \u001b[39m\u001b[32mIn[2]\u001b[39m\u001b[32m, line 4\u001b[39m\n\u001b[32m      1\u001b[39m \u001b[38;5;28;01mimport\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[34;01mpandas\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[38;5;28;01mas\u001b[39;00m\u001b[38;5;250m \u001b[39m\u001b[34;01mpd\u001b[39;00m\n\u001b[32m      3\u001b[39m \u001b[38;5;66;03m# Sales by category\u001b[39;00m\n\u001b[32m----> \u001b[39m\u001b[32m4\u001b[39m p1_category_sales = \u001b[43mload_orders_data\u001b[49m.groupby(\u001b[33m'\u001b[39m\u001b[33mcategory\u001b[39m\u001b[33m'\u001b[39m).agg({\n\u001b[32m      5\u001b[39m     \u001b[33m'\u001b[39m\u001b[33mtotal_amount\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33msum\u001b[39m\u001b[33m'\u001b[39m,\n\u001b[32m      6\u001b[39m     \u001b[33m'\u001b[39m\u001b[33morder_id\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33mcount\u001b[39m\u001b[33m'\u001b[39m,\n\u001b[32m      7\u001b[39m     \u001b[33m'\u001b[39m\u001b[33mquantity\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33msum\u001b[39m\u001b[33m'\u001b[39m\n\u001b[32m      8\u001b[39m }).rename(columns={\u001b[33m'\u001b[39m\u001b[33morder_id\u001b[39m\u001b[33m'\u001b[39m: \u001b[33m'\u001b[39m\u001b[33morder_count\u001b[39m\u001b[33m'\u001b[39m}).reset_index()\n\u001b[32m     10\u001b[39m p1_category_sales = p1_category_sales.sort_values(\u001b[33m'\u001b[39m\u001b[33mtotal_amount\u001b[39m\u001b[33m'\u001b[39m, ascending=\u001b[38;5;28;01mFalse\u001b[39;00m)\n\u001b[32m     14\u001b[39m \u001b[38;5;66;03m# Auto-appended: Save result to parquet\u001b[39;00m\n\n\u001b[31mNameError\u001b[39m: name 'load_orders_data' is not defined",
       "position": {
-        "x": 515,
+        "x": 294,
         "y": 150
       }
     },
@@ -172,7 +172,7 @@
       "result_format": "parquet",
       "result_path": null,
       "position": {
-        "x": 515,
+        "x": 294,
         "y": 300
       }
     },
@@ -190,7 +190,7 @@
       "display_type": "image_viewer",
       "description": "PNG visualization showing sales by category",
       "position": {
-        "x": 861,
+        "x": 360,
         "y": 210
       }
     },
@@ -206,7 +206,7 @@
       "result_format": "parquet",
       "result_path": "parquets/p2_customer_purchase.parquet",
       "position": {
-        "x": 515,
+        "x": 294,
         "y": 450
       },
       "error_message": null,
@@ -226,7 +226,7 @@
       "result_format": "parquet",
       "result_path": "parquets/p2_loyalty_analysis.parquet",
       "position": {
-        "x": 1101,
+        "x": 630,
         "y": 150
       },
       "error_message": null,
@@ -263,7 +263,7 @@
       "display_type": "image_viewer",
       "description": "PNG visualization showing loyalty level distribution",
       "position": {
-        "x": 1368,
+        "x": 660,
         "y": 210
       }
     },
@@ -279,7 +279,7 @@
       "result_format": "parquet",
       "result_path": "parquets/p3_category_comparison.parquet",
       "position": {
-        "x": 515,
+        "x": 294,
         "y": 600
       },
       "error_message": null,
@@ -299,7 +299,7 @@
       "result_format": "parquet",
       "result_path": "parquets/p3_category_market_share.parquet",
       "position": {
-        "x": 1101,
+        "x": 630,
         "y": 300
       },
       "error_message": null,
@@ -336,7 +336,7 @@
       "display_type": "image_viewer",
       "description": "PNG visualization showing market share distribution",
       "position": {
-        "x": 1368,
+        "x": 660,
         "y": 360
       },
       "error_message": null,
@@ -359,34 +359,48 @@
       "is_dict_result": false,
       "position": {
         "x": 240,
-        "y": 690
+        "y": 990
       }
     },
     {
       "node_id": "p4_category_promo_impact",
       "node_type": "compute",
       "name": "Path 4: Promotion Impact by Category",
-      "depends_on": [],
-      "execution_status": "not_executed",
+      "depends_on": [
+        "load_orders_data"
+      ],
+      "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": null,
+      "result_path": "parquets/p4_category_promo_impact.parquet",
       "position": {
-        "x": 0,
-        "y": 1050
-      }
+        "x": 294,
+        "y": 750
+      },
+      "error_message": null,
+      "execution_time": 0.03523,
+      "last_execution_time": "2025-11-20T16:15:04.117098",
+      "output_type": "dataframe",
+      "is_dict_result": false
     },
     {
       "node_id": "p4_payment_method_analysis",
       "node_type": "compute",
       "name": "Path 4: Payment Method Analysis",
-      "depends_on": [],
-      "execution_status": "not_executed",
+      "depends_on": [
+        "load_orders_data"
+      ],
+      "execution_status": "validated",
       "result_format": "parquet",
-      "result_path": null,
+      "result_path": "parquets/p4_payment_method_analysis.parquet",
       "position": {
-        "x": 0,
-        "y": 1200
-      }
+        "x": 294,
+        "y": 900
+      },
+      "error_message": null,
+      "execution_time": 0.031795,
+      "last_execution_time": "2025-11-20T16:15:09.492337",
+      "output_type": "dataframe",
+      "is_dict_result": false
     },
     {
       "node_id": "p4_promo_chart",
@@ -406,8 +420,8 @@
       "last_execution_time": "2025-11-20T16:10:32.437634",
       "is_dict_result": false,
       "position": {
-        "x": 515,
-        "y": 750
+        "x": 300,
+        "y": 1050
       }
     }
   ]
