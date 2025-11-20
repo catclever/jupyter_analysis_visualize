@@ -285,6 +285,27 @@ export async function updateNodePosition(
 }
 
 /**
+ * Auto-layout all nodes in a project using hierarchical DAG layout
+ */
+export async function autoLayoutNodes(
+  projectId: string
+): Promise<{ status: string; project_id: string; updated_nodes: Record<string, { x: number; y: number }>; total_nodes: number }> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/auto-layout`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to auto-layout nodes: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
  * Update node code in notebook
  */
 export async function updateNodeCode(

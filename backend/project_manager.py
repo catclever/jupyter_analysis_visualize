@@ -71,6 +71,7 @@ class ProjectMetadata:
             "result_format": result_format,
             "result_path": result_path,
             "error_message": None,  # Error message if execution failed
+            "first_execution_time": None,  # ISO format timestamp of first execution
             "last_execution_time": None,  # ISO format timestamp of last execution
             "position": position  # Node position {x: float, y: float}
         }
@@ -525,13 +526,19 @@ class ProjectManager:
         if node_id in self.metadata.nodes:
             node = self.metadata.nodes[node_id]
             node['execution_status'] = status
-            node['last_execution_time'] = datetime.now().isoformat()
+            current_time = datetime.now().isoformat()
+            node['last_execution_time'] = current_time
+
+            # Record first_execution_time on first execution
+            if node.get('first_execution_time') is None and status == 'validated':
+                node['first_execution_time'] = current_time
+
             if status == 'validated':
                 node['result_path'] = result_path
                 node['error_message'] = None
             elif status == 'error':
                 node['error_message'] = error
-            
+
             self.metadata.updated_at = datetime.now().isoformat()
             self._save_metadata()
         else:

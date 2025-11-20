@@ -32,6 +32,7 @@ from project_manager import ProjectManager
 from notebook_manager import NotebookManager
 from dependency_analyzer import DependencyAnalyzer
 from kernel_manager import KernelManager
+from dag_layout import calculate_node_positions
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -1027,6 +1028,60 @@ def update_node_position(project_id: str, node_id: str, body: Dict[str, Any] = B
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/projects/{project_id}/auto-layout")
+def auto_layout_nodes(project_id: str) -> Dict[str, Any]:
+    """
+    Automatically layout all nodes in the project using hierarchical DAG layout
+
+    Rules:
+    1. Tool nodes at top (y < 0), sorted by first execution time
+    2. Non-tool nodes in hierarchical layers
+    3. Special positioning for single-child/single-parent nodes
+    4. Nodes sorted by first execution time within each layer
+
+    Returns:
+        Dictionary with updated positions for all nodes
+    """
+    try:
+        pm = get_project_manager(project_id)
+
+        if pm.metadata is None:
+            raise HTTPException(status_code=500, detail="Failed to load project metadata")
+
+        # Get all nodes and edges
+        nodes = pm.list_nodes()
+        if not nodes:
+            raise HTTPException(status_code=400, detail="Project has no nodes")
+
+        # Build edges from node dependencies
+        edges = []
+        for node in nodes:
+            for dep_id in node.get('depends_on', []):
+                edges.append((dep_id, node['id']))
+
+        # Calculate new positions
+        new_positions = calculate_node_positions(nodes, edges)
+
+        # Update all node positions
+        updated_nodes = {}
+        for node_id, position in new_positions.items():
+            pm.update_node_position(node_id, position)
+            updated_nodes[node_id] = position
+
+        return {
+            "status": "success",
+            "project_id": project_id,
+            "updated_nodes": updated_nodes,
+            "total_nodes": len(updated_nodes)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in auto_layout_nodes: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Auto layout failed: {str(e)}")
 
 
 @app.put("/api/projects/{project_id}/nodes/{node_id}/code")

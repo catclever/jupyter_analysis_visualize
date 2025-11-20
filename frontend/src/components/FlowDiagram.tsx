@@ -10,10 +10,11 @@ import {
   NodeProps,
   Handle,
   Position,
+  MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Eye, EyeOff } from 'lucide-react';
-import { getProject, updateNodePosition, type ProjectNode, type ProjectEdge } from '@/services/api';
+import { Eye, EyeOff, Layout } from 'lucide-react';
+import { getProject, updateNodePosition, autoLayoutNodes, type ProjectNode, type ProjectEdge } from '@/services/api';
 import {
   getNodeColor,
   getNodeCategory,
@@ -45,7 +46,7 @@ function NodeWithEyeIcon({ id, data }: NodeProps<FlowNodeData>) {
 
   return (
     <div className="relative w-full h-full">
-      <Handle position={Position.Top} type="target" />
+      <Handle position={Position.Left} type="target" />
       <div className="relative px-4 py-3">
         <p className="text-sm font-medium text-center whitespace-nowrap">{data.label}</p>
 
@@ -71,7 +72,7 @@ function NodeWithEyeIcon({ id, data }: NodeProps<FlowNodeData>) {
         </div>
       </div>
 
-      <Handle position={Position.Bottom} type="source" />
+      <Handle position={Position.Right} type="source" />
     </div>
   );
 }
@@ -203,7 +204,12 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         // 2. Frontend reloads project data via getProject()
         // 3. Backend reconstructs edges from the updated depends_on values
         // 4. Frontend receives the new edges and displays them dynamically
-        const flowEdges = project.edges || [];
+        const flowEdges = (project.edges || []).map((edge: ProjectEdge) => ({
+          ...edge,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          // Use a curved (smooth step) connection style for better left-right flow
+          style: { strokeWidth: 2 }
+        }));
 
         setApiNodes(flowNodes);
         setApiEdges(flowEdges);
@@ -247,6 +253,36 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
   const [nodeIdCounter, setNodeIdCounter] = React.useState(0);
   const [openCategoryDropdown, setOpenCategoryDropdown] = React.useState<string | null>(null);
   const [selectedNodeTypeForDrag, setSelectedNodeTypeForDrag] = React.useState<NodeType | null>(null);
+  const [isAutoLayouting, setIsAutoLayouting] = React.useState(false);
+
+  // Handle auto-layout
+  const handleAutoLayout = React.useCallback(async () => {
+    try {
+      setIsAutoLayouting(true);
+      const result = await autoLayoutNodes(currentDatasetId);
+      console.log('[FlowDiagram] Auto-layout result:', result);
+
+      // Update node positions based on the result
+      setNodes((nds) =>
+        nds.map((node) => {
+          const newPosition = result.updated_nodes[node.id];
+          if (newPosition) {
+            return {
+              ...node,
+              position: newPosition,
+              positionAbsolute: newPosition,
+            };
+          }
+          return node;
+        })
+      );
+    } catch (error) {
+      console.error('[FlowDiagram] Auto-layout failed:', error);
+      alert(`Auto-layout failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsAutoLayouting(false);
+    }
+  }, [currentDatasetId]);
 
   // Handle node changes (including drag operations)
   const handleNodesChange = React.useCallback((changes: any) => {
@@ -861,12 +897,23 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
           stroke: hsl(var(--flow-connection));
           stroke-width: 2;
         }
-        
+
+        /* Arrow marker styling */
+        marker {
+          fill: hsl(var(--flow-connection));
+        }
+
+        /* Curved edge styling for smooth left-right flow */
+        .react-flow__edge {
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+
         .react-flow__edge.animated .react-flow__edge-path {
           stroke-dasharray: 5;
           animation: dashdraw 0.5s linear infinite;
         }
-        
+
         @keyframes dashdraw {
           to {
             stroke-dashoffset: -10;
@@ -1071,6 +1118,9 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
                   nodeTypeFilter.has(targetCategory) &&
                   shouldShowEdge(edge));
         })}
+        defaultEdgeOptions={{
+          markerEnd: { type: MarkerType.ArrowClosed },
+        }}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onNodeClick={handleNodeClick}
@@ -1085,7 +1135,16 @@ export function FlowDiagram({ onNodeClick, selectedNodeId, minimapOpen = true, c
         <Background />
         <Controls />
         {localMinimapOpen && <MiniMap />}
-        <div className="absolute bottom-4 right-4 z-40">
+        <div className="absolute bottom-4 right-4 z-40 flex gap-2">
+          <button
+            onClick={handleAutoLayout}
+            disabled={isAutoLayouting}
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded border border-border bg-background hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="自动排列节点"
+          >
+            <Layout className="h-4 w-4" />
+            <span className="text-xs font-medium">{isAutoLayouting ? '排列中...' : '自动排列'}</span>
+          </button>
           <button
             onClick={() => setLocalMinimapOpen(!localMinimapOpen)}
             className="flex items-center justify-center w-8 h-8 rounded border border-border bg-background hover:bg-muted transition-colors"
