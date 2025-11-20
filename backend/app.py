@@ -1051,20 +1051,33 @@ def auto_layout_nodes(project_id: str) -> Dict[str, Any]:
             raise HTTPException(status_code=500, detail="Failed to load project metadata")
 
         # Get all nodes and edges
-        nodes = pm.list_nodes()
-        if not nodes:
+        raw_nodes = pm.list_nodes()
+        if not raw_nodes:
             raise HTTPException(status_code=400, detail="Project has no nodes")
+
+        # Transform nodes for dag_layout: rename 'node_id' to 'id' and keep 'type' for node type
+        nodes = []
+        node_id_mapping = {}  # Map from 'id' to 'node_id' for reverse lookup
+        for node in raw_nodes:
+            transformed_node = {
+                'id': node['node_id'],
+                'type': node.get('type', 'compute'),
+                'first_execution_time': node.get('first_execution_time'),
+                'last_execution_time': node.get('last_execution_time')
+            }
+            nodes.append(transformed_node)
+            node_id_mapping[transformed_node['id']] = node['node_id']
 
         # Build edges from node dependencies
         edges = []
-        for node in nodes:
+        for node in raw_nodes:
             for dep_id in node.get('depends_on', []):
-                edges.append((dep_id, node['id']))
+                edges.append((dep_id, node['node_id']))
 
         # Calculate new positions
         new_positions = calculate_node_positions(nodes, edges)
 
-        # Update all node positions
+        # Update all node positions (convert 'id' back to 'node_id')
         updated_nodes = {}
         for node_id, position in new_positions.items():
             pm.update_node_position(node_id, position)
